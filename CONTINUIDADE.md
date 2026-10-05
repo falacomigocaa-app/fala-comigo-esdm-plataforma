@@ -98,16 +98,17 @@ O `EsdmPdfService` expõe `gerarRelatorioUnificado()` e reúne metas traduzidas,
 
 | Componente | Caminho | Responsabilidade |
 |---|---|---|
-| Manifesto | `portal-web/package.json` | ES Modules nativos, scripts `start` e `check`. |
+| Manifesto | `portal-web/package.json` | ES Modules nativos, scripts `start`, `check` e `test`. |
 | Bootstrap | `portal-web/src/main.js` | Montagem do app, eventos de navegação e CSS. |
 | Roteador | `portal-web/src/router.js` | Rotas `/login`, `/clinica` e `/escola`, com guardas de sessão. |
-| Cliente/fixtures | `portal-web/src/api/client.js` | Sessão sintética, `x-synthetic-user-id`, `x-request-id`, fetch e dados de demonstração. |
+| Cliente HTTP | `portal-web/src/api/client.js` | Sessão sintética, `x-synthetic-user-id`, `x-request-id` e fetch dos endpoints reais do portal-api. |
 | Autenticação | `portal-web/src/screens/auth_screen.js` | Login local sintético sem senha. |
 | Clínica | `portal-web/src/screens/clinica_screen.js` | Pacientes autorizados e formulário de metas ESDM. |
 | Escola | `portal-web/src/screens/escola_screen.js` | Rotina escolar e médias semanais de independência. |
 | Estilos | `portal-web/src/styles.css` | Layout responsivo, tabelas, cartões e estados de acesso. |
 | Página HTML | `portal-web/index.html` | Documento que carrega o bootstrap modular. |
 | Servidor local | `portal-web/dev_server.mjs` | `node:http` com fallback de SPA para as rotas do frontend. |
+| Testes HTTP | `portal-web/test/client.test.js` | URLs parametrizadas, headers, POST de metas e propagação de erros HTTP. |
 
 ## Integrações globais
 
@@ -315,6 +316,12 @@ As rotas revalidam identidade sintética, membership, consentimento, validade e 
 `npm test` do `portal-api` passou com 17 testes e 1 teste PostgreSQL pulado por ausência de banco configurado. O teste de endpoints HTTP confirmou preflight CORS, listagem de subjects, criação de meta, leitura de coletas e bloqueio do outsider. `npm run check` do `portal-web` e `git diff --check` também passaram.
 
 Nesta sandbox, `DATABASE_URL` não está configurada; portanto, a execução local usa `storageMode: memory-test-only` para os testes sintéticos. O caminho PostgreSQL está implementado e será ativado somente após aplicar a migration e iniciar o backend com `DATABASE_URL`. Não declarar persistência real validada até executar o teste de integração contra um banco de staging.
+
+### Integração visual ponta a ponta — 05/10/2026
+
+O `portal-web` deixou de usar fixtures de dados nas telas. `APIClient` realiza `fetch` para os endpoints reais de subjects, metas ESDM e coletas escolares, enviando `x-synthetic-user-id` e `x-request-id`; os escopos são revalidados no backend. As telas clínica e escola renderizam loading, sucesso, ausência de dados e falha de API/rede durante a hidratação assíncrona.
+
+Foi adicionada a suíte `portal-web/test/client.test.js`, cobrindo URLs parametrizadas, headers, POST de meta e propagação de `SCOPE_DENIED`. `npm run check` e `npm test` passaram, e um smoke test HTTP confirmou resposta dos três recursos. A revisão visual completa em navegador ainda é um gate separado; nenhum commit ou push foi feito nesta etapa.
 
 ### Limites e decisão de integração
 

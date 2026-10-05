@@ -1,7 +1,7 @@
 
 
-## Atualização — 05/10/2026 — PostgreSQL staging efêmero validado
+## Atualização — 05/10/2026 — integração visual ponta a ponta
 
-Foi instalado PostgreSQL 16 localmente porque Docker e `psql` não estavam disponíveis. O cluster efêmero foi iniciado, o banco `fala_comigo_staging` foi criado com a URL do `.env.example`, a migration completa foi aplicada e fixtures sintéticas mínimas foram inseridas para satisfazer as foreign keys de `child_subjects` e `users`.
+O frontend modular deixou de depender de respostas estáticas: `portal-web/src/api/client.js` concentra as chamadas `fetch` reais e envia identidade sintética, request id e JSON quando necessário. `clinica_screen.js` carrega subjects e metas, permite POST de meta e recarrega a tabela; `escola_screen.js` carrega coletas e recalcula os cards/resumo semanal. Ambas as telas explicitam loading, sucesso, vazio e erro de API/rede.
 
-A execução com `DATABASE_URL` e `PGTEST_URL` confirmou: `npm run test:db` passou com `storageMode: postgres`; `npm test` passou com 18 testes, incluindo o teste PostgreSQL antes ignorado; e o round-trip real de `saveGoal/getGoalsBySubject` e `saveCollection/getCollectionsBySubject` passou contra as tabelas PostgreSQL. O teste de schema foi ampliado para verificar `esdm_goals` e `school_collections`. O banco foi apagado e o cluster parado depois da validação. Nenhuma credencial real ou dado de criança foi usado.
+Foi adicionada a suíte `portal-web/test/client.test.js` e o script `npm test`. Os três testes passaram, cobrindo URLs parametrizadas, headers, POST de meta e erro `SCOPE_DENIED`. `npm run check` também passou. Os endpoints `/subjects`, `/esdm-goals` e `/school-collections` responderam por HTTP durante o smoke test, e o handoff registra que a revisão visual completa no navegador permanece como próximo gate.

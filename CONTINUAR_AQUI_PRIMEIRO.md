@@ -1,6 +1,6 @@
 
-## Atualização — 05/10/2026 — validação PostgreSQL efêmera concluída
+## Atualização — 05/10/2026 — portal-web consumindo API real
 
-Docker e `psql` não estavam disponíveis inicialmente; foi instalado PostgreSQL 16 localmente apenas para esta validação. O cluster `16/main` foi iniciado, o banco `fala_comigo_staging` foi criado com a URL documentada, a migration `portal-api/migrations/001_initial.sql` foi aplicada sem erros e foram inseridas somente fixtures sintéticas mínimas para satisfazer as chaves estrangeiras.
+A camada visual do `portal-web` foi auditada e confirmada sem fixtures de pacientes, metas ou coletas. `APIClient` usa `fetch` real para `GET /v1/organizations/{organizationId}/subjects`, `GET/POST /v1/subjects/{subjectId}/esdm-goals` e `GET/POST /v1/subjects/{subjectId}/school-collections`, enviando `x-synthetic-user-id` e `x-request-id`; os escopos continuam sendo decididos e verificados server-side pelo portal-api.
 
-Com `DATABASE_URL` e `PGTEST_URL` apontando para `postgres://postgres:postgres@localhost:5432/fala_comigo_staging`, `npm run test:db` passou em modo `postgres`, `npm test` passou com 18/18 testes e sem skips, e um round-trip real confirmou INSERT/SELECT de `esdm_goals` e `school_collections` via `pg.Pool`. O banco foi removido e o cluster foi parado ao final; nenhuma instância persistente ficou ativa. A alteração do teste de migration inclui agora as tabelas funcionais.
+As telas clínica e escola agora têm render inicial de loading, hidratação assíncrona, atualização de sucesso, estado vazio e mensagens de erro HTTP/rede. Foi criada a suíte `portal-web/test/client.test.js`, com três testes para headers/URLs, POST JSON de meta e propagação de `SCOPE_DENIED`. `npm run check` e `npm test` do portal-web passaram; os endpoints reais também responderam por HTTP para pacientes, metas e coletas. A validação visual em navegador completo continua sendo um gate separado.
