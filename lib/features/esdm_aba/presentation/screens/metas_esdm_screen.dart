@@ -108,7 +108,7 @@ class MetasEsdmScreen extends ConsumerWidget {
   }
 
   Future<void> _showAddMetaDialog(BuildContext context, WidgetRef ref) async {
-    String selectedCode = EsdmTranslator.translations.keys.first;
+    String selectedCode = EsdmTranslator.traducoes.keys.first;
     final controller = ref.read(metaEsdmControllerProvider.notifier);
     final added = await showDialog<bool>(
       context: context,
@@ -123,7 +123,7 @@ class MetasEsdmScreen extends ConsumerWidget {
                   labelText: 'Código técnico Denver',
                   border: OutlineInputBorder(),
                 ),
-                items: EsdmTranslator.translations.keys
+                items: EsdmTranslator.traducoes.keys
                     .map(
                       (code) => DropdownMenuItem(
                         value: code,
