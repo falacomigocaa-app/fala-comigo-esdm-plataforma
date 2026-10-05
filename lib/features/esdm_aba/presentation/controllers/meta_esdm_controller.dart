@@ -9,7 +9,7 @@ import '../../data/meta_esdm_store.dart';
 import '../../data/sincronizacao_queue_store.dart';
 import '../../domain/models/meta_esdm_model.dart';
 import '../../domain/models/sincronizacao_queue_model.dart';
-import '../../domain/services/esdm_pdf_service.dart';
+import '../../domain/services/mobile_pdf_service.dart';
 import '../../domain/services/esdm_translator.dart';
 
 class MetaEsdmState {
@@ -125,12 +125,18 @@ class MetaEsdmController extends StateNotifier<MetaEsdmState> {
     );
   }
 
-  Future<bool> exportarRelatorioUnificado() async {
+  Future<bool> exportarRelatorioUnificado({String? subjectId}) async {
     if (state.exportando) return false;
 
     state = state.copyWith(exportando: true, erro: null);
     try {
-      final bytes = await EsdmPdfService.gerarRelatorioUnificado();
+      final bytes = await MobilePdfService.generate(
+        subjectId: subjectId ??
+            const String.fromEnvironment(
+              'PORTAL_SUBJECT_ID',
+              defaultValue: 'local-subject',
+            ),
+      );
       await Printing.sharePdf(
         bytes: bytes,
         filename: 'relatorio_unificado_fala_comigo.pdf',

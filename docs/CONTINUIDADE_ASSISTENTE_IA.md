@@ -59,3 +59,7 @@ O Portal Web avançou para a exportação de relatórios clínicos: a view de re
 ## Exportação PDF de relatórios validada — 05/10/2026
 
 Foi implementado o motor de exportação clínica baseado em `window.print()`, com capa de identificação, filtros/métricas sincronizados e gráfico SVG em `viewBox` vetorial. O layout usa `@page` A4 e regras de impressão para evitar cortes; o gatilho consulta a sessão ativa e falha fechado sem token, preservando o interceptor Bearer/refresh para o carregamento dos dados. Portal-web: 11 testes aprovados e check sintático aprovado.
+
+## PDF nativo mobile validado — 05/10/2026
+
+Foi criado `MobilePdfService` para gerar PDF A4 local em memória, filtrando `MetaEsdmModel` e `SyncItem` por `subjectId`, com tabelas `MultiPage` que quebram páginas automaticamente. A ação existente da tela de metas agora usa esse serviço e abre o compartilhamento nativo via `Printing.sharePdf`. Dependências `pdf`, `printing` e `share_plus` já estavam declaradas e foram confirmadas por `flutter pub get`. Validação: `flutter analyze` sem issues e 117 testes aprovados, incluindo geração PDF e assinatura `%PDF`.

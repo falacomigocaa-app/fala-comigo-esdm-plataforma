@@ -7,10 +7,13 @@ import 'package:hive/hive.dart';
 import 'package:fala_comigo/features/esdm_aba/data/concessao_acesso_store.dart';
 import 'package:fala_comigo/features/esdm_aba/data/sincronizacao_queue_store.dart';
 import 'package:fala_comigo/features/esdm_aba/domain/models/concessao_acesso_model.dart';
+import 'package:fala_comigo/features/esdm_aba/domain/models/meta_esdm_model.dart';
 import 'package:fala_comigo/features/esdm_aba/domain/models/sincronizacao_queue_model.dart';
 import 'package:fala_comigo/features/esdm_aba/domain/models/sync_item.dart';
+import 'package:fala_comigo/features/esdm_aba/data/meta_esdm_store.dart';
 import 'package:fala_comigo/features/esdm_aba/data/sync_queue_store.dart';
 import 'package:fala_comigo/features/esdm_aba/domain/services/esdm_translator.dart';
+import 'package:fala_comigo/features/esdm_aba/domain/services/mobile_pdf_service.dart';
 import 'package:fala_comigo/features/esdm_aba/domain/services/sync_queue_service.dart';
 
 void main() {
@@ -110,6 +113,35 @@ void main() {
     expect(pending.single.endpointAlvo, '/coletas');
     expect(pending.single.acao, 'INSERT');
     expect(pending.single.processado, isFalse);
+  });
+
+  test('gera PDF clínico com meta e coleta do subjectId local', () async {
+    const subjectId = 'subject-pdf-test';
+    await MetaEsdmStore.save(
+      MetaEsdmModel(
+        id: 'pdf-goal-1',
+        codigoTecnicoDenver: 'CE_N1_I5',
+        subjectId: subjectId,
+      ),
+    );
+    final item = SyncItem(
+      id: 'pdf-collection-1',
+      payload: '{"subjectId":"$subjectId","blocoRotinaEscolar":"Lanche","nivelSuporte":"Independente"}',
+      createdAt: DateTime.utc(2026, 10, 5),
+      endpoint: '/school-collections',
+    );
+    await SyncQueueStore.enqueue(item);
+
+    final bytes = await MobilePdfService.generate(
+      subjectId: subjectId,
+      patientName: 'Paciente PDF',
+      organizationName: 'Clínica Teste',
+    );
+
+    expect(bytes, isNotEmpty);
+    expect(String.fromCharCodes(bytes.take(4)), '%PDF');
+    await SyncQueueStore.remove(item);
+    await MetaEsdmStore.delete('pdf-goal-1');
   });
 
   test('bloqueia concessão revogada mesmo antes da data de expiração', () async {

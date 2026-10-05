@@ -56,3 +56,7 @@ Após a publicação do login central web/mobile, o desenvolvimento avançou par
 ## Exportação PDF de relatórios validada — 05/10/2026
 
 O Portal Web agora exporta o estado atual do relatório pela impressão nativa do navegador: a capa identifica paciente, organização, período, filtro de meta e data de emissão; métricas, sumário e gráfico SVG vetorial permanecem no documento. O botão consulta a sessão persistida no clique e falha fechado sem token. O CSS define A4, margens, quebra de página e largura sem corte para o SVG. Validação: `npm test` passou com 11 testes e `npm run check` passou.
+
+## PDF nativo mobile validado — 05/10/2026
+
+O aplicativo agora gera relatório clínico A4 em memória por `subjectId` via `MobilePdfService`, lendo metas da `esdm_goals_box` e coletas pendentes da `sync_queue_box`, com fallback explícito para metas locais legadas sem subjectId. O documento contém cabeçalho do paciente/organização, resumo de autonomia, tabelas pagináveis e sumário; `MetaEsdmScreen` compartilha o PDF pela folha nativa usando `Printing.sharePdf`. `flutter pub get` confirmou `pdf`, `printing` e `share_plus`; `flutter analyze` passou sem issues e `flutter test` passou com 117 testes (116 anteriores + cobertura PDF).
