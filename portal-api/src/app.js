@@ -1,0 +1,332 @@
+import { AuthorizationError, audit, authenticate, requireScope, stableError } from './authorization.js';
+import { createStore, esdmTranslations } from './store.js';
+
+const jsonHeaders = { 'content-type': 'application/json; charset=utf-8' };
+
+function response(status, body) {
+  return { status, body };
+}
+
+function parsePath(url) {
+  return new URL(url, 'http://localhost').pathname.split('/').filter(Boolean);
+}
+
+function sendAudit(store, context, action, result, error = null) {
+  audit(store, {
+    userId: context.user?.id ?? null,
+    organizationId: context.organizationId,
+    action,
+    result,
+    code: error?.code ?? null,
+    requestId: context.requestId,
+    now: context.now
+  });
+}
+
+function idempotent(store, requestId, handler) {
+  if (!requestId) return handler();
+  if (store.idempotency.has(requestId)) return store.idempotency.get(requestId);
+  const result = handler();
+  store.idempotency.set(requestId, result);
+  return result;
+}
+
+async function idempotentAsync(store, requestId, handler) {
+  if (!requestId) return handler();
+  if (store.idempotency.has(requestId)) return store.idempotency.get(requestId);
+  const result = await handler();
+  store.idempotency.set(requestId, result);
+  return result;
+}
+
+function subjectForOwner(store, subjectId, userId) {
+  const subject = store.subjects.find((item) => item.id === subjectId && item.status === 'active');
+  if (!subject || subject.ownerUserId !== userId) throw new AuthorizationError('RELATIONSHIP_REQUIRED');
+  return subject;
+}
+
+function subjectById(store, subjectId) {
+  const subject = store.subjects.find((item) => item.id === subjectId && item.status === 'active');
+  if (!subject) throw new AuthorizationError('RELATIONSHIP_REQUIRED');
+  return subject;
+}
+
+function activeConsent(store, consentId, now) {
+  const consent = store.consents.find((item) => item.id === consentId);
+  if (!consent) throw new AuthorizationError('CONSENT_REQUIRED');
+  if (consent.status === 'revoked') throw new AuthorizationError('REVOKED');
+  if (consent.status !== 'active' || new Date(consent.validUntil) <= now) throw new AuthorizationError('EXPIRED');
+  return consent;
+}
+
+function grantFor(store, userId, subjectId, scope, now) {
+  const grant = store.grants.find((item) => item.userId === userId && item.subjectId === subjectId && item.status === 'active' && item.scopes.includes(scope));
+  if (!grant) throw new AuthorizationError('GRANT_REQUIRED');
+  if (new Date(grant.validUntil) <= now) throw new AuthorizationError('EXPIRED');
+  const consent = activeConsent(store, grant.consentId, now);
+  return { grant, consent };
+}
+
+function subjectWithScope(store, subjectId, userId, scope, now) {
+  const subject = subjectById(store, subjectId);
+  if (subject.ownerUserId === userId) return { subject, grant: null };
+  const { grant } = grantFor(store, userId, subjectId, scope, now);
+  return { subject, grant };
+}
+
+function requireGoalCode(code) {
+  if (!code || !esdmTranslations[code]) throw new AuthorizationError('INVALID_ESDM_CODE', 400);
+  return esdmTranslations[code];
+}
+
+function requireCollectionPayload(body) {
+  const blocks = new Set(['Lanche', 'Recreio', 'Roda de Conversa', 'Atividade Sentada']);
+  const levels = new Set(['Independente', 'Ajuda Verbal', 'Ajuda Física', 'Recusa']);
+  if (!blocks.has(body?.blocoRotinaEscolar) || !levels.has(body?.nivelSuporte)) {
+    throw new AuthorizationError('INVALID_SCHOOL_COLLECTION', 400);
+  }
+}
+
+export function createApp({ store = createStore(), now = () => new Date('2026-09-25T12:00:00.000Z') } = {}) {
+  async function handle({ method, url, headers = {}, body = null }) {
+    const path = parsePath(url);
+    const userId = headers['x-synthetic-user-id'];
+    const requestId = headers['x-request-id'] ?? null;
+    const clock = now();
+    const context = { user: null, organizationId: null, requestId, now: clock };
+
+    try {
+      if (method === 'GET' && path[0] === 'v1' && path[1] === 'me') {
+        context.user = authenticate(store, userId);
+        return response(200, { id: context.user.id, status: context.user.status, storageMode: store.storageMode });
+      }
+
+      context.user = authenticate(store, userId);
+      if (path[0] !== 'v1') return response(404, { error: 'NOT_FOUND' });
+
+      if (method === 'GET' && path[1] === 'organizations' && path[3] === undefined && path[2]) {
+        context.organizationId = path[2];
+        requireScope(store, context.user.id, context.organizationId, 'organization.read', clock);
+        const organization = store.organizations.find((item) => item.id === context.organizationId);
+        if (!organization) throw new AuthorizationError('RELATIONSHIP_REQUIRED');
+        sendAudit(store, context, 'organization.read', 'allowed');
+        return response(200, organization);
+      }
+
+      if (method === 'GET' && path[1] === 'organizations' && path[3] === 'memberships') {
+        context.organizationId = path[2];
+        requireScope(store, context.user.id, context.organizationId, 'membership.read', clock);
+        const memberships = store.memberships.filter((item) => item.organizationId === context.organizationId);
+        sendAudit(store, context, 'membership.read', 'allowed');
+        return response(200, { memberships });
+      }
+
+      if (method === 'GET' && path[1] === 'organizations' && path[3] === 'subjects') {
+        context.organizationId = path[2];
+        requireScope(store, context.user.id, context.organizationId, 'access.read', clock);
+        const subjects = store.subjects.filter((subject) => {
+          if (subject.ownerUserId === context.user.id) return true;
+          return store.grants.some((grant) => grant.userId === context.user.id && grant.organizationId === context.organizationId && grant.subjectId === subject.id && grant.status === 'active' && new Date(grant.validUntil) > clock);
+        }).map((subject) => ({ id: subject.id, displayName: subject.displayName, status: subject.status, organizationId: context.organizationId }));
+        sendAudit(store, context, 'subject.list', 'allowed');
+        return response(200, { subjects });
+      }
+
+      if (method === 'POST' && path[1] === 'subjects' && path[2] && path[3] === 'consents') {
+        const subject = subjectForOwner(store, path[2], context.user.id);
+        const organizationId = body?.organizationId;
+        const organization = store.organizations.find((item) => item.id === organizationId && item.status === 'active');
+        if (!organization) throw new AuthorizationError('RELATIONSHIP_REQUIRED');
+        const scopes = Array.isArray(body?.scopes) ? [...new Set(body.scopes)] : [];
+        if (scopes.length === 0 || !body?.purpose || !body?.recipientUserId) throw new AuthorizationError('INVALID_CONSENT', 400);
+        const validUntil = body.validUntil ?? '2099-01-01T00:00:00.000Z';
+        if (new Date(validUntil) <= clock) throw new AuthorizationError('EXPIRED');
+        const consent = {
+          id: `consent-${store.consents.length + 1}`,
+          subjectId: subject.id,
+          organizationId,
+          grantedByUserId: context.user.id,
+          recipientUserId: body.recipientUserId,
+          purpose: body.purpose,
+          scopes,
+          noticeVersion: body.noticeVersion ?? 'synthetic-v1',
+          status: 'active',
+          validUntil,
+          createdAt: clock.toISOString(),
+          revokedAt: null
+        };
+        store.consents.push(consent);
+        sendAudit(store, context, 'consent.create', 'allowed');
+        return response(201, consent);
+      }
+
+      if (path[1] === 'subjects' && path[2] && (path[3] === 'esdm-goals' || path[3] === 'school-collections')) {
+        const subjectId = path[2];
+        const resource = path[3];
+        const isGoal = resource === 'esdm-goals';
+        const readScope = isGoal ? 'esdm_goal.read' : 'school_collection.read';
+        const writeScope = isGoal ? 'esdm_goal.write' : 'school_collection.write';
+        const { subject, grant } = subjectWithScope(store, subjectId, context.user.id, method === 'POST' ? writeScope : readScope, clock);
+        context.organizationId = grant?.organizationId ?? null;
+
+        if (method === 'GET' && isGoal) {
+          const goals = await store.listGoals(subject.id);
+          sendAudit(store, context, 'esdm_goal.read', 'allowed');
+          return response(200, { goals });
+        }
+        if (method === 'POST' && isGoal) {
+          const translation = requireGoalCode(body?.codigoTecnicoDenver);
+          const result = await idempotentAsync(store, requestId, () => store.createGoal({
+            subjectId: subject.id,
+            codigoTecnicoDenver: body.codigoTecnicoDenver,
+            status: body.status ?? 'Em Progresso',
+            passoAtualAba: Number.isInteger(body.passoAtualAba) ? body.passoAtualAba : 1,
+            createdByUserId: context.user.id
+          }));
+          sendAudit(store, context, 'esdm_goal.create', 'allowed');
+          return response(201, { goal: { ...result, ...translation } });
+        }
+        if (method === 'GET' && !isGoal) {
+          const collections = await store.listCollections(subject.id);
+          sendAudit(store, context, 'school_collection.read', 'allowed');
+          return response(200, { collections });
+        }
+        if (method === 'POST' && !isGoal) {
+          requireCollectionPayload(body);
+          const result = await idempotentAsync(store, requestId, () => store.createCollection({
+            subjectId: subject.id,
+            dataRegistro: body.dataRegistro ?? clock.toISOString(),
+            blocoRotinaEscolar: body.blocoRotinaEscolar,
+            nivelSuporte: body.nivelSuporte,
+            createdByUserId: context.user.id
+          }));
+          sendAudit(store, context, 'school_collection.create', 'allowed');
+          return response(201, { collection: result });
+        }
+      }
+
+      if (method === 'GET' && path[1] === 'subjects' && path[2] && path[3] === undefined) {
+        const subject = subjectById(store, path[2]);
+        if (subject.ownerUserId === context.user.id) {
+          sendAudit(store, context, 'subject.read', 'allowed');
+          return response(200, subject);
+        }
+        const { grant } = grantFor(store, context.user.id, subject.id, 'communication_profile.read', clock);
+        context.organizationId = grant.organizationId;
+        sendAudit(store, context, 'subject.read', 'allowed');
+        return response(200, { id: subject.id, displayName: subject.displayName, status: subject.status });
+      }
+
+      if (method === 'GET' && path[1] === 'subjects' && path[2] && path[3] === 'grants') {
+        const subject = subjectById(store, path[2]);
+        if (subject.ownerUserId !== context.user.id) throw new AuthorizationError('RELATIONSHIP_REQUIRED');
+        const grants = store.grants.filter((item) => item.subjectId === subject.id);
+        sendAudit(store, context, 'grant.read', 'allowed');
+        return response(200, { grants });
+      }
+
+      if (method === 'POST' && path[1] === 'organizations' && path[3] === 'invitations') {
+        context.organizationId = path[2];
+        requireScope(store, context.user.id, context.organizationId, 'access.invite', clock);
+        const result = idempotent(store, requestId, () => {
+          const invitation = {
+            id: `invite-created-${store.invitations.length + 1}`,
+            organizationId: context.organizationId,
+            inviteeUserId: body?.inviteeUserId ?? 'user-invitee-alpha',
+            subjectId: body?.subjectId ?? null,
+            consentId: body?.consentId ?? null,
+            purpose: body?.purpose ?? null,
+            scopes: Array.isArray(body?.scopes) ? [...new Set(body.scopes)] : [],
+            role: body?.role ?? 'professional',
+            status: 'pending',
+            expiresAt: body?.expiresAt ?? '2099-01-01T00:00:00.000Z'
+          };
+          if (invitation.subjectId || invitation.consentId) {
+            if (!invitation.subjectId || !invitation.consentId) throw new AuthorizationError('CONSENT_REQUIRED', 400);
+            const consent = activeConsent(store, invitation.consentId, clock);
+            if (consent.subjectId !== invitation.subjectId || consent.organizationId !== invitation.organizationId || consent.recipientUserId !== invitation.inviteeUserId) throw new AuthorizationError('CONSENT_MISMATCH', 400);
+          }
+          store.invitations.push(invitation);
+          sendAudit(store, context, 'invitation.create', 'allowed');
+          return response(201, invitation);
+        });
+        return result;
+      }
+
+      if (method === 'GET' && path[1] === 'invitations' && path[2]) {
+        const invitation = store.invitations.find((item) => item.id === path[2]);
+        if (!invitation || invitation.inviteeUserId !== context.user.id) throw new AuthorizationError('RELATIONSHIP_REQUIRED');
+        sendAudit(store, context, 'invitation.read', 'allowed');
+        return response(200, invitation);
+      }
+
+      if (method === 'POST' && path[1] === 'invitations' && path[2] && (path[3] === 'accept' || path[3] === 'decline')) {
+        const invitation = store.invitations.find((item) => item.id === path[2]);
+        if (!invitation || invitation.inviteeUserId !== context.user.id) throw new AuthorizationError('RELATIONSHIP_REQUIRED');
+        if (invitation.status !== 'pending') throw new AuthorizationError('REVOKED');
+        if (new Date(invitation.expiresAt) <= clock) throw new AuthorizationError('EXPIRED');
+        if (path[3] === 'decline') {
+          invitation.status = 'declined';
+          sendAudit(store, context, 'invitation.decline', 'allowed');
+          return response(200, invitation);
+        }
+        let consent = null;
+        if (invitation.subjectId || invitation.consentId) {
+          consent = activeConsent(store, invitation.consentId, clock);
+          if (consent.recipientUserId !== context.user.id || consent.subjectId !== invitation.subjectId) throw new AuthorizationError('CONSENT_MISMATCH');
+        }
+        invitation.status = 'accepted';
+        const membership = { id: `membership-${invitation.id}`, userId: context.user.id, organizationId: invitation.organizationId, role: invitation.role, status: 'active', validUntil: invitation.expiresAt };
+        if (!store.memberships.some((item) => item.userId === membership.userId && item.organizationId === membership.organizationId)) store.memberships.push(membership);
+        let grant = null;
+        if (consent) {
+          const relationship = { id: `relationship-${invitation.id}`, userId: context.user.id, subjectId: invitation.subjectId, organizationId: invitation.organizationId, role: invitation.role, status: 'active', validUntil: consent.validUntil };
+          store.relationships.push(relationship);
+          grant = { id: `grant-${invitation.id}`, userId: context.user.id, subjectId: invitation.subjectId, organizationId: invitation.organizationId, consentId: consent.id, purpose: consent.purpose, scopes: consent.scopes, status: 'active', validUntil: consent.validUntil };
+          store.grants.push(grant);
+        }
+        sendAudit(store, context, 'invitation.accept', 'allowed');
+        return response(200, { invitation, membership, grant });
+      }
+
+      if (method === 'POST' && path[1] === 'subjects' && path[2] && path[3] === 'grants' && path[4] && path[5] === 'revoke') {
+        const subject = subjectForOwner(store, path[2], context.user.id);
+        const grant = store.grants.find((item) => item.id === path[4] && item.subjectId === subject.id);
+        if (!grant) throw new AuthorizationError('RELATIONSHIP_REQUIRED');
+        grant.status = 'revoked';
+        const consent = store.consents.find((item) => item.id === grant.consentId);
+        if (consent) {
+          consent.status = 'revoked';
+          consent.revokedAt = clock.toISOString();
+        }
+        for (const relationship of store.relationships.filter((item) => item.subjectId === subject.id && item.userId === grant.userId)) relationship.status = 'revoked';
+        sendAudit(store, context, 'grant.revoke', 'allowed');
+        return response(200, { grant, consent });
+      }
+
+      if (method === 'GET' && path[1] === 'organizations' && path[3] === 'benefits') {
+        context.organizationId = path[2];
+        requireScope(store, context.user.id, context.organizationId, 'benefit.read', clock);
+        const benefits = store.benefits.filter((item) => item.organizationId === context.organizationId);
+        sendAudit(store, context, 'benefit.read', 'allowed');
+        return response(200, { benefits });
+      }
+
+      if (method === 'GET' && path[1] === 'organizations' && path[3] === 'audit-events') {
+        context.organizationId = path[2];
+        requireScope(store, context.user.id, context.organizationId, 'audit.read', clock);
+        return response(200, { events: store.auditEvents.filter((item) => item.organizationId === context.organizationId) });
+      }
+
+      return response(404, { error: 'NOT_FOUND' });
+    } catch (rawError) {
+      const error = stableError(rawError);
+      if (context.user) sendAudit(store, context, 'request.denied', 'denied', error);
+      return response(error.status, { error: error.code });
+    }
+  }
+
+  return { handle, store };
+}
+
+export { jsonHeaders };

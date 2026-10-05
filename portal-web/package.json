@@ -1,0 +1,11 @@
+{
+  "name": "fala-comigo-portal-web",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Frontend local do Portal Cuidado Conectado em JavaScript modular",
+  "type": "module",
+  "scripts": {
+    "start": "node dev_server.mjs",
+    "check": "node --check dev_server.mjs && node --check src/main.js && node --check src/router.js && node --check src/api/client.js && node --check src/screens/auth_screen.js && node --check src/screens/clinica_screen.js && node --check src/screens/escola_screen.js"
+  }
+}

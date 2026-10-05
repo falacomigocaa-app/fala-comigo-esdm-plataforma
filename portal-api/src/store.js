@@ -1,0 +1,166 @@
+import pg from 'pg';
+import { randomUUID } from 'node:crypto';
+
+const { Pool } = pg;
+
+export const esdmTranslations = {
+  CE_N1_I5: {
+    missaoPais: 'Estimular o uso da voz para pedir itens no dia a dia.',
+    dicaPratica: 'Aproxime o item favorito do seu rosto, espere uma vocalização e entregue imediatamente após qualquer tentativa.'
+  },
+  CE_N1_I6: {
+    missaoPais: 'Ajudar a criança a escolher entre duas opções.',
+    dicaPratica: 'Apresente duas opções visíveis, aguarde a iniciativa e valide qualquer gesto, olhar ou vocalização de escolha.'
+  },
+  SOC_N1_I3: {
+    missaoPais: 'Fortalecer a participação em uma troca social curta.',
+    dicaPratica: 'Siga o interesse da criança, faça uma pausa previsível e responda de forma alegre quando ela iniciar a interação.'
+  }
+};
+
+const baseUsers = [
+  { id: 'user-admin-alpha', externalSubject: 'synthetic:admin-alpha', status: 'active' },
+  { id: 'user-professional-alpha', externalSubject: 'synthetic:professional-alpha', status: 'active' },
+  { id: 'user-admin-beta', externalSubject: 'synthetic:admin-beta', status: 'active' },
+  { id: 'user-outsider', externalSubject: 'synthetic:outsider', status: 'active' },
+  { id: 'user-invitee-alpha', externalSubject: 'synthetic:invitee-alpha', status: 'active' }
+];
+
+const baseOrganizations = [
+  { id: 'org-demo-alpha', name: 'Clínica Aurora Demo', status: 'active', type: 'clinic' },
+  { id: 'org-demo-beta', name: 'Escola Horizonte Demo', status: 'active', type: 'school' }
+];
+
+const roleScopes = {
+  owner: ['organization.read', 'membership.read', 'access.invite', 'access.read', 'access.revoke', 'benefit.read', 'audit.read', 'esdm_goal.read', 'esdm_goal.write', 'routine.read', 'school_collection.read', 'school_collection.write'],
+  org_admin: ['organization.read', 'membership.read', 'access.invite', 'access.read', 'benefit.read', 'esdm_goal.read', 'esdm_goal.write', 'routine.read', 'school_collection.read', 'school_collection.write'],
+  professional: ['organization.read', 'access.read', 'esdm_goal.read', 'esdm_goal.write'],
+  teacher: ['organization.read', 'access.read', 'routine.read', 'school_collection.read', 'school_collection.write'],
+  caregiver: ['organization.read', 'access.read'],
+  outsider: []
+};
+
+const baseMemberships = [
+  { id: 'membership-admin-alpha', userId: 'user-admin-alpha', organizationId: 'org-demo-alpha', role: 'owner', status: 'active', validUntil: '2099-01-01T00:00:00.000Z' },
+  { id: 'membership-professional-alpha', userId: 'user-professional-alpha', organizationId: 'org-demo-alpha', role: 'professional', status: 'active', validUntil: '2099-01-01T00:00:00.000Z' },
+  { id: 'membership-admin-beta', userId: 'user-admin-beta', organizationId: 'org-demo-beta', role: 'owner', status: 'active', validUntil: '2099-01-01T00:00:00.000Z' }
+];
+
+const baseSubjects = [
+  { id: 'subject-demo-child', familySpaceId: 'family-demo-alpha', ownerUserId: 'user-admin-alpha', displayName: 'Criança Demo', status: 'active' }
+];
+
+const baseInvitations = [
+  { id: 'invite-alpha-pending', organizationId: 'org-demo-alpha', inviteeUserId: 'user-invitee-alpha', role: 'professional', status: 'pending', expiresAt: '2099-01-01T00:00:00.000Z' },
+  { id: 'invite-alpha-expired', organizationId: 'org-demo-alpha', inviteeUserId: 'user-invitee-alpha', role: 'professional', status: 'pending', expiresAt: '2020-01-01T00:00:00.000Z' }
+];
+
+const baseBenefits = [
+  { id: 'benefit-demo-alpha', organizationId: 'org-demo-alpha', status: 'active', validUntil: '2099-01-01T00:00:00.000Z' }
+];
+
+const baseConsents = [
+  { id: 'consent-demo-clinic', subjectId: 'subject-demo-child', organizationId: 'org-demo-alpha', grantedByUserId: 'user-admin-alpha', recipientUserId: 'user-professional-alpha', purpose: 'metas ESDM sintéticas', scopes: ['esdm_goal.read', 'esdm_goal.write'], noticeVersion: 'synthetic-v1', status: 'active', validUntil: '2099-01-01T00:00:00.000Z', createdAt: '2026-10-04T00:00:00.000Z', revokedAt: null },
+  { id: 'consent-demo-school', subjectId: 'subject-demo-child', organizationId: 'org-demo-beta', grantedByUserId: 'user-admin-alpha', recipientUserId: 'user-admin-beta', purpose: 'rotina escolar sintética', scopes: ['routine.read', 'school_collection.read', 'school_collection.write'], noticeVersion: 'synthetic-v1', status: 'active', validUntil: '2099-01-01T00:00:00.000Z', createdAt: '2026-10-04T00:00:00.000Z', revokedAt: null }
+];
+
+const baseGrants = [
+  { id: 'grant-demo-clinic', userId: 'user-professional-alpha', subjectId: 'subject-demo-child', organizationId: 'org-demo-alpha', consentId: 'consent-demo-clinic', purpose: 'metas ESDM sintéticas', scopes: ['esdm_goal.read', 'esdm_goal.write'], status: 'active', validUntil: '2099-01-01T00:00:00.000Z' },
+  { id: 'grant-demo-school', userId: 'user-admin-beta', subjectId: 'subject-demo-child', organizationId: 'org-demo-beta', consentId: 'consent-demo-school', purpose: 'rotina escolar sintética', scopes: ['routine.read', 'school_collection.read', 'school_collection.write'], status: 'active', validUntil: '2099-01-01T00:00:00.000Z' }
+];
+
+function mapGoal(row) {
+  return {
+    id: row.id,
+    subjectId: row.subject_id,
+    codigoTecnicoDenver: row.codigo_tecnico_denver,
+    missaoPais: row.missao_pais,
+    dicaPratica: row.dica_pratica,
+    status: row.status,
+    passoAtualAba: row.passo_atual_aba,
+    createdByUserId: row.created_by_user_id,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
+
+function mapCollection(row) {
+  return {
+    id: row.id,
+    subjectId: row.subject_id,
+    dataRegistro: row.data_registro,
+    blocoRotinaEscolar: row.bloco_rotina_escolar,
+    nivelSuporte: row.nivel_suporte,
+    createdByUserId: row.created_by_user_id,
+    createdAt: row.created_at
+  };
+}
+
+export function createStore({ pool = process.env.DATABASE_URL ? new Pool({ connectionString: process.env.DATABASE_URL }) : null } = {}) {
+  const store = {
+    users: structuredClone(baseUsers),
+    organizations: structuredClone(baseOrganizations),
+    memberships: structuredClone(baseMemberships),
+    subjects: structuredClone(baseSubjects),
+    relationships: [],
+    consents: structuredClone(baseConsents),
+    invitations: structuredClone(baseInvitations),
+    grants: structuredClone(baseGrants),
+    benefits: structuredClone(baseBenefits),
+    goals: [],
+    collections: [],
+    auditEvents: [],
+    idempotency: new Map(),
+    pool,
+    storageMode: pool ? 'postgres' : 'memory-test-only',
+
+    async createGoal({ subjectId, codigoTecnicoDenver, status = 'Em Progresso', passoAtualAba = 1, createdByUserId }) {
+      const translation = esdmTranslations[codigoTecnicoDenver];
+      if (!translation) throw new Error('INVALID_ESDM_CODE');
+      const id = `goal-${randomUUID()}`;
+      if (pool) {
+        const result = await pool.query(`
+          insert into esdm_goals (id, subject_id, codigo_tecnico_denver, missao_pais, dica_pratica, status, passo_atual_aba, created_by_user_id)
+          values ($1,$2,$3,$4,$5,$6,$7,$8) returning *
+        `, [id, subjectId, codigoTecnicoDenver, translation.missaoPais, translation.dicaPratica, status, passoAtualAba, createdByUserId]);
+        return mapGoal(result.rows[0]);
+      }
+      const goal = { id, subjectId, codigoTecnicoDenver, ...translation, status, passoAtualAba, createdByUserId, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+      store.goals.push(goal);
+      return goal;
+    },
+
+    async listGoals(subjectId) {
+      if (pool) {
+        const result = await pool.query('select * from esdm_goals where subject_id = $1 and status <> $2 order by created_at desc', [subjectId, 'Archived']);
+        return result.rows.map(mapGoal);
+      }
+      return store.goals.filter((goal) => goal.subjectId === subjectId && goal.status !== 'Archived');
+    },
+
+    async createCollection({ subjectId, dataRegistro, blocoRotinaEscolar, nivelSuporte, createdByUserId }) {
+      const id = `collection-${randomUUID()}`;
+      if (pool) {
+        const result = await pool.query(`
+          insert into school_collections (id, subject_id, data_registro, bloco_rotina_escolar, nivel_suporte, created_by_user_id)
+          values ($1,$2,$3,$4,$5,$6) returning *
+        `, [id, subjectId, dataRegistro, blocoRotinaEscolar, nivelSuporte, createdByUserId]);
+        return mapCollection(result.rows[0]);
+      }
+      const collection = { id, subjectId, dataRegistro, blocoRotinaEscolar, nivelSuporte, createdByUserId, createdAt: new Date().toISOString() };
+      store.collections.push(collection);
+      return collection;
+    },
+
+    async listCollections(subjectId) {
+      if (pool) {
+        const result = await pool.query('select * from school_collections where subject_id = $1 order by data_registro desc', [subjectId]);
+        return result.rows.map(mapCollection);
+      }
+      return store.collections.filter((collection) => collection.subjectId === subjectId).sort((a, b) => new Date(b.dataRegistro) - new Date(a.dataRegistro));
+    }
+  };
+  return store;
+}
+
+export { roleScopes };

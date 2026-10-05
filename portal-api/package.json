@@ -1,0 +1,17 @@
+{
+  "name": "fala-comigo-portal-api",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "API do Portal Cuidado Conectado com autorização e persistência PostgreSQL",
+  "scripts": {
+    "test": "node --test",
+    "start": "node src/server.js"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "pg": "^8.23.0"
+  }
+}
