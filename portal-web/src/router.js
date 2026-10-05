@@ -2,8 +2,9 @@ import { clearSession, getSession } from './api/client.js';
 import { renderAuthScreen } from './screens/auth_screen.js';
 import { hydrateClinicaScreen, renderClinicaScreen } from './screens/clinica_screen.js';
 import { hydrateEscolaScreen, renderEscolaScreen } from './screens/escola_screen.js';
+import { hydrateReportsView, renderReportsView } from './views/reports-view.js';
 
-const routes = new Set(['/login', '/clinica', '/escola']);
+const routes = new Set(['/login', '/clinica', '/escola', '/relatorios']);
 
 function normalizedPath(pathname = window.location.pathname) {
   const path = pathname.replace(/\/+/g, '/').replace(/\/$/, '');
@@ -59,6 +60,14 @@ export function createRouter({ root }) {
       root.innerHTML = renderEscolaScreen(context);
       hydrateEscolaScreen(context).catch((error) => {
         root.querySelector('[data-school-status]')?.replaceChildren(document.createTextNode(`Falha ao carregar a escola: ${error.message}`));
+      });
+      return;
+    }
+
+    if (path === '/relatorios') {
+      root.innerHTML = renderReportsView(context);
+      hydrateReportsView(context).catch((error) => {
+        root.querySelector('[data-report-status]')?.replaceChildren(document.createTextNode(`Falha ao carregar relatórios: ${error.message}`));
       });
       return;
     }

@@ -23,3 +23,7 @@ A camada de autenticação JWT foi implementada com `jsonwebtoken`: emissão via
 ## Integração JWT web/mobile — 05/10/2026
 
 O cliente web substituiu o header sintético por `Authorization: Bearer`, armazena o token na sessão local e trata 401 limpando a sessão e redirecionando ao login. O cliente mobile usa `AuthTokenService` via `flutter_secure_storage`; a fila mantém itens clínicos quando recebe 401, interrompe o retry e dispara o callback de reautenticação. A validação final passou: portal-api 21 testes com 1 teste PostgreSQL condicional ignorado, portal-web 4 testes e check sintático, Flutter analyze sem issues e 114 testes.
+
+## Relatórios visuais no portal-web — 05/10/2026
+
+Com a autenticação JWT publicada, o próximo módulo é a camada visual de relatórios clínicos. A interface deverá compilar coletas escolares e metas ESDM/ABA por indivíduo, manter o Bearer no APIClient, oferecer filtros de período/tipo de meta, tratar carregamento/vazio/401 e preparar uma saída limpa para impressão ou exportação.

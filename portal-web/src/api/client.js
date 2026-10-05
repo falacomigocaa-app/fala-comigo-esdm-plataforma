@@ -21,6 +21,7 @@ function requestId() {
 }
 
 export function getSession() {
+  if (!globalThis.window?.localStorage) return null;
   try {
     return JSON.parse(window.localStorage.getItem(SESSION_KEY) || 'null');
   } catch (_) {
@@ -29,11 +30,11 @@ export function getSession() {
 }
 
 export function saveSession(session) {
-  window.localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+  globalThis.window?.localStorage?.setItem(SESSION_KEY, JSON.stringify(session));
 }
 
 export function clearSession() {
-  window.localStorage.removeItem(SESSION_KEY);
+  globalThis.window?.localStorage?.removeItem(SESSION_KEY);
 }
 
 export function getAccessToken() {
@@ -45,11 +46,11 @@ function notifyAuthenticationRequired() {
   const event = typeof CustomEvent === 'function'
     ? new CustomEvent('fala-comigo:auth-required')
     : { type: 'fala-comigo:auth-required' };
-  window.dispatchEvent?.(event);
+  globalThis.window?.dispatchEvent?.(event);
 }
 
 export class APIClient {
-  constructor({ baseUrl = window.PORTAL_API_BASE || DEFAULT_API_BASE } = {}) {
+  constructor({ baseUrl = globalThis.window?.PORTAL_API_BASE || DEFAULT_API_BASE } = {}) {
     this.baseUrl = baseUrl.replace(/\/$/, '');
   }
 

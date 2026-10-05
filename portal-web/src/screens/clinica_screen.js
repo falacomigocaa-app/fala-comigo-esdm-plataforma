@@ -3,7 +3,7 @@ import { apiClient, goalTranslations } from '../api/client.js';
 const escapeHtml = (value) => String(value).replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
 
 function renderHeader(title, session) {
-  return `<header class="topbar"><a class="brand" href="/clinica" data-route="/clinica">Fala Comigo <span>Portal</span></a><nav aria-label="Navegação principal"><a href="/clinica" data-route="/clinica" class="nav-link ${title.includes('Clínica') ? 'selected' : ''}">Clínica</a><a href="/escola" data-route="/escola" class="nav-link ${title.includes('Escola') ? 'selected' : ''}">Escola</a></nav><div class="session-actions"><span class="session-id">${escapeHtml(session?.userId || '')}</span><button class="text-button" data-logout type="button">Sair</button></div></header>`;
+  return `<header class="topbar"><a class="brand" href="/clinica" data-route="/clinica">Fala Comigo <span>Portal</span></a><nav aria-label="Navegação principal"><a href="/clinica" data-route="/clinica" class="nav-link ${title.includes('Clínica') ? 'selected' : ''}">Clínica</a><a href="/escola" data-route="/escola" class="nav-link ${title.includes('Escola') ? 'selected' : ''}">Escola</a><a href="/relatorios" data-route="/relatorios" class="nav-link">Relatórios</a></nav><div class="session-actions"><span class="session-id">${escapeHtml(session?.userId || '')}</span><button class="text-button" data-logout type="button">Sair</button></div></header>`;
 }
 
 export function renderClinicaScreen({ session }) {

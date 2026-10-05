@@ -20,3 +20,7 @@ O backend agora emite e valida tokens JWT com `jsonwebtoken`, `JWT_SECRET` obrig
 ## Integração JWT web/mobile — 05/10/2026
 
 O `portal-web` agora persiste o token na sessão local, envia `Authorization: Bearer` nas chamadas de metas/coletas e limpa a sessão/sinaliza login em respostas 401. O mobile usa `AuthTokenService` com `flutter_secure_storage`; a fila envia o Bearer ativo, mantém o payload em 401 e interrompe o processamento para reautenticação. Validação final: backend 21 testes aprovados e 1 PostgreSQL condicional ignorado; web 4 testes aprovados e check sintático; Flutter analyze sem issues e 114 testes aprovados.
+
+## Relatórios visuais no portal-web — 05/10/2026
+
+Após o push bem-sucedido da integração JWT, o desenvolvimento avança para a camada visual de relatórios clínicos. O próximo escopo é compilar coletas escolares e metas ESDM/ABA por indivíduo no portal-web, com filtros temporais, estados assíncronos e base de impressão/exportação.
