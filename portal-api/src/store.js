@@ -96,7 +96,24 @@ function mapCollection(row) {
   };
 }
 
-export function createStore({ pool = process.env.DATABASE_URL ? new Pool({ connectionString: process.env.DATABASE_URL }) : null } = {}) {
+function createPostgresPool() {
+  if (!process.env.DATABASE_URL) return null;
+
+  const pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    max: Number(process.env.PGPOOL_MAX ?? 10),
+    idleTimeoutMillis: Number(process.env.PGPOOL_IDLE_TIMEOUT_MS ?? 30_000),
+    connectionTimeoutMillis: Number(process.env.PGPOOL_CONNECTION_TIMEOUT_MS ?? 5_000),
+    ssl: process.env.PGSSLMODE === 'require' ? { rejectUnauthorized: false } : undefined
+  });
+
+  pool.on('error', (error) => {
+    console.error('[portal-api] erro inesperado no Pool PostgreSQL:', error.message);
+  });
+  return pool;
+}
+
+export function createStore({ pool = createPostgresPool() } = {}) {
   const store = {
     users: structuredClone(baseUsers),
     organizations: structuredClone(baseOrganizations),
@@ -114,7 +131,7 @@ export function createStore({ pool = process.env.DATABASE_URL ? new Pool({ conne
     pool,
     storageMode: pool ? 'postgres' : 'memory-test-only',
 
-    async createGoal({ subjectId, codigoTecnicoDenver, status = 'Em Progresso', passoAtualAba = 1, createdByUserId }) {
+    async saveGoal({ subjectId, codigoTecnicoDenver, status = 'Em Progresso', passoAtualAba = 1, createdByUserId }) {
       const translation = esdmTranslations[codigoTecnicoDenver];
       if (!translation) throw new Error('INVALID_ESDM_CODE');
       const id = `goal-${randomUUID()}`;
@@ -130,7 +147,7 @@ export function createStore({ pool = process.env.DATABASE_URL ? new Pool({ conne
       return goal;
     },
 
-    async listGoals(subjectId) {
+    async getGoalsBySubject(subjectId) {
       if (pool) {
         const result = await pool.query('select * from esdm_goals where subject_id = $1 and status <> $2 order by created_at desc', [subjectId, 'Archived']);
         return result.rows.map(mapGoal);
@@ -138,7 +155,7 @@ export function createStore({ pool = process.env.DATABASE_URL ? new Pool({ conne
       return store.goals.filter((goal) => goal.subjectId === subjectId && goal.status !== 'Archived');
     },
 
-    async createCollection({ subjectId, dataRegistro, blocoRotinaEscolar, nivelSuporte, createdByUserId }) {
+    async saveCollection({ subjectId, dataRegistro, blocoRotinaEscolar, nivelSuporte, createdByUserId }) {
       const id = `collection-${randomUUID()}`;
       if (pool) {
         const result = await pool.query(`
@@ -152,7 +169,7 @@ export function createStore({ pool = process.env.DATABASE_URL ? new Pool({ conne
       return collection;
     },
 
-    async listCollections(subjectId) {
+    async getCollectionsBySubject(subjectId) {
       if (pool) {
         const result = await pool.query('select * from school_collections where subject_id = $1 order by data_registro desc', [subjectId]);
         return result.rows.map(mapCollection);
@@ -160,6 +177,12 @@ export function createStore({ pool = process.env.DATABASE_URL ? new Pool({ conne
       return store.collections.filter((collection) => collection.subjectId === subjectId).sort((a, b) => new Date(b.dataRegistro) - new Date(a.dataRegistro));
     }
   };
+
+  // Aliases de domínio preservados para compatibilidade com consumidores existentes.
+  store.createGoal = store.saveGoal;
+  store.listGoals = store.getGoalsBySubject;
+  store.createCollection = store.saveCollection;
+  store.listCollections = store.getCollectionsBySubject;
   return store;
 }
 

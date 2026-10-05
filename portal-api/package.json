@@ -5,7 +5,8 @@
   "type": "module",
   "description": "API do Portal Cuidado Conectado com autorização e persistência PostgreSQL",
   "scripts": {
-    "test": "node --test",
+    "test": "node --test test/*.test.js",
+    "test:db": "node scripts/test-db-connection.js",
     "start": "node src/server.js"
   },
   "engines": {

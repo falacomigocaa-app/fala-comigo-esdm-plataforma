@@ -170,13 +170,13 @@ export function createApp({ store = createStore(), now = () => new Date('2026-09
         context.organizationId = grant?.organizationId ?? null;
 
         if (method === 'GET' && isGoal) {
-          const goals = await store.listGoals(subject.id);
+          const goals = await store.getGoalsBySubject(subject.id);
           sendAudit(store, context, 'esdm_goal.read', 'allowed');
           return response(200, { goals });
         }
         if (method === 'POST' && isGoal) {
           const translation = requireGoalCode(body?.codigoTecnicoDenver);
-          const result = await idempotentAsync(store, requestId, () => store.createGoal({
+          const result = await idempotentAsync(store, requestId, () => store.saveGoal({
             subjectId: subject.id,
             codigoTecnicoDenver: body.codigoTecnicoDenver,
             status: body.status ?? 'Em Progresso',
@@ -187,13 +187,13 @@ export function createApp({ store = createStore(), now = () => new Date('2026-09
           return response(201, { goal: { ...result, ...translation } });
         }
         if (method === 'GET' && !isGoal) {
-          const collections = await store.listCollections(subject.id);
+          const collections = await store.getCollectionsBySubject(subject.id);
           sendAudit(store, context, 'school_collection.read', 'allowed');
           return response(200, { collections });
         }
         if (method === 'POST' && !isGoal) {
           requireCollectionPayload(body);
-          const result = await idempotentAsync(store, requestId, () => store.createCollection({
+          const result = await idempotentAsync(store, requestId, () => store.saveCollection({
             subjectId: subject.id,
             dataRegistro: body.dataRegistro ?? clock.toISOString(),
             blocoRotinaEscolar: body.blocoRotinaEscolar,

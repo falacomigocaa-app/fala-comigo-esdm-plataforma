@@ -23,10 +23,18 @@ curl -H 'x-synthetic-user-id: user-professional-alpha' \
 Para ativar persistência PostgreSQL, aplique `migrations/001_initial.sql` em um banco de staging e inicie com `DATABASE_URL`:
 
 ```bash
-DATABASE_URL='postgres://usuario:senha@host:5432/banco' npm start
+cp .env.example .env
+# Edite .env e substitua DATABASE_URL pelos dados do seu container/servidor de staging.
+set -a
+. ./.env
+set +a
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f migrations/001_initial.sql
+npm start
 ```
 
-Sem `DATABASE_URL`, metas e coletas usam `memory-test-only` para testes sintéticos e são descartadas ao reiniciar. Não declarar persistência de staging validada sem executar a migration e o teste de integração contra o banco.
+O `store.js` cria um `pg.Pool` estável quando `DATABASE_URL` está presente. O pool usa `PGPOOL_MAX`, timeouts de conexão/ociosidade e, opcionalmente, TLS com `PGSSLMODE=require`. As escritas e leituras de metas/coletas usam queries parametrizadas contra `esdm_goals` e `school_collections`.
+
+Sem `DATABASE_URL`, metas e coletas usam `memory-test-only` somente para testes sintéticos e são descartadas ao reiniciar. Não declarar persistência de staging validada sem executar a migration e o teste de integração contra o banco.
 
 ## Contratos integrados
 
@@ -44,13 +52,14 @@ Antes de qualquer leitura ou escrita, o backend valida membership, consentimento
 
 ## Conteúdo
 
-- `src/store.js`: dicionário ESDM, fixtures de autorização para testes e adaptador PostgreSQL das tabelas funcionais;
+- `src/store.js`: dicionário ESDM, fixtures de autorização para testes, `pg.Pool` e queries parametrizadas das tabelas funcionais;
 - `src/authorization.js`: autenticação sintética, membership, escopos, erros estáveis e auditoria;
 - `src/app.js`: rotas `/v1`, autorização, contratos e idempotência;
 - `src/server.js`: adaptador HTTP local, CORS e parsing JSON;
 - `migrations/001_initial.sql`: schema de identidade, organização, sujeito, consentimento, autorização, metas e coletas;
 - `test/authorization.test.js`: casos permitidos e negados;
 - `test/postgres.integration.test.js`: verificação do schema quando `PGTEST_URL` está definido.
+- `.env.example`: variáveis documentais para iniciar o servidor conectado ao PostgreSQL de staging.
 
 ## Limites
 
