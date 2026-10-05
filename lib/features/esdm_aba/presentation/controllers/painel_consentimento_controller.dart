@@ -162,7 +162,7 @@ class PainelConsentimentoController
   }
 
   static bool _isEnabled(ConcessaoAcessoModel? concessao) {
-    if (concessao == null || concessao.estaExpirada) return false;
+    if (concessao == null || !concessao.estaAtiva) return false;
     return concessao.permiteLeituraMetas || concessao.permiteEscritaDados;
   }
 }

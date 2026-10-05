@@ -11,6 +11,7 @@ import 'package:fala_comigo/features/esdm_aba/domain/models/sincronizacao_queue_
 import 'package:fala_comigo/features/esdm_aba/domain/models/sync_item.dart';
 import 'package:fala_comigo/features/esdm_aba/data/sync_queue_store.dart';
 import 'package:fala_comigo/features/esdm_aba/domain/services/esdm_translator.dart';
+import 'package:fala_comigo/features/esdm_aba/domain/services/sync_queue_service.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -109,6 +110,45 @@ void main() {
     expect(pending.single.endpointAlvo, '/coletas');
     expect(pending.single.acao, 'INSERT');
     expect(pending.single.processado, isFalse);
+  });
+
+  test('bloqueia concessão revogada mesmo antes da data de expiração', () async {
+    await ConcessaoAcessoStore.save(
+      ConcessaoAcessoModel(
+        id: 'revoked-school-grant',
+        perfilAlvo: escolaPerfilAlvo,
+        permiteLeituraMetas: true,
+        permiteEscritaDados: true,
+        dataExpiracao: DateTime.now().add(const Duration(days: 30)),
+        revoked: true,
+      ),
+    );
+
+    expect(await ConcessaoAcessoStore.findActive(escolaPerfilAlvo), isNull);
+  });
+
+  test('fila mantém item intacto quando consentimento está revogado', () async {
+    const itemId = 'consent-blocked-sync-item';
+    await SyncQueueStore.enqueue(
+      SyncItem(
+        id: itemId,
+        payload: '{"subjectId":"local-subject","id":"coleta-consent"}',
+        createdAt: DateTime.utc(2026, 10, 5),
+        endpoint: '/school-collections',
+      ),
+    );
+    SyncQueueService.connectivityOverride = () async => true;
+    try {
+      await SyncQueueService.syncPending();
+    } finally {
+      SyncQueueService.connectivityOverride = null;
+    }
+
+    final pending = await SyncQueueStore.pending();
+    final item = pending.firstWhere((candidate) => candidate.id == itemId);
+    expect(item.attempts, 0);
+    expect(SyncQueueService.consentBlocked, isTrue);
+    await SyncQueueStore.remove(item);
   });
 
   test('persiste SyncItem em box AES-256 com tentativas e endpoint', () async {

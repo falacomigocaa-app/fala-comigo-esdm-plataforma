@@ -23,6 +23,14 @@ class ConcessaoAcessoStore {
     await box.put(concessao.id, concessao);
   }
 
+  static Future<ConcessaoAcessoModel?> find(String perfilAlvo) async {
+    final concessoes = await loadAll();
+    for (final concessao in concessoes) {
+      if (concessao.perfilAlvo == perfilAlvo) return concessao;
+    }
+    return null;
+  }
+
   static Future<ConcessaoAcessoModel?> findActive(String perfilAlvo) async {
     final concessoes = await loadAll();
     for (final concessao in concessoes) {
@@ -30,7 +38,7 @@ class ConcessaoAcessoStore {
           concessao.permiteEscritaDados;
       if (concessao.perfilAlvo == perfilAlvo &&
           enabled &&
-          !concessao.dataExpiracao.isBefore(DateTime.now())) {
+          concessao.estaAtiva) {
         return concessao;
       }
     }

@@ -16,7 +16,15 @@ class ColetaEscolaScreen extends ConsumerWidget {
     ref.listen<ColetaEscolaState>(
       coletaEscolaControllerProvider,
       (previous, next) {
-        if (next.ultimaColeta != previous?.ultimaColeta &&
+        if (next.consentimentoBloqueado &&
+            next.consentimentoBloqueado != previous?.consentimentoBloqueado) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              behavior: SnackBarBehavior.floating,
+              content: Text('Bloqueio por Falta de Consentimento.'),
+            ),
+          );
+        } else if (next.ultimaColeta != previous?.ultimaColeta &&
             next.ultimaColeta != null) {
           final message = switch (next.sincronizacaoStatus) {
             'synced' => 'Registro salvo e sincronizado com segurança.',
@@ -59,6 +67,10 @@ class ColetaEscolaScreen extends ConsumerWidget {
               children: [
                 const _IntroCard(),
                 const SizedBox(height: 24),
+                if (state.consentimentoBloqueado) ...[
+                  const _ConsentBlockedBanner(),
+                  const SizedBox(height: 24),
+                ],
                 _GoalSelectionSection(
                   metas: state.metas,
                   selected: state.metaSelecionadaId,
@@ -96,7 +108,13 @@ class ColetaEscolaScreen extends ConsumerWidget {
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
                         : const Icon(Icons.check_circle_outline),
-                    label: Text(state.salvando ? 'Salvando…' : 'Registrar'),
+                    label: Text(
+                      state.consentimentoBloqueado
+                          ? 'Consentimento necessário'
+                          : state.salvando
+                              ? 'Salvando…'
+                              : 'Registrar',
+                    ),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -109,6 +127,41 @@ class ColetaEscolaScreen extends ConsumerWidget {
             );
           },
         ),
+      ),
+    );
+  }
+}
+
+class _ConsentBlockedBanner extends StatelessWidget {
+  const _ConsentBlockedBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF1E8),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE27D45)),
+      ),
+      child: const Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.lock_clock_outlined, color: Color(0xFFB44F1E)),
+          SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              'Bloqueio por Falta de Consentimento\n'
+              'A concessão escolar expirou ou foi revogada. Nenhuma coleta pendente será enviada até que o consentimento seja renovado.',
+              style: TextStyle(
+                color: Color(0xFF7A3515),
+                height: 1.35,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

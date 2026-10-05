@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../data/coleta_escola_store.dart';
+import '../../data/concessao_acesso_store.dart';
 import '../../data/goal_store.dart';
 import '../../domain/models/coleta_escola_model.dart';
 import '../../domain/models/meta_esdm_model.dart';
@@ -30,6 +31,7 @@ class ColetaEscolaState {
   final String? metaSelecionadaId;
   final List<MetaEsdmModel> metas;
   final bool carregandoMetas;
+  final bool consentimentoBloqueado;
   final bool salvando;
   final ColetaEscolaModel? ultimaColeta;
   final String? sincronizacaoStatus;
@@ -41,6 +43,7 @@ class ColetaEscolaState {
     this.metaSelecionadaId,
     this.metas = const [],
     this.carregandoMetas = false,
+    this.consentimentoBloqueado = false,
     this.salvando = false,
     this.ultimaColeta,
     this.sincronizacaoStatus,
@@ -48,7 +51,10 @@ class ColetaEscolaState {
   });
 
   bool get podeRegistrar =>
-      blocoSelecionado != null && nivelSuporteSelecionado != null && !salvando;
+      blocoSelecionado != null &&
+      nivelSuporteSelecionado != null &&
+      !salvando &&
+      !consentimentoBloqueado;
 
   ColetaEscolaState copyWith({
     String? blocoSelecionado,
@@ -56,6 +62,7 @@ class ColetaEscolaState {
     String? metaSelecionadaId,
     List<MetaEsdmModel>? metas,
     bool? carregandoMetas,
+    bool? consentimentoBloqueado,
     bool? salvando,
     ColetaEscolaModel? ultimaColeta,
     String? sincronizacaoStatus,
@@ -68,6 +75,8 @@ class ColetaEscolaState {
       metaSelecionadaId: metaSelecionadaId ?? this.metaSelecionadaId,
       metas: metas ?? this.metas,
       carregandoMetas: carregandoMetas ?? this.carregandoMetas,
+      consentimentoBloqueado:
+          consentimentoBloqueado ?? this.consentimentoBloqueado,
       salvando: salvando ?? this.salvando,
       ultimaColeta: ultimaColeta ?? this.ultimaColeta,
       sincronizacaoStatus: sincronizacaoStatus ?? this.sincronizacaoStatus,
@@ -83,7 +92,20 @@ final coletaEscolaControllerProvider = StateNotifierProvider.autoDispose<
 
 class ColetaEscolaController extends StateNotifier<ColetaEscolaState> {
   ColetaEscolaController() : super(const ColetaEscolaState()) {
+    SyncQueueService.consentBlockedNotifier.addListener(_onConsentChanged);
+    unawaited(_initializeConsent());
     unawaited(_initializeGoals());
+  }
+
+  Future<void> _initializeConsent() async {
+    final grant = await ConcessaoAcessoStore.findActive(escolaPerfilAlvo);
+    state = state.copyWith(consentimentoBloqueado: grant == null);
+  }
+
+  void _onConsentChanged() {
+    state = state.copyWith(
+      consentimentoBloqueado: SyncQueueService.consentBlocked,
+    );
   }
 
   Future<void> _initializeGoals() async {
@@ -122,7 +144,18 @@ class ColetaEscolaController extends StateNotifier<ColetaEscolaState> {
   Future<bool> registrar() async {
     final bloco = state.blocoSelecionado;
     final nivel = state.nivelSuporteSelecionado;
-    if (bloco == null || nivel == null || state.salvando) return false;
+    if (bloco == null ||
+        nivel == null ||
+        state.salvando ||
+        state.consentimentoBloqueado) {
+      return false;
+    }
+
+    final grant = await ConcessaoAcessoStore.findActive(escolaPerfilAlvo);
+    if (grant == null) {
+      SyncQueueService.consentBlockedNotifier.value = true;
+      return false;
+    }
 
     state = state.copyWith(salvando: true, erro: null);
     try {
@@ -142,12 +175,20 @@ class ColetaEscolaController extends StateNotifier<ColetaEscolaState> {
         salvando: false,
         ultimaColeta: coleta,
         sincronizacaoStatus: syncStatus.name,
+        consentimentoBloqueado:
+            syncStatus == SyncOutcome.blockedByConsent,
       );
       return true;
     } catch (error) {
       state = state.copyWith(salvando: false, erro: error);
       return false;
     }
+  }
+
+  @override
+  void dispose() {
+    SyncQueueService.consentBlockedNotifier.removeListener(_onConsentChanged);
+    super.dispose();
   }
 
 }

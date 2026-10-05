@@ -35,3 +35,11 @@ Foi implementado o downlink de metas clínicas via GET `/v1/subjects/{subjectId}
 ## Renovação automática de sessão — 05/10/2026
 
 O fluxo de sessão foi ampliado com `POST /v1/auth/refresh`: refresh tokens opacos são persistidos apenas como SHA-256, expiram em sete dias e são revogados a cada uso, com suporte à tabela PostgreSQL `refresh_tokens` na migration 002. O cliente web captura 401 com `renewalRequired`, faz refresh transparente, salva o par rotacionado e repete a requisição original uma vez; se falhar, limpa a sessão e redireciona ao login. Testes: portal-api 23 aprovados/1 PostgreSQL condicional ignorado; portal-web 8 aprovados.
+
+## Validação estrita de consentimento escolar no mobile — 05/10/2026
+
+O projeto avançou para a barreira local de consentimento escolar: a fila offline deve validar expiração e revogação antes de transmitir qualquer coleta, preservar todos os itens bloqueados e sinalizar a tela de coleta com estado persistente de falta de consentimento. A implementação deve manter os metadados em persistência Hive criptografada e validar a toolchain Flutter completa.
+
+## Consentimento escolar validado — 05/10/2026
+
+A concessão local permanece na box ESDM cifrada e agora guarda `revoked` e `expiresAt` (com default Hive para registros antigos). A fila bloqueia antes de qualquer POST `/school-collections` e repete a validação imediatamente antes da transmissão; expiração/revogação deixa todos os itens intactos e sinaliza o estado observável de bloqueio. A coleta mostra alerta persistente e desabilita a ação manual. Validação: build_runner 4 outputs, analyze sem issues e 116 testes Flutter aprovados.

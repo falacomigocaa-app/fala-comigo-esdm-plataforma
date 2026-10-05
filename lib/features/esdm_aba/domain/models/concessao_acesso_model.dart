@@ -23,13 +23,21 @@ class ConcessaoAcessoModel extends HiveObject {
   @HiveField(4)
   DateTime dataExpiracao;
 
+  @HiveField(5, defaultValue: false)
+  bool revoked;
+
   ConcessaoAcessoModel({
     required this.id,
     required this.perfilAlvo,
     this.permiteLeituraMetas = false,
     this.permiteEscritaDados = false,
     required this.dataExpiracao,
+    this.revoked = false,
   });
 
+  DateTime get expiresAt => dataExpiracao;
+
   bool get estaExpirada => dataExpiracao.isBefore(DateTime.now());
+
+  bool get estaAtiva => !revoked && dataExpiracao.isAfter(DateTime.now());
 }

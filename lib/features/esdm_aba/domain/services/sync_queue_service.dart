@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import '../../../../core/services/auth_token_service.dart';
@@ -18,7 +19,11 @@ const syncApiBaseUrl = String.fromEnvironment(
   'PORTAL_API_BASE_URL',
   defaultValue: 'http://127.0.0.1:8787',
 );
-enum SyncOutcome { synced, queued, localOnly }
+enum SyncOutcome { synced, queued, localOnly, blockedByConsent }
+
+class ConsentBlockedException implements Exception {
+  const ConsentBlockedException();
+}
 
 /// Envia coletas quando há rede e mantém a fila cifrada quando não há.
 class SyncQueueService {
@@ -26,9 +31,13 @@ class SyncQueueService {
 
   static final Connectivity _connectivity = Connectivity();
   static final http.Client _client = http.Client();
+  static Future<bool> Function()? connectivityOverride;
   static StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
   static Timer? _fallbackTimer;
   static bool _isSyncing = false;
+  static final ValueNotifier<bool> consentBlockedNotifier = ValueNotifier(false);
+
+  static bool get consentBlocked => consentBlockedNotifier.value;
 
   static void start() {
     _connectivitySubscription ??= _connectivity.onConnectivityChanged.listen(
@@ -54,7 +63,11 @@ class SyncQueueService {
     required String subjectId,
   }) async {
     final grant = await ConcessaoAcessoStore.findActive(escolaPerfilAlvo);
-    if (grant == null) return SyncOutcome.localOnly;
+    if (grant == null) {
+      _notifyConsentBlocked();
+      return SyncOutcome.blockedByConsent;
+    }
+    _notifyConsentValid();
 
     final item = _itemFor(coleta, subjectId: subjectId);
     if (!await _isOnline()) {
@@ -65,6 +78,9 @@ class SyncQueueService {
     try {
       await _send(item);
       return SyncOutcome.synced;
+    } on ConsentBlockedException {
+      await SyncQueueStore.enqueue(item);
+      return SyncOutcome.blockedByConsent;
     } on AuthTokenExpiredException {
       await SyncQueueStore.enqueue(item);
       AuthTokenService.requireAuthentication();
@@ -86,10 +102,19 @@ class SyncQueueService {
     try {
       for (final item in await SyncQueueStore.pending()) {
         final grant = await ConcessaoAcessoStore.findActive(escolaPerfilAlvo);
-        if (grant == null) return;
+        if (grant == null) {
+          _notifyConsentBlocked();
+          return;
+        }
+        _notifyConsentValid();
         try {
           await _send(item);
           await SyncQueueStore.remove(item);
+        } on ConsentBlockedException {
+          // A concessão pode expirar entre a checagem do item e o POST.
+          // Não remover nem incrementar: todos os itens continuam intactos.
+          _notifyConsentBlocked();
+          return;
         } on AuthTokenExpiredException {
           // O item permanece na box sem incrementar tentativas: a coleta clínica
           // só poderá sair após uma nova autenticação válida.
@@ -127,6 +152,11 @@ class SyncQueueService {
   }
 
   static Future<void> _send(SyncItem item) async {
+    final grant = await ConcessaoAcessoStore.findActive(escolaPerfilAlvo);
+    if (grant == null) {
+      _notifyConsentBlocked();
+      throw const ConsentBlockedException();
+    }
     final token = await AuthTokenService.readToken();
     if (token == null || token.isEmpty) {
       throw const AuthTokenRequiredException();
@@ -163,6 +193,8 @@ class SyncQueueService {
   }
 
   static Future<bool> _isOnline() async {
+    final override = connectivityOverride;
+    if (override != null) return override();
     try {
       final result = await _connectivity.checkConnectivity();
       return _hasNetwork(result);
@@ -173,4 +205,12 @@ class SyncQueueService {
 
   static bool _hasNetwork(List<ConnectivityResult> results) =>
       results.any((result) => result != ConnectivityResult.none);
+
+  static void _notifyConsentBlocked() {
+    consentBlockedNotifier.value = true;
+  }
+
+  static void _notifyConsentValid() {
+    if (consentBlockedNotifier.value) consentBlockedNotifier.value = false;
+  }
 }

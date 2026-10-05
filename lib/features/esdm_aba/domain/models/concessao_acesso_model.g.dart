@@ -22,13 +22,14 @@ class ConcessaoAcessoModelAdapter extends TypeAdapter<ConcessaoAcessoModel> {
       permiteLeituraMetas: fields[2] as bool,
       permiteEscritaDados: fields[3] as bool,
       dataExpiracao: fields[4] as DateTime,
+      revoked: fields[5] == null ? false : fields[5] as bool,
     );
   }
 
   @override
   void write(BinaryWriter writer, ConcessaoAcessoModel obj) {
     writer
-      ..writeByte(5)
+      ..writeByte(6)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -38,7 +39,9 @@ class ConcessaoAcessoModelAdapter extends TypeAdapter<ConcessaoAcessoModel> {
       ..writeByte(3)
       ..write(obj.permiteEscritaDados)
       ..writeByte(4)
-      ..write(obj.dataExpiracao);
+      ..write(obj.dataExpiracao)
+      ..writeByte(5)
+      ..write(obj.revoked);
   }
 
   @override

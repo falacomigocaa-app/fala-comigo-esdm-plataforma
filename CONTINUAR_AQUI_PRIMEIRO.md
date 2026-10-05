@@ -32,3 +32,11 @@ O aplicativo agora baixa metas ativas de `/v1/subjects/{subjectId}/esdm-goals` c
 ## Renovação automática de sessão — 05/10/2026
 
 Após o push do downlink de metas mobile, o projeto avançou para refresh tokens. O portal-api agora mantém refresh tokens opacos somente por hash, com expiração de sete dias, rotação de uso único e persistência PostgreSQL em `refresh_tokens`; o endpoint `POST /v1/auth/refresh` emite novo access token de 15 minutos. O APIClient web renova silenciosamente em `TOKEN_EXPIRED`, atualiza a sessão e repete a requisição clínica uma única vez. Validação: backend 23 testes aprovados e 1 PostgreSQL condicional ignorado; web 8 testes aprovados.
+
+## Validação estrita de consentimento escolar no mobile — 05/10/2026
+
+Após a publicação da renovação automática de sessão, o desenvolvimento avançou para compliance de consentimento escolar. O próximo escopo é persistir `expiresAt` e estado (`active`/`revoked`) em box Hive criptografada, bloquear a fila `sync_queue_box` antes de qualquer POST quando a concessão estiver inválida e exibir o bloqueio de consentimento na tela de coleta.
+
+## Consentimento escolar validado — 05/10/2026
+
+A concessão Hive TypeId 10 agora persiste `revoked` com default compatível para dados legados e expõe `expiresAt`/`estaAtiva`. A `SyncQueueService` valida a concessão antes de cada envio e novamente imediatamente antes do POST; concessão expirada ou revogada bloqueia a transmissão, mantém os itens e publica `consentBlocked`. A tela de coleta exibe a tarja persistente “Bloqueio por Falta de Consentimento” e desabilita o registro manual. Build_runner concluiu com 4 outputs, `flutter analyze` passou sem issues e `flutter test` passou com 116 testes.
