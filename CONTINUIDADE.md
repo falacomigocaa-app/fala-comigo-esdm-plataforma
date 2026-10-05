@@ -33,3 +33,9 @@ Todos os arquivos foram implementados e estão prontos para o commit desta sess�
 ### Próximo passo exato
 
 Executar o pipeline Flutter com `flutter pub get`, `dart run build_runner build --delete-conflicting-outputs`, `flutter analyze` e `flutter test`. Em seguida, configurar identidade real/OAuth no mobile e no portal-api, substituir o header sintético e executar um teste de staging com `DATABASE_URL`, `PORTAL_API_BASE_URL`, `PORTAL_SUBJECT_ID` e concessão escolar real antes de qualquer release.
+
+## Consolidação da toolchain mobile — 05/10/2026
+
+A validação da raiz mobile usou Flutter stable **3.47.6** e Dart **3.13.5**. O `flutter pub get` concluiu com as dependências de `connectivity_plus` e `http` resolvidas; o `flutter pub run build_runner build --delete-conflicting-outputs` concluiu sem conflitos e gerou o adapter `SyncQueueAdapter` TypeId 14 em `sync_item.g.dart`; `flutter analyze` concluiu com `No issues found!`; e `flutter test` concluiu com **114 testes passando**.
+
+A consolidação foi publicada na `main` em `788212c`, com a mensagem `feat(mobile): compile build_runner artifacts and clean sync queue types`.
