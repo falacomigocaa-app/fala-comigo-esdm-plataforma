@@ -14,6 +14,14 @@ import 'core/theme/app_theme.dart';
 import 'features/aac_grid/data/providers/cards_provider.dart';
 import 'features/aac_grid/data/providers/seed_cards.dart';
 import 'features/aac_grid/domain/models/pictogram_card.dart';
+import 'features/esdm_aba/domain/models/coleta_escola_model.dart';
+import 'features/esdm_aba/domain/models/concessao_acesso_model.dart';
+import 'features/esdm_aba/domain/models/meta_esdm_model.dart';
+import 'features/esdm_aba/domain/models/sincronizacao_queue_model.dart';
+import 'features/esdm_aba/presentation/screens/painel_consentimento_screen.dart';
+import 'features/esdm_aba/presentation/screens/coleta_escola_screen.dart';
+import 'features/esdm_aba/presentation/screens/metas_esdm_screen.dart';
+import 'features/esdm_aba/presentation/screens/esdm_dashboard_screen.dart';
 import 'features/onboarding/presentation/screens/splash_screen.dart';
 import 'features/parental_area/presentation/screens/parental_gate_screen.dart';
 import 'features/transition_alerts/data/providers/transition_alerts_provider.dart';
@@ -37,6 +45,18 @@ Future<void> _bootstrap() async {
   await MediaStorageService.clearStalePreviews();
   if (!Hive.isAdapterRegistered(PictogramCardAdapter().typeId)) {
     Hive.registerAdapter(PictogramCardAdapter());
+  }
+  if (!Hive.isAdapterRegistered(ConcessaoAcessoModelAdapter().typeId)) {
+    Hive.registerAdapter(ConcessaoAcessoModelAdapter());
+  }
+  if (!Hive.isAdapterRegistered(MetaEsdmModelAdapter().typeId)) {
+    Hive.registerAdapter(MetaEsdmModelAdapter());
+  }
+  if (!Hive.isAdapterRegistered(ColetaEscolaModelAdapter().typeId)) {
+    Hive.registerAdapter(ColetaEscolaModelAdapter());
+  }
+  if (!Hive.isAdapterRegistered(SincronizacaoQueueModelAdapter().typeId)) {
+    Hive.registerAdapter(SincronizacaoQueueModelAdapter());
   }
 
   final box = await SecureBoxService.openSecureBox<PictogramCard>(
@@ -161,6 +181,12 @@ class _CaaAppState extends State<CaaApp> with WidgetsBindingObserver {
       title: 'Fala Comigo',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
+      routes: {
+        '/coleta-escola': (_) => const ColetaEscolaScreen(),
+        '/painel-consentimento': (_) => const PainelConsentimentoScreen(),
+        '/metas-esdm': (_) => const MetasEsdmScreen(),
+        '/esdm-dashboard': (_) => const EsdmDashboardScreen(),
+      },
       home: FutureBuilder<void>(
         future: _bootstrapFuture,
         builder: (context, snapshot) {

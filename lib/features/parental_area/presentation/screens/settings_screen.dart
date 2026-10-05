@@ -360,6 +360,38 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     ),
                   ),
                 ),
+                _OptionAListAction(
+                  icon: Icons.school_outlined,
+                  title: 'Coleta rápida da escola',
+                  subtitle: 'Registrar uma observação em poucos toques',
+                  onTap: () => Navigator.of(context).pushNamed(
+                    '/coleta-escola',
+                  ),
+                ),
+                _OptionAListAction(
+                  icon: Icons.admin_panel_settings_outlined,
+                  title: 'Gerenciar Acessos e Permissões',
+                  subtitle: 'Controlar o acesso da escola e de especialistas',
+                  onTap: () => Navigator.of(context).pushNamed(
+                    '/painel-consentimento',
+                  ),
+                ),
+                _OptionAListAction(
+                  icon: Icons.track_changes_outlined,
+                  title: 'Plano de Metas Desenvolvimento (ESDM)',
+                  subtitle: 'Traduzir metas clínicas em missões para a família',
+                  onTap: () => Navigator.of(context).pushNamed(
+                    '/metas-esdm',
+                  ),
+                ),
+                _OptionAListAction(
+                  icon: Icons.show_chart_outlined,
+                  title: 'Gráficos e Relatórios de Evolução',
+                  subtitle: 'Acompanhar tendências de autonomia por semana',
+                  onTap: () => Navigator.of(context).pushNamed(
+                    '/esdm-dashboard',
+                  ),
+                ),
               ],
             ),
           ),
