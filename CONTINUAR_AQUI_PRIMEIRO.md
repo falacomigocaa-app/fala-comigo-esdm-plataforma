@@ -68,3 +68,11 @@ Após a validação dos motores PDF, o desenvolvimento avançou para resiliênci
 ## Expiração e concorrência de sessão validadas — 05/10/2026
 
 O Portal Web agora tem teste de concorrência em `carregarMetas` + `carregarHistoricoEscolar` simultâneos com access token expirado: duas respostas 401 compartilham exatamente um refresh, e ambas as requisições são repetidas com o access token rotacionado. No Mobile, `SyncQueueService` recebeu mock HTTP controlado para provar que 401 `TOKEN_EXPIRED` mantém o item na `sync_queue_box` com `attempts` inalterado; `AuthTokenService.handleRefreshTokenExpired()` limpa access/refresh tokens e dispara reautenticação quando o refresh de sete dias também retorna 401. Validação: portal-api 25 testes aprovados/1 PostgreSQL condicional ignorado; portal-web 12 testes aprovados e check; Flutter analyze sem issues e 118 testes aprovados.
+
+## Gerenciamento administrativo de profissionais — 05/10/2026
+
+Após a validação de expiração e concorrência, o desenvolvimento avança para a interface administrativa do Portal Web. O escopo inclui listagem de memberships da organização, criação de convites profissionais com escopos selecionáveis e proteção de rota por `membership.read`/`access.invite`.
+
+## Gerenciamento de profissionais validado — 05/10/2026
+
+O Portal Web agora possui a rota `/admin/profissionais` e a view `admin-professionals-view.js`. Sessões sem `membership.read` ou `access.invite` recebem uma tela amigável de Acesso Negado; administradores veem memberships da organização, escopos explícitos/fallback por perfil e controles para adicionar ou editar/reenviar a configuração de acesso. O APIClient usa Bearer em `GET /v1/organizations/{organizationId}/memberships` e `POST /v1/organizations/{organizationId}/invitations`. A lista é recarregada após salvar e os estados de carregamento, vazio e erro são tratados. Validação: portal-web 16 testes aprovados e `npm run check` aprovado.

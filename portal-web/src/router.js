@@ -3,8 +3,9 @@ import { hydrateClinicaScreen, renderClinicaScreen } from './screens/clinica_scr
 import { hydrateEscolaScreen, renderEscolaScreen } from './screens/escola_screen.js';
 import { hydrateReportsView, renderReportsView } from './views/reports-view.js';
 import { hydrateLoginView, renderLoginView } from './views/login-view.js';
+import { hydrateAdminProfessionalsView, renderAdminProfessionalsView } from './views/admin-professionals-view.js';
 
-const routes = new Set(['/login', '/clinica', '/escola', '/relatorios']);
+const routes = new Set(['/login', '/clinica', '/escola', '/relatorios', '/admin/profissionais']);
 
 function normalizedPath(pathname = window.location.pathname) {
   const path = pathname.replace(/\/+/g, '/').replace(/\/$/, '');
@@ -68,6 +69,14 @@ export function createRouter({ root }) {
       root.innerHTML = renderReportsView(context);
       hydrateReportsView(context).catch((error) => {
         root.querySelector('[data-report-status]')?.replaceChildren(document.createTextNode(`Falha ao carregar relatórios: ${error.message}`));
+      });
+      return;
+    }
+
+    if (path === '/admin/profissionais') {
+      root.innerHTML = renderAdminProfessionalsView(context);
+      hydrateAdminProfessionalsView(context).catch((error) => {
+        root.querySelector('[data-admin-status]')?.replaceChildren(document.createTextNode(`Falha ao carregar administração: ${error.message}`));
       });
       return;
     }

@@ -71,3 +71,11 @@ O próximo escopo valida concorrência extrema no APIClient web durante expiraç
 ## Expiração e concorrência de sessão validadas — 05/10/2026
 
 Foi adicionada cobertura de concorrência extrema ao `APIClient`: requests clínicas paralelas que recebem `TOKEN_EXPIRED` usam uma única `refreshPromise`, compartilham a rotação e repetem ambas as operações com o novo Bearer. No Mobile, a fila ganhou `postOverride` apenas para testes; o cenário 401 do access token retém o `SyncItem` sem incrementar tentativas, e o cenário 401 do refresh chama `handleRefreshTokenExpired`, limpa ambos os tokens seguros e solicita login. Resultados: portal-api 25 aprovados/1 PostgreSQL condicional ignorado, portal-web 12 aprovados + check, Flutter analyze limpo e 118 testes aprovados.
+
+## Gerenciamento administrativo de profissionais — 05/10/2026
+
+O próximo módulo do Portal Web é o painel administrativo de profissionais: consumir memberships da organização, enviar convites com escopos dinâmicos pelo endpoint de invitations, tratar estados assíncronos e bloquear a interface para sessões sem escopo administrativo.
+
+## Gerenciamento de profissionais validado — 05/10/2026
+
+Foi implementada a interface administrativa Vanilla ES Modules em `/admin/profissionais`, com proteção de rota por `membership.read`/`access.invite`, tabela de memberships, edição/reenvio de acesso e checkboxes para `esdm_goal.read/write`, `school_collection.read/write` e `report.read`. O APIClient adicionou os métodos de memberships e invitations com `Authorization: Bearer`; a tela trata carregamento, vazio, erro, salvamento e reload limpo. Portal-web: 16 testes aprovados e check sintático aprovado.

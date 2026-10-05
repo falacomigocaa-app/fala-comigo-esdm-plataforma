@@ -152,6 +152,17 @@ export class APIClient {
   salvarColeta(subjectId, payload) {
     return this.request(`/v1/subjects/${encodeURIComponent(subjectId)}/school-collections`, { method: 'POST', body: payload });
   }
+
+  carregarProfissionais(organizationId) {
+    return this.request(`/v1/organizations/${encodeURIComponent(organizationId)}/memberships`);
+  }
+
+  convidarProfissional(organizationId, payload) {
+    return this.request(`/v1/organizations/${encodeURIComponent(organizationId)}/invitations`, {
+      method: 'POST',
+      body: payload
+    });
+  }
 }
 
 export const apiClient = new APIClient();
