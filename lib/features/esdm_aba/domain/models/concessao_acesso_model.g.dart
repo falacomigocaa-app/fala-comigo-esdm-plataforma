@@ -2,9 +2,9 @@
 
 part of 'concessao_acesso_model.dart';
 
-// ***************************************************************************
+// **************************************************************************
 // TypeAdapterGenerator
-// ***************************************************************************
+// **************************************************************************
 
 class ConcessaoAcessoModelAdapter extends TypeAdapter<ConcessaoAcessoModel> {
   @override
@@ -19,8 +19,8 @@ class ConcessaoAcessoModelAdapter extends TypeAdapter<ConcessaoAcessoModel> {
     return ConcessaoAcessoModel(
       id: fields[0] as String,
       perfilAlvo: fields[1] as String,
-      permiteLeituraMetas: fields[2] as bool? ?? false,
-      permiteEscritaDados: fields[3] as bool? ?? false,
+      permiteLeituraMetas: fields[2] as bool,
+      permiteEscritaDados: fields[3] as bool,
       dataExpiracao: fields[4] as DateTime,
     );
   }

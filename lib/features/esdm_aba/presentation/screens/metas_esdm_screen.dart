@@ -118,7 +118,7 @@ class MetasEsdmScreen extends ConsumerWidget {
             return AlertDialog(
               title: const Text('Cadastrar nova meta'),
               content: DropdownButtonFormField<String>(
-                value: selectedCode,
+                initialValue: selectedCode,
                 decoration: const InputDecoration(
                   labelText: 'Código técnico Denver',
                   border: OutlineInputBorder(),
@@ -202,8 +202,8 @@ class _MetaCard extends StatelessWidget {
             height: 1.2,
           ),
         ),
-        subtitle: Padding(
-          padding: const EdgeInsets.only(top: 8),
+        subtitle: const Padding(
+          padding: EdgeInsets.only(top: 8),
           child: Text(
             'Missão para a Família',
             style: TextStyle(
@@ -238,7 +238,7 @@ class _MetaCard extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           DropdownButtonFormField<String>(
-            value: meta.status,
+            initialValue: meta.status,
             decoration: const InputDecoration(
               labelText: 'Status da meta',
               border: OutlineInputBorder(),
@@ -314,21 +314,21 @@ class _EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
+    return const Center(
       child: Padding(
-        padding: const EdgeInsets.all(28),
+        padding: EdgeInsets.all(28),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.flag_outlined, size: 56, color: AppTheme.primary),
-            const SizedBox(height: 16),
-            const Text(
+            Icon(Icons.flag_outlined, size: 56, color: AppTheme.primary),
+            SizedBox(height: 16),
+            Text(
               'Nenhuma meta cadastrada',
               style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 8),
-            const Text(
+            SizedBox(height: 8),
+            Text(
               'Adicione uma meta técnica para criar uma missão simples para a família.',
               textAlign: TextAlign.center,
               style: TextStyle(color: AppTheme.mutedText, height: 1.35),

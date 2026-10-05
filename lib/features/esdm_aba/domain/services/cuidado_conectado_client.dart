@@ -47,7 +47,7 @@ class CuidadoConectadoClient {
       'INSERT' => 'POST',
       'UPDATE' => 'PUT',
       'DELETE' => 'DELETE',
-      _ => throw FormatException('Ação de sincronização desconhecida.'),
+      _ => throw const FormatException('Ação de sincronização desconhecida.'),
     };
 
     final headers = <String, String>{

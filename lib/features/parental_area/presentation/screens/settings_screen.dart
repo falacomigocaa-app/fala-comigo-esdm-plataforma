@@ -420,6 +420,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
                   itemCount: cards.length,
+                  // Flutter 3.38 (a versão mínima do app) ainda usa este callback.
+                  // ignore: deprecated_member_use
                   onReorder: (oldIndex, newIndex) => ref
                       .read(cardsListProvider.notifier)
                       .reorderCards(oldIndex, newIndex),

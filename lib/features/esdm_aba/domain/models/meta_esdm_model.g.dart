@@ -2,9 +2,9 @@
 
 part of 'meta_esdm_model.dart';
 
-// ***************************************************************************
+// **************************************************************************
 // TypeAdapterGenerator
-// ***************************************************************************
+// **************************************************************************
 
 class MetaEsdmModelAdapter extends TypeAdapter<MetaEsdmModel> {
   @override
@@ -19,8 +19,8 @@ class MetaEsdmModelAdapter extends TypeAdapter<MetaEsdmModel> {
     return MetaEsdmModel(
       id: fields[0] as String,
       codigoTecnicoDenver: fields[1] as String,
-      status: fields[2] as String? ?? 'Em Progresso',
-      passoAtualAba: fields[3] as int? ?? 0,
+      status: fields[2] as String,
+      passoAtualAba: fields[3] as int,
     );
   }
 

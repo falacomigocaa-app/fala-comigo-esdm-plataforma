@@ -2,21 +2,25 @@
 
 part of 'sync_item.dart';
 
+// **************************************************************************
+// TypeAdapterGenerator
+// **************************************************************************
+
 class SyncQueueAdapter extends TypeAdapter<SyncItem> {
   @override
   final int typeId = 14;
 
   @override
   SyncItem read(BinaryReader reader) {
+    final numOfFields = reader.readByte();
     final fields = <int, dynamic>{
-      for (var i = 0; i < reader.readByte(); i++)
-        reader.readByte(): reader.read(),
+      for (int i = 0; i < numOfFields; i++) reader.readByte(): reader.read(),
     };
     return SyncItem(
       id: fields[0] as String,
       payload: fields[1] as String,
       createdAt: fields[2] as DateTime,
-      attempts: (fields[3] as int?) ?? 0,
+      attempts: fields[3] as int,
       endpoint: fields[4] as String,
     );
   }
@@ -36,4 +40,14 @@ class SyncQueueAdapter extends TypeAdapter<SyncItem> {
       ..writeByte(4)
       ..write(obj.endpoint);
   }
+
+  @override
+  int get hashCode => typeId.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is SyncQueueAdapter &&
+          runtimeType == other.runtimeType &&
+          typeId == other.typeId;
 }

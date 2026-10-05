@@ -2,9 +2,9 @@
 
 part of 'sincronizacao_queue_model.dart';
 
-// ***************************************************************************
+// **************************************************************************
 // TypeAdapterGenerator
-// ***************************************************************************
+// **************************************************************************
 
 class SincronizacaoQueueModelAdapter
     extends TypeAdapter<SincronizacaoQueueModel> {
@@ -22,7 +22,7 @@ class SincronizacaoQueueModelAdapter
       payloadJson: fields[1] as String,
       endpointAlvo: fields[2] as String,
       acao: fields[3] as String,
-      processado: fields[4] as bool? ?? false,
+      processado: fields[4] as bool,
     );
   }
 

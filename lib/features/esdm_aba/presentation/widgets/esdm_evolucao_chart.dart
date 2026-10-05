@@ -63,7 +63,7 @@ class _EsdmEvolucaoPainter extends CustomPainter {
       ..color = AppTheme.mutedText
       ..strokeWidth = 1.2;
 
-    canvas.drawLine(origin, Offset(_left, _top), paintAxis);
+    canvas.drawLine(origin, const Offset(_left, _top), paintAxis);
     canvas.drawLine(origin, Offset(_left + chartWidth, origin.dy), paintAxis);
 
     for (var level = 0; level <= 3; level++) {
