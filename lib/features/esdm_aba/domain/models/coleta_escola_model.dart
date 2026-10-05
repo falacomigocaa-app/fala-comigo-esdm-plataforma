@@ -17,10 +17,14 @@ class ColetaEscolaModel extends HiveObject {
   @HiveField(3)
   String nivelSuporte;
 
+  @HiveField(4)
+  String? metaId;
+
   ColetaEscolaModel({
     required this.id,
     required this.dataRegistro,
     required this.blocoRotinaEscolar,
     required this.nivelSuporte,
+    this.metaId,
   });
 }

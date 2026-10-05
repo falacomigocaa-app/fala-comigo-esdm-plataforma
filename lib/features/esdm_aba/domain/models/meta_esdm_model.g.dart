@@ -21,13 +21,16 @@ class MetaEsdmModelAdapter extends TypeAdapter<MetaEsdmModel> {
       codigoTecnicoDenver: fields[1] as String,
       status: fields[2] as String,
       passoAtualAba: fields[3] as int,
+      subjectId: fields[4] as String?,
+      missaoPais: fields[5] as String?,
+      dicaPratica: fields[6] as String?,
     );
   }
 
   @override
   void write(BinaryWriter writer, MetaEsdmModel obj) {
     writer
-      ..writeByte(4)
+      ..writeByte(7)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -35,7 +38,13 @@ class MetaEsdmModelAdapter extends TypeAdapter<MetaEsdmModel> {
       ..writeByte(2)
       ..write(obj.status)
       ..writeByte(3)
-      ..write(obj.passoAtualAba);
+      ..write(obj.passoAtualAba)
+      ..writeByte(4)
+      ..write(obj.subjectId)
+      ..writeByte(5)
+      ..write(obj.missaoPais)
+      ..writeByte(6)
+      ..write(obj.dicaPratica);
   }
 
   @override

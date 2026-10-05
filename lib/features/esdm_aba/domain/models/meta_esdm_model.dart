@@ -18,10 +18,22 @@ class MetaEsdmModel extends HiveObject {
   @HiveField(3)
   int passoAtualAba;
 
+  @HiveField(4)
+  String? subjectId;
+
+  @HiveField(5)
+  String? missaoPais;
+
+  @HiveField(6)
+  String? dicaPratica;
+
   MetaEsdmModel({
     required this.id,
     required this.codigoTecnicoDenver,
     this.status = 'Em Progresso',
     this.passoAtualAba = 0,
+    this.subjectId,
+    this.missaoPais,
+    this.dicaPratica,
   });
 }

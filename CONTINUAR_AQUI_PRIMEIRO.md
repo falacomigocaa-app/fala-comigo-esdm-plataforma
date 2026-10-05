@@ -24,3 +24,7 @@ O `portal-web` agora persiste o token na sessão local, envia `Authorization: Be
 ## Relatórios visuais no portal-web — 05/10/2026
 
 Após o push bem-sucedido da integração JWT, o desenvolvimento avança para a camada visual de relatórios clínicos. O próximo escopo é compilar coletas escolares e metas ESDM/ABA por indivíduo no portal-web, com filtros temporais, estados assíncronos e base de impressão/exportação.
+
+## Sincronização de metas mobile — 05/10/2026
+
+O aplicativo agora baixa metas ativas de `/v1/subjects/{subjectId}/esdm-goals` com JWT Bearer, valida a resposta antes de alterar o cache e persiste os dados na box Hive criptografada `esdm_goals_box`. A coleta carrega primeiro as metas locais e sincroniza em background; o seletor funciona offline e a meta selecionada acompanha o payload local. `dart run build_runner build --delete-conflicting-outputs` concluiu com 20 outputs, `flutter analyze` não encontrou issues e `flutter test` passou com 114 testes.

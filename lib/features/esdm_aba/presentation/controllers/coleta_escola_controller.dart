@@ -1,8 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../data/coleta_escola_store.dart';
+import '../../data/goal_store.dart';
 import '../../domain/models/coleta_escola_model.dart';
+import '../../domain/models/meta_esdm_model.dart';
+import '../../domain/services/goal_sync_service.dart';
 import '../../domain/services/sync_queue_service.dart';
 
 const blocosRotinaEscolar = [
@@ -22,6 +27,9 @@ const niveisSuporte = [
 class ColetaEscolaState {
   final String? blocoSelecionado;
   final String? nivelSuporteSelecionado;
+  final String? metaSelecionadaId;
+  final List<MetaEsdmModel> metas;
+  final bool carregandoMetas;
   final bool salvando;
   final ColetaEscolaModel? ultimaColeta;
   final String? sincronizacaoStatus;
@@ -30,6 +38,9 @@ class ColetaEscolaState {
   const ColetaEscolaState({
     this.blocoSelecionado,
     this.nivelSuporteSelecionado,
+    this.metaSelecionadaId,
+    this.metas = const [],
+    this.carregandoMetas = false,
     this.salvando = false,
     this.ultimaColeta,
     this.sincronizacaoStatus,
@@ -42,6 +53,9 @@ class ColetaEscolaState {
   ColetaEscolaState copyWith({
     String? blocoSelecionado,
     String? nivelSuporteSelecionado,
+    String? metaSelecionadaId,
+    List<MetaEsdmModel>? metas,
+    bool? carregandoMetas,
     bool? salvando,
     ColetaEscolaModel? ultimaColeta,
     String? sincronizacaoStatus,
@@ -51,6 +65,9 @@ class ColetaEscolaState {
       blocoSelecionado: blocoSelecionado ?? this.blocoSelecionado,
       nivelSuporteSelecionado:
           nivelSuporteSelecionado ?? this.nivelSuporteSelecionado,
+      metaSelecionadaId: metaSelecionadaId ?? this.metaSelecionadaId,
+      metas: metas ?? this.metas,
+      carregandoMetas: carregandoMetas ?? this.carregandoMetas,
       salvando: salvando ?? this.salvando,
       ultimaColeta: ultimaColeta ?? this.ultimaColeta,
       sincronizacaoStatus: sincronizacaoStatus ?? this.sincronizacaoStatus,
@@ -65,7 +82,29 @@ final coletaEscolaControllerProvider = StateNotifierProvider.autoDispose<
 );
 
 class ColetaEscolaController extends StateNotifier<ColetaEscolaState> {
-  ColetaEscolaController() : super(const ColetaEscolaState());
+  ColetaEscolaController() : super(const ColetaEscolaState()) {
+    unawaited(_initializeGoals());
+  }
+
+  Future<void> _initializeGoals() async {
+    state = state.copyWith(carregandoMetas: true);
+    try {
+      final cached = await GoalStore.loadForSubject(syncSubjectId);
+      state = state.copyWith(
+        metas: cached,
+        metaSelecionadaId: cached.isEmpty ? null : cached.first.id,
+      );
+      await GoalSyncService.syncActiveGoals(subjectId: syncSubjectId);
+      final refreshed = await GoalStore.loadForSubject(syncSubjectId);
+      state = state.copyWith(
+        metas: refreshed,
+        carregandoMetas: false,
+        metaSelecionadaId: refreshed.isEmpty ? null : refreshed.first.id,
+      );
+    } catch (error) {
+      state = state.copyWith(carregandoMetas: false, erro: error);
+    }
+  }
 
   void selecionarBloco(String bloco) {
     state = state.copyWith(blocoSelecionado: bloco, erro: null);
@@ -73,6 +112,11 @@ class ColetaEscolaController extends StateNotifier<ColetaEscolaState> {
 
   void selecionarNivelSuporte(String nivel) {
     state = state.copyWith(nivelSuporteSelecionado: nivel, erro: null);
+  }
+
+  void selecionarMeta(String? metaId) {
+    if (metaId == null || metaId.isEmpty) return;
+    state = state.copyWith(metaSelecionadaId: metaId, erro: null);
   }
 
   Future<bool> registrar() async {
@@ -87,6 +131,7 @@ class ColetaEscolaController extends StateNotifier<ColetaEscolaState> {
         dataRegistro: DateTime.now(),
         blocoRotinaEscolar: bloco,
         nivelSuporte: nivel,
+        metaId: state.metaSelecionadaId,
       );
       await ColetaEscolaStore.save(coleta);
       final syncStatus = await SyncQueueService.saveOrSyncCollection(

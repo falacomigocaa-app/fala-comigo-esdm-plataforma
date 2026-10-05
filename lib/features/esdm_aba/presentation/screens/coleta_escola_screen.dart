@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/theme/app_theme.dart';
 import '../controllers/coleta_escola_controller.dart';
+import '../../domain/models/meta_esdm_model.dart';
 
 class ColetaEscolaScreen extends ConsumerWidget {
   const ColetaEscolaScreen({super.key});
@@ -58,6 +59,13 @@ class ColetaEscolaScreen extends ConsumerWidget {
               children: [
                 const _IntroCard(),
                 const SizedBox(height: 24),
+                _GoalSelectionSection(
+                  metas: state.metas,
+                  selected: state.metaSelecionadaId,
+                  loading: state.carregandoMetas,
+                  onSelected: controller.selecionarMeta,
+                ),
+                const SizedBox(height: 24),
                 _SelectionSection(
                   title: 'Em qual bloco da rotina?',
                   subtitle: 'Toque em uma opção.',
@@ -102,6 +110,92 @@ class ColetaEscolaScreen extends ConsumerWidget {
           },
         ),
       ),
+    );
+  }
+}
+
+class _GoalSelectionSection extends StatelessWidget {
+  final List<MetaEsdmModel> metas;
+  final String? selected;
+  final bool loading;
+  final ValueChanged<String?> onSelected;
+
+  const _GoalSelectionSection({
+    required this.metas,
+    required this.selected,
+    required this.loading,
+    required this.onSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Icon(Icons.flag_outlined, color: AppTheme.primary),
+            const SizedBox(width: 8),
+            const Expanded(
+              child: Text(
+                'Qual meta está sendo observada?',
+                style: TextStyle(
+                  color: AppTheme.textDark,
+                  fontSize: 19,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+            if (loading)
+              const SizedBox.square(
+                dimension: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        const Text(
+          'Metas sincronizadas ficam disponíveis mesmo sem conexão.',
+          style: TextStyle(color: AppTheme.mutedText),
+        ),
+        const SizedBox(height: 12),
+        if (metas.isEmpty)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppTheme.surface,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: AppTheme.cardBorder),
+            ),
+            child: Text(
+              loading
+                  ? 'Consultando metas clínicas…'
+                  : 'Nenhuma meta sincronizada para este indivíduo.',
+              style: const TextStyle(color: AppTheme.mutedText),
+            ),
+          )
+        else
+          DropdownButtonFormField<String>(
+            initialValue: selected,
+            decoration: const InputDecoration(
+              labelText: 'Meta clínica',
+              border: OutlineInputBorder(),
+            ),
+            items: metas
+                .map(
+                  (meta) => DropdownMenuItem(
+                    value: meta.id,
+                    child: Text(
+                      '${meta.codigoTecnicoDenver} · ${meta.missaoPais ?? meta.status}',
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                )
+                .toList(),
+            onChanged: onSelected,
+          ),
+      ],
     );
   }
 }

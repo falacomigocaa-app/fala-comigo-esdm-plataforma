@@ -21,13 +21,14 @@ class ColetaEscolaModelAdapter extends TypeAdapter<ColetaEscolaModel> {
       dataRegistro: fields[1] as DateTime,
       blocoRotinaEscolar: fields[2] as String,
       nivelSuporte: fields[3] as String,
+      metaId: fields[4] as String?,
     );
   }
 
   @override
   void write(BinaryWriter writer, ColetaEscolaModel obj) {
     writer
-      ..writeByte(4)
+      ..writeByte(5)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -35,7 +36,9 @@ class ColetaEscolaModelAdapter extends TypeAdapter<ColetaEscolaModel> {
       ..writeByte(2)
       ..write(obj.blocoRotinaEscolar)
       ..writeByte(3)
-      ..write(obj.nivelSuporte);
+      ..write(obj.nivelSuporte)
+      ..writeByte(4)
+      ..write(obj.metaId);
   }
 
   @override

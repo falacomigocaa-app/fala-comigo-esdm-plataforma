@@ -119,6 +119,7 @@ class SyncQueueService {
         'dataRegistro': coleta.dataRegistro.toIso8601String(),
         'blocoRotinaEscolar': coleta.blocoRotinaEscolar,
         'nivelSuporte': coleta.nivelSuporte,
+        'metaId': coleta.metaId,
       }),
       createdAt: DateTime.now(),
       endpoint: '/school-collections',
