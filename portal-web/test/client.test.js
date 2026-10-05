@@ -92,3 +92,52 @@ test('APIClient limpa a sessão e sinaliza reautenticação em 401', async () =>
   assert.equal(removed, true);
   assert.equal(signaled, true);
 });
+
+test('APIClient renova a sessão e repete a requisição após TOKEN_EXPIRED', async () => {
+  const session = {
+    userId: 'user-professional-alpha',
+    organizationId: 'org-demo-alpha',
+    token: 'access-old',
+    refreshToken: 'refresh-old'
+  };
+  const requests = [];
+  let persisted;
+  globalThis.window = {
+    PORTAL_API_BASE: 'http://127.0.0.1:8787',
+    localStorage: {
+      getItem: () => JSON.stringify(persisted || session),
+      setItem: (_key, value) => { persisted = JSON.parse(value); },
+      removeItem: () => {}
+    },
+    dispatchEvent: () => true
+  };
+  globalThis.fetch = async (url, options) => {
+    requests.push({ url, options });
+    if (url.endsWith('/v1/auth/refresh')) {
+      return {
+        ok: true,
+        status: 200,
+        async json() { return { accessToken: 'access-new', refreshToken: 'refresh-new', expiresIn: 900 }; }
+      };
+    }
+    if (requests.length === 1) {
+      return {
+        ok: false,
+        status: 401,
+        async json() { return { error: 'TOKEN_EXPIRED', renewalRequired: true }; }
+      };
+    }
+    return { ok: true, status: 200, async json() { return { goals: [] }; } };
+  };
+
+  const { APIClient } = await import(`../src/api/client.js?case=${Date.now()}`);
+  const result = await new APIClient().carregarMetas('subject-demo-child');
+
+  assert.deepEqual(result, { goals: [] });
+  assert.equal(requests.length, 3);
+  assert.equal(requests[0].options.headers.authorization, 'Bearer access-old');
+  assert.deepEqual(JSON.parse(requests[1].options.body), { refreshToken: 'refresh-old' });
+  assert.equal(requests[2].options.headers.authorization, 'Bearer access-new');
+  assert.equal(persisted.token, 'access-new');
+  assert.equal(persisted.refreshToken, 'refresh-new');
+});

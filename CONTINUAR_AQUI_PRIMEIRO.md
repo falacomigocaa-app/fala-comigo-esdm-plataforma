@@ -28,3 +28,7 @@ Após o push bem-sucedido da integração JWT, o desenvolvimento avança para a 
 ## Sincronização de metas mobile — 05/10/2026
 
 O aplicativo agora baixa metas ativas de `/v1/subjects/{subjectId}/esdm-goals` com JWT Bearer, valida a resposta antes de alterar o cache e persiste os dados na box Hive criptografada `esdm_goals_box`. A coleta carrega primeiro as metas locais e sincroniza em background; o seletor funciona offline e a meta selecionada acompanha o payload local. `dart run build_runner build --delete-conflicting-outputs` concluiu com 20 outputs, `flutter analyze` não encontrou issues e `flutter test` passou com 114 testes.
+
+## Renovação automática de sessão — 05/10/2026
+
+Após o push do downlink de metas mobile, o projeto avançou para refresh tokens. O portal-api agora mantém refresh tokens opacos somente por hash, com expiração de sete dias, rotação de uso único e persistência PostgreSQL em `refresh_tokens`; o endpoint `POST /v1/auth/refresh` emite novo access token de 15 minutos. O APIClient web renova silenciosamente em `TOKEN_EXPIRED`, atualiza a sessão e repete a requisição clínica uma única vez. Validação: backend 23 testes aprovados e 1 PostgreSQL condicional ignorado; web 8 testes aprovados.

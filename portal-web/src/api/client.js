@@ -52,9 +52,10 @@ function notifyAuthenticationRequired() {
 export class APIClient {
   constructor({ baseUrl = globalThis.window?.PORTAL_API_BASE || DEFAULT_API_BASE } = {}) {
     this.baseUrl = baseUrl.replace(/\/$/, '');
+    this.refreshPromise = null;
   }
 
-  async request(path, { method = 'GET', body } = {}) {
+  async request(path, { method = 'GET', body } = {}, canRefresh = true) {
     const session = getSession();
     const headers = {
       accept: 'application/json',
@@ -70,13 +71,51 @@ export class APIClient {
     });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
-      if (response.status === 401) notifyAuthenticationRequired();
       const error = new Error(payload.error || `HTTP_${response.status}`);
       error.status = response.status;
       error.renewalRequired = payload.renewalRequired === true;
+      if (response.status === 401 && canRefresh && error.renewalRequired) {
+        try {
+          await this.refreshSession();
+          return this.request(path, { method, body }, false);
+        } catch (_) {
+          notifyAuthenticationRequired();
+        }
+      } else if (response.status === 401) {
+        notifyAuthenticationRequired();
+      }
       throw error;
     }
     return payload;
+  }
+
+  async refreshSession() {
+    if (this.refreshPromise) return this.refreshPromise;
+    const session = getSession();
+    if (!session?.refreshToken) throw new Error('REFRESH_TOKEN_MISSING');
+    this.refreshPromise = (async () => {
+      const response = await fetch(`${this.baseUrl}/v1/auth/refresh`, {
+        method: 'POST',
+        headers: { accept: 'application/json', 'content-type': 'application/json' },
+        body: JSON.stringify({ refreshToken: session.refreshToken })
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || typeof payload.accessToken !== 'string' || typeof payload.refreshToken !== 'string') {
+        const error = new Error(payload.error || 'REFRESH_TOKEN_INVALID');
+        error.status = response.status;
+        throw error;
+      }
+      saveSession({
+        ...session,
+        token: payload.accessToken,
+        refreshToken: payload.refreshToken,
+        accessTokenExpiresAt: payload.expiresIn ? Date.now() + payload.expiresIn * 1000 : undefined
+      });
+      return payload;
+    })().finally(() => {
+      this.refreshPromise = null;
+    });
+    return this.refreshPromise;
   }
 
   carregarPacientes(organizationId) {

@@ -1,5 +1,11 @@
 import pg from 'pg';
 import { randomUUID } from 'node:crypto';
+import {
+  DEFAULT_REFRESH_TOKEN_EXPIRATION_MS,
+  createOpaqueRefreshToken,
+  hashRefreshToken
+} from './services/auth.service.js';
+import { AuthorizationError } from './authorization.js';
 
 const { Pool } = pg;
 
@@ -126,6 +132,7 @@ export function createStore({ pool = createPostgresPool() } = {}) {
     benefits: structuredClone(baseBenefits),
     goals: [],
     collections: [],
+    refreshTokens: new Map(),
     auditEvents: [],
     idempotency: new Map(),
     pool,
@@ -175,6 +182,64 @@ export function createStore({ pool = createPostgresPool() } = {}) {
         return result.rows.map(mapCollection);
       }
       return store.collections.filter((collection) => collection.subjectId === subjectId).sort((a, b) => new Date(b.dataRegistro) - new Date(a.dataRegistro));
+    },
+
+    async createRefreshToken({ userId, organizationId, scopes }, now = new Date()) {
+      const token = createOpaqueRefreshToken();
+      const tokenHash = hashRefreshToken(token);
+      const expiresAt = new Date(now.getTime() + DEFAULT_REFRESH_TOKEN_EXPIRATION_MS).toISOString();
+      if (pool) {
+        await pool.query(`
+          insert into refresh_tokens (token_hash, user_id, organization_id, scopes, expires_at)
+          values ($1, $2, $3, $4::jsonb, $5)
+        `, [tokenHash, userId, organizationId, JSON.stringify([...new Set(scopes)]), expiresAt]);
+        return token;
+      }
+      store.refreshTokens.set(tokenHash, {
+        userId,
+        organizationId,
+        scopes: [...new Set(scopes)],
+        createdAt: now.toISOString(),
+        expiresAt,
+        revokedAt: null
+      });
+      return token;
+    },
+
+    async rotateRefreshToken(token, now = new Date()) {
+      let tokenHash;
+      try {
+        tokenHash = hashRefreshToken(token);
+      } catch (_) {
+        throw new AuthorizationError('REFRESH_TOKEN_INVALID', 401);
+      }
+      if (pool) {
+        const result = await pool.query(`
+          update refresh_tokens
+             set revoked_at = $2
+           where token_hash = $1
+             and revoked_at is null
+             and expires_at > $2
+           returning user_id, organization_id, scopes
+        `, [tokenHash, now.toISOString()]);
+        const record = result.rows[0];
+        if (!record) throw new AuthorizationError('REFRESH_TOKEN_INVALID', 401);
+        return {
+          userId: record.user_id,
+          organizationId: record.organization_id,
+          scopes: Array.isArray(record.scopes) ? record.scopes : JSON.parse(record.scopes)
+        };
+      }
+      const record = store.refreshTokens.get(tokenHash);
+      if (!record || record.revokedAt || new Date(record.expiresAt) <= now) {
+        throw new AuthorizationError('REFRESH_TOKEN_INVALID', 401);
+      }
+      record.revokedAt = now.toISOString();
+      return {
+        userId: record.userId,
+        organizationId: record.organizationId,
+        scopes: [...record.scopes]
+      };
     }
   };
 

@@ -31,3 +31,7 @@ Com a autenticação JWT publicada, o próximo módulo é a camada visual de rel
 ## Sincronização de metas mobile — 05/10/2026
 
 Foi implementado o downlink de metas clínicas via GET `/v1/subjects/{subjectId}/esdm-goals` com `Authorization: Bearer`, cache por indivíduo em `esdm_goals_box` cifrada e atualização substitutiva somente após parsing completo. Offline, falha de rede ou 401 preservam o cache anterior; 401 dispara o callback de reautenticação. A tela de coleta usa primeiro o cache e sincroniza em background, oferecendo seletor de metas mesmo offline. Build_runner concluiu com 20 outputs, analyze passou sem issues e os 114 testes Flutter passaram.
+
+## Renovação automática de sessão — 05/10/2026
+
+O fluxo de sessão foi ampliado com `POST /v1/auth/refresh`: refresh tokens opacos são persistidos apenas como SHA-256, expiram em sete dias e são revogados a cada uso, com suporte à tabela PostgreSQL `refresh_tokens` na migration 002. O cliente web captura 401 com `renewalRequired`, faz refresh transparente, salva o par rotacionado e repete a requisição original uma vez; se falhar, limpa a sessão e redireciona ao login. Testes: portal-api 23 aprovados/1 PostgreSQL condicional ignorado; portal-web 8 aprovados.

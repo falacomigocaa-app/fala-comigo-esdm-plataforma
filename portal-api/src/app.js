@@ -1,5 +1,6 @@
 import { AuthorizationError, audit, requireScope, stableError } from './authorization.js';
 import { authenticateRequest } from './middlewares/auth.middleware.js';
+import { issueAccessToken } from './services/auth.service.js';
 import { createStore, esdmTranslations } from './store.js';
 
 const jsonHeaders = { 'content-type': 'application/json; charset=utf-8' };
@@ -96,6 +97,20 @@ export function createApp({ store = createStore(), now = () => new Date('2026-09
     const context = { user: null, organizationId: null, requestId, now: clock };
 
     try {
+      if (method === 'POST' && path[0] === 'v1' && path[1] === 'auth' && path[2] === 'refresh') {
+        const claims = await store.rotateRefreshToken(body?.refreshToken, clock);
+        const user = store.users.find((candidate) => candidate.id === claims.userId && candidate.status === 'active');
+        if (!user) throw new AuthorizationError('REFRESH_TOKEN_INVALID', 401);
+        const accessToken = issueAccessToken(claims);
+        const refreshToken = await store.createRefreshToken(claims, clock);
+        return response(200, {
+          accessToken,
+          refreshToken,
+          expiresIn: 15 * 60,
+          refreshExpiresIn: 7 * 24 * 60 * 60
+        });
+      }
+
       if (method === 'GET' && path[0] === 'v1' && path[1] === 'me') {
         context.user = authenticateRequest(store, headers);
         return response(200, { id: context.user.id, status: context.user.status, storageMode: store.storageMode });

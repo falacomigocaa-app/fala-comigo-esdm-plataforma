@@ -77,10 +77,11 @@ export function createRouter({ root }) {
       event.preventDefault();
       const form = new FormData(event.currentTarget);
       const token = String(form.get('token') || '').trim();
+      const refreshToken = String(form.get('refreshToken') || '').trim();
       const userId = String(form.get('userId') || '').trim();
       const organizationId = String(form.get('organizationId') || '').trim();
-      if (!token || !userId || !organizationId) return;
-      window.localStorage.setItem('fala-comigo.portal.session', JSON.stringify({ token, userId, organizationId }));
+      if (!token || !refreshToken || !userId || !organizationId) return;
+      window.localStorage.setItem('fala-comigo.portal.session', JSON.stringify({ token, refreshToken, userId, organizationId }));
       navigate('/clinica');
     });
   }

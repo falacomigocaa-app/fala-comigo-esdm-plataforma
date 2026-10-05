@@ -1,6 +1,8 @@
 import jwt from 'jsonwebtoken';
+import { createHash, randomBytes } from 'node:crypto';
 
 export const DEFAULT_TOKEN_EXPIRATION = '15m';
+export const DEFAULT_REFRESH_TOKEN_EXPIRATION_MS = 7 * 24 * 60 * 60 * 1000;
 
 function jwtSecret() {
   const secret = process.env.JWT_SECRET;
@@ -43,4 +45,13 @@ export function verifyAccessToken(token, options = {}) {
     issuer: options.issuer ?? 'fala-comigo-portal-api',
     audience: options.audience ?? 'fala-comigo-clients'
   });
+}
+
+export function createOpaqueRefreshToken() {
+  return randomBytes(48).toString('base64url');
+}
+
+export function hashRefreshToken(token) {
+  if (!token || typeof token !== 'string') throw new TypeError('refreshToken is required');
+  return createHash('sha256').update(token).digest('hex');
 }
