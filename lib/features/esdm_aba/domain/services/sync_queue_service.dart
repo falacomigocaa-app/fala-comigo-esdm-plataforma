@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:http/http.dart' as http;
 
+import '../../../../core/services/auth_token_service.dart';
 import '../../data/concessao_acesso_store.dart';
 import '../../data/sync_queue_store.dart';
 import '../../domain/models/coleta_escola_model.dart';
@@ -17,11 +18,6 @@ const syncApiBaseUrl = String.fromEnvironment(
   'PORTAL_API_BASE_URL',
   defaultValue: 'http://127.0.0.1:8787',
 );
-const syncUserId = String.fromEnvironment(
-  'PORTAL_USER_ID',
-  defaultValue: 'user-admin-beta',
-);
-
 enum SyncOutcome { synced, queued, localOnly }
 
 /// Envia coletas quando há rede e mantém a fila cifrada quando não há.
@@ -67,8 +63,16 @@ class SyncQueueService {
     }
 
     try {
-      await _send(item, grant.id);
+      await _send(item);
       return SyncOutcome.synced;
+    } on AuthTokenExpiredException {
+      await SyncQueueStore.enqueue(item);
+      AuthTokenService.requireAuthentication();
+      return SyncOutcome.queued;
+    } on AuthTokenRequiredException {
+      await SyncQueueStore.enqueue(item);
+      AuthTokenService.requireAuthentication();
+      return SyncOutcome.queued;
     } catch (_) {
       item.attempts = 1;
       await SyncQueueStore.enqueue(item);
@@ -84,8 +88,16 @@ class SyncQueueService {
         final grant = await ConcessaoAcessoStore.findActive(escolaPerfilAlvo);
         if (grant == null) return;
         try {
-          await _send(item, grant.id);
+          await _send(item);
           await SyncQueueStore.remove(item);
+        } on AuthTokenExpiredException {
+          // O item permanece na box sem incrementar tentativas: a coleta clínica
+          // só poderá sair após uma nova autenticação válida.
+          AuthTokenService.requireAuthentication();
+          return;
+        } on AuthTokenRequiredException {
+          AuthTokenService.requireAuthentication();
+          return;
         } catch (_) {
           await SyncQueueStore.incrementAttempts(item);
         }
@@ -113,7 +125,11 @@ class SyncQueueService {
     );
   }
 
-  static Future<void> _send(SyncItem item, String grantId) async {
+  static Future<void> _send(SyncItem item) async {
+    final token = await AuthTokenService.readToken();
+    if (token == null || token.isEmpty) {
+      throw const AuthTokenRequiredException();
+    }
     final payload = jsonDecode(item.payload) as Map<String, dynamic>;
     final subjectId = payload['subjectId'] as String?;
     if (subjectId == null || subjectId.isEmpty) {
@@ -129,15 +145,17 @@ class SyncQueueService {
           headers: {
             'accept': 'application/json',
             'content-type': 'application/json',
-            'authorization': 'Bearer consent-$grantId',
+            'authorization': 'Bearer $token',
             'x-consent-profile': escolaPerfilAlvo,
-            'x-synthetic-user-id': syncUserId,
             'x-request-id': item.id,
           },
           body: item.payload,
         )
         .timeout(const Duration(seconds: 15));
 
+    if (response.statusCode == 401) {
+      throw AuthTokenExpiredException(response.statusCode, response.body);
+    }
     if (response.statusCode != 200 && response.statusCode != 201) {
       throw StateError('Sincronização recusada: HTTP ${response.statusCode}.');
     }

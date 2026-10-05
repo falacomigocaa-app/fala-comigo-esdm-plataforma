@@ -1,4 +1,5 @@
-import { AuthorizationError, audit, authenticate, requireScope, stableError } from './authorization.js';
+import { AuthorizationError, audit, requireScope, stableError } from './authorization.js';
+import { authenticateRequest } from './middlewares/auth.middleware.js';
 import { createStore, esdmTranslations } from './store.js';
 
 const jsonHeaders = { 'content-type': 'application/json; charset=utf-8' };
@@ -90,18 +91,18 @@ function requireCollectionPayload(body) {
 export function createApp({ store = createStore(), now = () => new Date('2026-09-25T12:00:00.000Z') } = {}) {
   async function handle({ method, url, headers = {}, body = null }) {
     const path = parsePath(url);
-    const userId = headers['x-synthetic-user-id'];
     const requestId = headers['x-request-id'] ?? null;
     const clock = now();
     const context = { user: null, organizationId: null, requestId, now: clock };
 
     try {
       if (method === 'GET' && path[0] === 'v1' && path[1] === 'me') {
-        context.user = authenticate(store, userId);
+        context.user = authenticateRequest(store, headers);
         return response(200, { id: context.user.id, status: context.user.status, storageMode: store.storageMode });
       }
 
-      context.user = authenticate(store, userId);
+      context.user = authenticateRequest(store, headers);
+      context.organizationId = context.user.organizationId;
       if (path[0] !== 'v1') return response(404, { error: 'NOT_FOUND' });
 
       if (method === 'GET' && path[1] === 'organizations' && path[3] === undefined && path[2]) {
@@ -322,6 +323,9 @@ export function createApp({ store = createStore(), now = () => new Date('2026-09
     } catch (rawError) {
       const error = stableError(rawError);
       if (context.user) sendAudit(store, context, 'request.denied', 'denied', error);
+      if (error.code === 'TOKEN_EXPIRED') {
+        return response(401, { error: 'TOKEN_EXPIRED', code: 'TOKEN_EXPIRED', renewalRequired: true });
+      }
       return response(error.status, { error: error.code });
     }
   }

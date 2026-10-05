@@ -36,6 +36,18 @@ export function clearSession() {
   window.localStorage.removeItem(SESSION_KEY);
 }
 
+export function getAccessToken() {
+  return getSession()?.token || null;
+}
+
+function notifyAuthenticationRequired() {
+  clearSession();
+  const event = typeof CustomEvent === 'function'
+    ? new CustomEvent('fala-comigo:auth-required')
+    : { type: 'fala-comigo:auth-required' };
+  window.dispatchEvent?.(event);
+}
+
 export class APIClient {
   constructor({ baseUrl = window.PORTAL_API_BASE || DEFAULT_API_BASE } = {}) {
     this.baseUrl = baseUrl.replace(/\/$/, '');
@@ -45,9 +57,9 @@ export class APIClient {
     const session = getSession();
     const headers = {
       accept: 'application/json',
-      'x-synthetic-user-id': session?.userId || '',
       'x-request-id': requestId()
     };
+    if (session?.token) headers.authorization = `Bearer ${session.token}`;
     if (body !== undefined) headers['content-type'] = 'application/json';
 
     const response = await fetch(`${this.baseUrl}${path}`, {
@@ -57,8 +69,10 @@ export class APIClient {
     });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
+      if (response.status === 401) notifyAuthenticationRequired();
       const error = new Error(payload.error || `HTTP_${response.status}`);
       error.status = response.status;
+      error.renewalRequired = payload.renewalRequired === true;
       throw error;
     }
     return payload;

@@ -12,3 +12,11 @@ Esta sessão termina após o commit e push deste escopo. O próximo passo exato 
 A toolchain Flutter stable 3.47.6 (Dart 3.13.5) foi provisionada e executada na raiz mobile. `flutter pub get` concluiu; `flutter pub run build_runner build --delete-conflicting-outputs` terminou sem conflitos e gerou os adapters, incluindo `SyncQueueAdapter` TypeId 14 em `sync_item.g.dart`; `flutter analyze` terminou com `No issues found!`; e `flutter test` passou com 114 testes.
 
 Os artefatos gerados, ajustes estáticos e dependências foram consolidados e publicados na branch `main` no commit `788212c` (`feat(mobile): compile build_runner artifacts and clean sync queue types`).
+
+## Segurança JWT no portal-api — 05/10/2026
+
+O backend agora emite e valida tokens JWT com `jsonwebtoken`, `JWT_SECRET` obrigatório (mínimo de 32 caracteres), payload com `userId`, `organizationId` e `scopes`, e expiração padrão rígida de 15 minutos. O middleware Bearer substituiu o header `x-synthetic-user-id`; tokens ausentes/corrompidos retornam 401 e tokens expirados retornam `TOKEN_EXPIRED` com `renewalRequired: true`. A suíte `npm test` passou com 21 testes, 1 teste PostgreSQL opcional ignorado.
+
+## Integração JWT web/mobile — 05/10/2026
+
+O `portal-web` agora persiste o token na sessão local, envia `Authorization: Bearer` nas chamadas de metas/coletas e limpa a sessão/sinaliza login em respostas 401. O mobile usa `AuthTokenService` com `flutter_secure_storage`; a fila envia o Bearer ativo, mantém o payload em 401 e interrompe o processamento para reautenticação. Validação final: backend 21 testes aprovados e 1 PostgreSQL condicional ignorado; web 4 testes aprovados e check sintático; Flutter analyze sem issues e 114 testes aprovados.

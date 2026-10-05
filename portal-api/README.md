@@ -1,6 +1,6 @@
 # API local do Portal Cuidado Conectado
 
-Esta pasta contém a implementação local do portal com identidade sintética para desenvolvimento. Ela testa autorização, isolamento entre organizações, sujeito infantil, consentimento, convites, grants, revogação, benefícios, auditoria, idempotência, metas ESDM e coletas escolares sem criar contas externas ou conectar um provedor real.
+Esta pasta contém a implementação local do portal com autenticação JWT para desenvolvimento e staging. Ela testa autorização, isolamento entre organizações, sujeito infantil, consentimento, convites, grants, revogação, benefícios, auditoria, idempotência, metas ESDM e coletas escolares sem criar contas externas ou conectar um provedor real.
 
 ## Executar
 
@@ -13,10 +13,10 @@ npm test
 npm start
 ```
 
-O servidor local inicia em `http://127.0.0.1:8787`. A identidade de desenvolvimento é informada pelo header sintético `x-synthetic-user-id`, por exemplo:
+O servidor local inicia em `http://127.0.0.1:8787`. Configure `JWT_SECRET` com pelo menos 32 caracteres e envie um token emitido pelo serviço de autenticação no header padrão:
 
 ```bash
-curl -H 'x-synthetic-user-id: user-professional-alpha' \
+curl -H 'Authorization: Bearer <JWT>' \
   http://127.0.0.1:8787/v1/organizations/org-demo-alpha/subjects
 ```
 
@@ -53,7 +53,9 @@ Antes de qualquer leitura ou escrita, o backend valida membership, consentimento
 ## Conteúdo
 
 - `src/store.js`: dicionário ESDM, fixtures de autorização para testes, `pg.Pool` e queries parametrizadas das tabelas funcionais;
-- `src/authorization.js`: autenticação sintética, membership, escopos, erros estáveis e auditoria;
+- `src/services/auth.service.js`: emissão e validação de JWT com expiração padrão de 15 minutos;
+- `src/middlewares/auth.middleware.js`: extração do Bearer, validação de claims e erros 401 padronizados;
+- `src/authorization.js`: membership, escopos, erros estáveis e auditoria;
 - `src/app.js`: rotas `/v1`, autorização, contratos e idempotência;
 - `src/server.js`: adaptador HTTP local, CORS e parsing JSON;
 - `migrations/001_initial.sql`: schema de identidade, organização, sujeito, consentimento, autorização, metas e coletas;
@@ -63,6 +65,6 @@ Antes de qualquer leitura ou escrita, o backend valida membership, consentimento
 
 ## Limites
 
-O header sintético e o servidor atual são somente para desenvolvimento local. Ainda não há login real, OAuth, sessão de produção ou banco remoto configurado nesta sandbox. O próximo gate é trocar o adaptador de identidade e executar a integração PostgreSQL em staging, mantendo as decisões server-side de organização, sujeito, finalidade, escopo, consentimento e prazo.
+O JWT e o servidor atual são destinados a desenvolvimento/staging. Ainda não há provedor OAuth configurado nesta sandbox; a emissão de tokens deve ser conectada ao provedor de identidade antes de produção. Tokens expiram em 15 minutos por padrão, e o cliente deve renovar a sessão ao receber `401` com `error: TOKEN_EXPIRED` e `renewalRequired: true`. O próximo gate é executar a integração PostgreSQL em staging com um `JWT_SECRET` real, mantendo as decisões server-side de organização, sujeito, finalidade, escopo, consentimento e prazo.
 
 Não adicionar senhas, tokens, nomes reais, dados de crianças, conteúdo clínico, fotos, vídeos, áudios ou credenciais a esta pasta.

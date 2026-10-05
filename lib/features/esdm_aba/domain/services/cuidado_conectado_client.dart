@@ -1,9 +1,9 @@
 import 'dart:convert';
 import 'dart:developer' as developer;
 
+import '../../../../core/services/auth_token_service.dart';
 import '../../data/concessao_acesso_store.dart';
 import '../../data/sincronizacao_queue_store.dart';
-import '../models/concessao_acesso_model.dart';
 import '../models/sincronizacao_queue_model.dart';
 
 /// Cliente local da futura API Cuidado Conectado.
@@ -23,7 +23,7 @@ class CuidadoConectadoClient {
       // Revogação ou expiração bloqueia o evento e o mantém pendente.
       if (grant == null) continue;
 
-      await _simulateHttpRequest(item, grant);
+      await _simulateHttpRequest(item);
       await SincronizacaoQueueStore.markProcessed(item);
     }
   }
@@ -41,8 +41,11 @@ class CuidadoConectadoClient {
 
   static Future<void> _simulateHttpRequest(
     SincronizacaoQueueModel item,
-    ConcessaoAcessoModel grant,
   ) async {
+    final token = await AuthTokenService.readToken();
+    if (token == null || token.isEmpty) {
+      throw const AuthTokenRequiredException();
+    }
     final method = switch (item.acao) {
       'INSERT' => 'POST',
       'UPDATE' => 'PUT',
@@ -51,9 +54,8 @@ class CuidadoConectadoClient {
     };
 
     final headers = <String, String>{
-      // Placeholder local até a emissão de token server-side do portal.
-      'Authorization': 'Bearer consent-${grant.id}',
-      'X-Consent-Profile': grant.perfilAlvo,
+      'Authorization': 'Bearer $token',
+      'X-Consent-Profile': escolaPerfilAlvo,
       'Content-Type': 'application/json',
     };
     final payload = jsonDecode(item.payloadJson);

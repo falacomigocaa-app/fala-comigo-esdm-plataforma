@@ -39,3 +39,7 @@ Executar o pipeline Flutter com `flutter pub get`, `dart run build_runner build 
 A validação da raiz mobile usou Flutter stable **3.47.6** e Dart **3.13.5**. O `flutter pub get` concluiu com as dependências de `connectivity_plus` e `http` resolvidas; o `flutter pub run build_runner build --delete-conflicting-outputs` concluiu sem conflitos e gerou o adapter `SyncQueueAdapter` TypeId 14 em `sync_item.g.dart`; `flutter analyze` concluiu com `No issues found!`; e `flutter test` concluiu com **114 testes passando**.
 
 A consolidação foi publicada na `main` em `788212c`, com a mensagem `feat(mobile): compile build_runner artifacts and clean sync queue types`.
+
+## Integração JWT web/mobile — 05/10/2026
+
+O frontend web passou a usar `Authorization: Bearer` e a remover a sessão em 401. O mobile lê o JWT do `flutter_secure_storage`, envia o Bearer na fila e preserva coletas pendentes quando a API exige reautenticação. A validação final passou no backend, web e mobile: 21 testes backend, 4 testes web, análise Flutter sem issues e 114 testes Flutter.

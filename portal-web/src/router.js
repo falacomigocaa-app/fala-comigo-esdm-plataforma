@@ -17,6 +17,14 @@ export function createRouter({ root }) {
     render();
   }
 
+  function handleAuthenticationRequired() {
+    clearSession();
+    window.history.replaceState({}, '', '/login');
+    render();
+  }
+
+  window.addEventListener?.('fala-comigo:auth-required', handleAuthenticationRequired);
+
   function render() {
     const session = getSession();
     let path = normalizedPath();
@@ -59,10 +67,11 @@ export function createRouter({ root }) {
     root.querySelector('[data-auth-form]')?.addEventListener('submit', (event) => {
       event.preventDefault();
       const form = new FormData(event.currentTarget);
+      const token = String(form.get('token') || '').trim();
       const userId = String(form.get('userId') || '').trim();
       const organizationId = String(form.get('organizationId') || '').trim();
-      if (!userId || !organizationId) return;
-      window.localStorage.setItem('fala-comigo.portal.session', JSON.stringify({ userId, organizationId }));
+      if (!token || !userId || !organizationId) return;
+      window.localStorage.setItem('fala-comigo.portal.session', JSON.stringify({ token, userId, organizationId }));
       navigate('/clinica');
     });
   }

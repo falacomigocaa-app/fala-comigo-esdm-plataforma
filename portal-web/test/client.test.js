@@ -1,19 +1,20 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-function installBrowser(fetchImpl, session = { userId: 'user-professional-alpha', organizationId: 'org-demo-alpha' }) {
+function installBrowser(fetchImpl, session = { userId: 'user-professional-alpha', organizationId: 'org-demo-alpha', token: 'jwt-test-token' }) {
   globalThis.window = {
     PORTAL_API_BASE: 'http://127.0.0.1:8787',
     localStorage: {
       getItem: () => JSON.stringify(session),
       setItem: () => {},
       removeItem: () => {}
-    }
+    },
+    dispatchEvent: () => true
   };
   globalThis.fetch = fetchImpl;
 }
 
-test('APIClient envia identidade sintética, request id e carrega metas/coletas reais', async () => {
+test('APIClient envia Authorization Bearer, request id e carrega metas/coletas reais', async () => {
   const requests = [];
   installBrowser(async (url, options) => {
     requests.push({ url, options });
@@ -34,7 +35,8 @@ test('APIClient envia identidade sintética, request id e carrega metas/coletas 
   assert.equal(requests[0].url, 'http://127.0.0.1:8787/v1/subjects/subject-demo-child/esdm-goals');
   assert.equal(requests[1].url, 'http://127.0.0.1:8787/v1/subjects/subject-demo-child/school-collections');
   for (const request of requests) {
-    assert.equal(request.options.headers['x-synthetic-user-id'], 'user-professional-alpha');
+    assert.equal(request.options.headers.authorization, 'Bearer jwt-test-token');
+    assert.equal('x-synthetic-user-id' in request.options.headers, false);
     assert.equal(typeof request.options.headers['x-request-id'], 'string');
     assert.ok(request.options.headers['x-request-id'].length > 0);
   }
@@ -69,4 +71,24 @@ test('APIClient propaga erro HTTP com código estável para a interface', async 
     () => new APIClient().carregarHistoricoEscolar('subject-demo-child'),
     (error) => error.message === 'SCOPE_DENIED' && error.status === 403
   );
+});
+
+test('APIClient limpa a sessão e sinaliza reautenticação em 401', async () => {
+  let removed = false;
+  let signaled = false;
+  installBrowser(async () => ({
+    ok: false,
+    status: 401,
+    async json() { return { error: 'TOKEN_EXPIRED', renewalRequired: true }; }
+  }));
+  window.localStorage.removeItem = () => { removed = true; };
+  window.dispatchEvent = () => { signaled = true; return true; };
+
+  const { APIClient } = await import(`../src/api/client.js?case=${Date.now()}`);
+  await assert.rejects(
+    () => new APIClient().carregarHistoricoEscolar('subject-demo-child'),
+    (error) => error.status === 401 && error.renewalRequired === true
+  );
+  assert.equal(removed, true);
+  assert.equal(signaled, true);
 });

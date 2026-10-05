@@ -1,13 +1,26 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createApp } from '../src/app.js';
+import { issueAccessToken } from '../src/services/auth.service.js';
+import { roleScopes } from '../src/store.js';
+
+process.env.JWT_SECRET ??= 'test-only-jwt-secret-with-at-least-32-characters';
+
+function tokenFor(app, userId) {
+  const membership = app.store.memberships.find((item) => item.userId === userId && item.status === 'active');
+  return issueAccessToken({
+    userId,
+    organizationId: membership?.organizationId ?? 'org-demo-alpha',
+    scopes: roleScopes[membership?.role] ?? []
+  });
+}
 
 function request(app, method, url, userId, extra = {}) {
   return app.handle({
     method,
     url,
     headers: {
-      'x-synthetic-user-id': userId,
+      authorization: `Bearer ${tokenFor(app, userId)}`,
       ...(extra.requestId ? {'x-request-id': extra.requestId} : {})
     },
     body: extra.body ?? null
@@ -78,7 +91,7 @@ test('benefit access does not expose family content', async () => {
   assert.equal('subjects' in result.body, false);
 });
 
-test('missing synthetic identity is rejected', async () => {
+test('missing JWT is rejected', async () => {
   const app = createApp();
   const result = await app.handle({ method: 'GET', url: '/v1/me', headers: {} });
   assert.equal(result.status, 401);

@@ -15,3 +15,11 @@ Limitação explícita: Flutter e Dart não estão instalados na sandbox, logo a
 A toolchain foi validada com Flutter stable **3.47.6** e Dart **3.13.5**. O `flutter pub get` concluiu; o `build_runner` com `--delete-conflicting-outputs` terminou sem conflitos e gerou o `SyncQueueAdapter` TypeId 14; o `flutter analyze` terminou sem issues; e a suíte `flutter test` passou com **114 testes**.
 
 Os artefatos gerados e ajustes necessários foram publicados na branch `main` pelo commit `788212c`, com a mensagem `feat(mobile): compile build_runner artifacts and clean sync queue types`.
+
+## Segurança JWT no portal-api — 05/10/2026
+
+A camada de autenticação JWT foi implementada com `jsonwebtoken`: emissão via `JWT_SECRET`, expiração padrão de 15 minutos, payload obrigatório com `userId`, `organizationId` e `scopes`, e middleware Bearer em `src/middlewares/auth.middleware.js`. O header sintético foi removido do fluxo. Expiração retorna 401 padronizado com `TOKEN_EXPIRED` e `renewalRequired: true`; ausência ou corrupção retorna 401. `npm test` passou com 21 testes e 1 teste PostgreSQL condicional ignorado.
+
+## Integração JWT web/mobile — 05/10/2026
+
+O cliente web substituiu o header sintético por `Authorization: Bearer`, armazena o token na sessão local e trata 401 limpando a sessão e redirecionando ao login. O cliente mobile usa `AuthTokenService` via `flutter_secure_storage`; a fila mantém itens clínicos quando recebe 401, interrompe o retry e dispara o callback de reautenticação. A validação final passou: portal-api 21 testes com 1 teste PostgreSQL condicional ignorado, portal-web 4 testes e check sintático, Flutter analyze sem issues e 114 testes.
