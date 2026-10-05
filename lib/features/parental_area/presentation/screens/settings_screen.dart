@@ -542,17 +542,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         type: BottomNavigationBarType.fixed,
         selectedItemColor: AppTheme.primary,
         unselectedItemColor: AppTheme.mutedText,
-        onTap: (index) {
-          if (index != 0) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text(
-                  'Esta seção será aberta na próxima etapa do painel.',
-                ),
-              ),
-            );
-          }
-        },
+        onTap: (_) {},
         items: const [
           BottomNavigationBarItem(
             icon: Icon(Icons.home_outlined),

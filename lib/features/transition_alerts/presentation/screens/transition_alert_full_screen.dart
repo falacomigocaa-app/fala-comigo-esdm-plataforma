@@ -1,12 +1,10 @@
 import 'dart:async';
 
-import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/services/media_storage_service.dart';
-import '../../../../core/services/tts_service.dart';
 import '../../../../core/theme/hyperfocus_theme.dart';
+import '../../../../core/services/transition_alert_audio_service.dart';
 import '../../domain/models/transition_alert.dart';
 import 'transition_checklist_screen.dart';
 
@@ -26,7 +24,6 @@ class TransitionAlertFullScreen extends ConsumerStatefulWidget {
 
 class _TransitionAlertFullScreenState
     extends ConsumerState<TransitionAlertFullScreen> {
-  final AudioPlayer _player = AudioPlayer();
   late int _remainingSeconds;
   Timer? _timer;
 
@@ -45,31 +42,12 @@ class _TransitionAlertFullScreenState
   }
 
   Future<void> _playAudio() async {
-    try {
-      if (widget.alert.audioType == 'gravado' &&
-          widget.alert.recordedAudioPath != null) {
-        final preview = await MediaStorageService.materializeForReading(
-          widget.alert.recordedAudioPath!,
-        );
-        if (await preview.exists()) {
-          await _player.play(DeviceFileSource(preview.path));
-          return;
-        }
-      }
-    } catch (_) {
-      // Uma mídia ausente, corrompida ou incompatível não deve interromper
-      // o alerta. O texto do alerta continua sendo uma alternativa segura.
-    }
-
-    if (widget.alert.ttsText != null && widget.alert.ttsText!.isNotEmpty) {
-      await TtsService.instance.speak(widget.alert.ttsText!);
-    }
+    await TransitionAlertAudioService.instance.play(widget.alert);
   }
 
   @override
   void dispose() {
     _timer?.cancel();
-    _player.dispose();
     super.dispose();
   }
 

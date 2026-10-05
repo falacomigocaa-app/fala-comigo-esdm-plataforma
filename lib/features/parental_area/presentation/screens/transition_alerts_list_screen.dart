@@ -8,7 +8,7 @@ import '../../../transition_alerts/domain/models/transition_alert.dart';
 import 'transition_alert_edit_screen.dart';
 
 /// Lista os Alertas de Transição de Atividade cadastrados, permite
-/// criar novos, editar, excluir e testar cada um imediatamente.
+/// criar novos, editar, excluir e disparar cada um imediatamente.
 class TransitionAlertsListScreen extends ConsumerWidget {
   const TransitionAlertsListScreen({super.key});
 
@@ -93,23 +93,6 @@ class TransitionAlertsListScreen extends ConsumerWidget {
                 ],
               ),
             ),
-          ),
-          const SizedBox(height: 8),
-          OutlinedButton.icon(
-            onPressed: () async {
-              await TransitionAlertService.instance.testDelayed(30);
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text(
-                      'Teste agendado para daqui 30 segundos. Bloqueie a tela agora.',
-                    ),
-                  ),
-                );
-              }
-            },
-            icon: const Icon(Icons.science_outlined),
-            label: const Text('Testar em 30s (diagnóstico)'),
           ),
           const SizedBox(height: 16),
           if (alerts.isEmpty)

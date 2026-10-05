@@ -19,6 +19,7 @@ A implementação local inclui:
 - fila offline cifrada para coletas e metas, condicionada à concessão ativa;
 - cliente local `CuidadoConectadoClient` com bloqueio terminal por expiração/revogação;
 - política SQL documental de RLS para a futura API Supabase;
+- Alertas de Transição sem controles de diagnóstico, com reprodução centralizada de voz gravada, TTS e fallback de alerta do sistema;
 - rotas e acessos da Área Parental amarrados no `main.dart` e em `settings_screen.dart`.
 
 > **Nota de validação:** o escopo funcional foi implementado localmente, mas o ambiente desta sessão não possui a toolchain `dart`/`flutter`. Antes de considerar a build Web certificada para produção, executar `dart format`, `flutter analyze`, testes e `flutter build web` em um ambiente Flutter configurado.
