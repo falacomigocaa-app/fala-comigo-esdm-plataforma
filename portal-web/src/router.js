@@ -1,8 +1,8 @@
 import { clearSession, getSession } from './api/client.js';
-import { renderAuthScreen } from './screens/auth_screen.js';
 import { hydrateClinicaScreen, renderClinicaScreen } from './screens/clinica_screen.js';
 import { hydrateEscolaScreen, renderEscolaScreen } from './screens/escola_screen.js';
 import { hydrateReportsView, renderReportsView } from './views/reports-view.js';
+import { hydrateLoginView, renderLoginView } from './views/login-view.js';
 
 const routes = new Set(['/login', '/clinica', '/escola', '/relatorios']);
 
@@ -72,18 +72,8 @@ export function createRouter({ root }) {
       return;
     }
 
-    root.innerHTML = renderAuthScreen(context);
-    root.querySelector('[data-auth-form]')?.addEventListener('submit', (event) => {
-      event.preventDefault();
-      const form = new FormData(event.currentTarget);
-      const token = String(form.get('token') || '').trim();
-      const refreshToken = String(form.get('refreshToken') || '').trim();
-      const userId = String(form.get('userId') || '').trim();
-      const organizationId = String(form.get('organizationId') || '').trim();
-      if (!token || !refreshToken || !userId || !organizationId) return;
-      window.localStorage.setItem('fala-comigo.portal.session', JSON.stringify({ token, refreshToken, userId, organizationId }));
-      navigate('/clinica');
-    });
+    root.innerHTML = renderLoginView(context);
+    hydrateLoginView(context);
   }
 
   return { navigate, render };

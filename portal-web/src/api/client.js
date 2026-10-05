@@ -118,6 +118,21 @@ export class APIClient {
     return this.refreshPromise;
   }
 
+  async login(email, password) {
+    const response = await fetch(`${this.baseUrl}/v1/auth/login`, {
+      method: 'POST',
+      headers: { accept: 'application/json', 'content-type': 'application/json' },
+      body: JSON.stringify({ email, password })
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const error = new Error(payload.error || 'INVALID_CREDENTIALS');
+      error.status = response.status;
+      throw error;
+    }
+    return payload;
+  }
+
   carregarPacientes(organizationId) {
     return this.request(`/v1/organizations/${encodeURIComponent(organizationId)}/subjects`);
   }

@@ -97,6 +97,21 @@ export function createApp({ store = createStore(), now = () => new Date('2026-09
     const context = { user: null, organizationId: null, requestId, now: clock };
 
     try {
+      if (method === 'POST' && path[0] === 'v1' && path[1] === 'auth' && path[2] === 'login') {
+        const claims = await store.authenticateCredentials(body ?? {}, clock);
+        const accessToken = issueAccessToken(claims);
+        const refreshToken = await store.createRefreshToken(claims, clock);
+        return response(200, {
+          userId: claims.userId,
+          organizationId: claims.organizationId,
+          scopes: claims.scopes,
+          accessToken,
+          refreshToken,
+          expiresIn: 15 * 60,
+          refreshExpiresIn: 7 * 24 * 60 * 60
+        });
+      }
+
       if (method === 'POST' && path[0] === 'v1' && path[1] === 'auth' && path[2] === 'refresh') {
         const claims = await store.rotateRefreshToken(body?.refreshToken, clock);
         const user = store.users.find((candidate) => candidate.id === claims.userId && candidate.status === 'active');

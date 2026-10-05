@@ -20,7 +20,7 @@ curl -H 'Authorization: Bearer <JWT>' \
   http://127.0.0.1:8787/v1/organizations/org-demo-alpha/subjects
 ```
 
-Para ativar persistência PostgreSQL, aplique `migrations/001_initial.sql` e `migrations/002_refresh_tokens.sql` em um banco de staging e inicie com `DATABASE_URL`:
+Para ativar persistência PostgreSQL, aplique `migrations/001_initial.sql`, `migrations/002_refresh_tokens.sql` e `migrations/003_user_credentials.sql` em um banco de staging e inicie com `DATABASE_URL`:
 
 ```bash
 cp .env.example .env
@@ -30,6 +30,7 @@ set -a
 set +a
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f migrations/001_initial.sql
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f migrations/002_refresh_tokens.sql
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f migrations/003_user_credentials.sql
 npm start
 ```
 
@@ -40,6 +41,7 @@ Sem `DATABASE_URL`, metas e coletas usam `memory-test-only` somente para testes 
 ## Contratos integrados
 
 ```text
+POST /v1/auth/login
 GET  /v1/organizations/{organizationId}/subjects
 POST /v1/auth/refresh
 GET  /v1/subjects/{subjectId}/esdm-goals
@@ -52,12 +54,15 @@ As rotas de metas validam os códigos `CE_N1_I5`, `CE_N1_I6` e `SOC_N1_I3`, reto
 
 `POST /v1/auth/refresh` recebe `{ "refreshToken": "..." }`, grava apenas o hash SHA-256 do token e retorna um novo `accessToken` de 15 minutos e um novo `refreshToken` de sete dias. O token anterior é revogado antes da nova emissão; replay, expiração ou token desconhecido retornam `401 REFRESH_TOKEN_INVALID`.
 
+`POST /v1/auth/login` recebe `{ "email": "...", "password": "..." }`, verifica `password_hash` com bcrypt e retorna o mesmo par de tokens, além de `userId`, `organizationId` e `scopes`. Credenciais inválidas têm resposta uniforme `401 INVALID_CREDENTIALS`.
+
 Antes de qualquer leitura ou escrita, o backend valida membership, consentimento ativo, data de expiração e escopo (`esdm_goal.read`, `esdm_goal.write`, `school_collection.read` ou `school_collection.write`). O CORS local permite o frontend em `http://127.0.0.1:4173` e pode ser ajustado por `PORTAL_WEB_ORIGIN`.
 
 ## Conteúdo
 
 - `src/store.js`: dicionário ESDM, fixtures de autorização para testes, `pg.Pool` e queries parametrizadas das tabelas funcionais;
 - `src/services/auth.service.js`: emissão e validação de JWT com expiração padrão de 15 minutos;
+- `src/store.js`: verificação bcrypt e seleção de membership/escopos para login;
 - `src/services/auth.service.js` e `src/store.js`: refresh tokens opacos hashados e rotação de uso único;
 - `src/middlewares/auth.middleware.js`: extração do Bearer, validação de claims e erros 401 padronizados;
 - `src/authorization.js`: membership, escopos, erros estáveis e auditoria;
@@ -65,12 +70,13 @@ Antes de qualquer leitura ou escrita, o backend valida membership, consentimento
 - `src/server.js`: adaptador HTTP local, CORS e parsing JSON;
 - `migrations/001_initial.sql`: schema de identidade, organização, sujeito, consentimento, autorização, metas e coletas;
 - `migrations/002_refresh_tokens.sql`: armazenamento hashado e expirável de refresh tokens;
+- `migrations/003_user_credentials.sql`: email e `password_hash` bcrypt na tabela de usuários;
 - `test/authorization.test.js`: casos permitidos e negados;
 - `test/postgres.integration.test.js`: verificação do schema quando `PGTEST_URL` está definido.
 - `.env.example`: variáveis documentais para iniciar o servidor conectado ao PostgreSQL de staging.
 
 ## Limites
 
-O JWT e o servidor atual são destinados a desenvolvimento/staging. Ainda não há provedor OAuth configurado nesta sandbox; a emissão inicial de tokens deve ser conectada ao provedor de identidade antes de produção. Tokens expiram em 15 minutos por padrão, e o cliente renova a sessão com rotação ao receber `401` com `error: TOKEN_EXPIRED` e `renewalRequired: true`. O próximo gate é executar as duas migrations e a integração PostgreSQL em staging com um `JWT_SECRET` real.
+O JWT e o servidor atual são destinados a desenvolvimento/staging. O login local usa bcrypt para o ciclo central de credenciais; antes de produção, deve ser conectado ao provedor de identidade corporativo e provisionado com hashes reais. Tokens expiram em 15 minutos por padrão, e o cliente renova a sessão com rotação ao receber `401` com `error: TOKEN_EXPIRED` e `renewalRequired: true`. O próximo gate é executar as três migrations e a integração PostgreSQL em staging com um `JWT_SECRET` real.
 
 Não adicionar senhas, tokens, nomes reais, dados de crianças, conteúdo clínico, fotos, vídeos, áudios ou credenciais a esta pasta.

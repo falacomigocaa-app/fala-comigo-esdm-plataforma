@@ -40,3 +40,11 @@ Após a publicação da renovação automática de sessão, o desenvolvimento av
 ## Consentimento escolar validado — 05/10/2026
 
 A concessão Hive TypeId 10 agora persiste `revoked` com default compatível para dados legados e expõe `expiresAt`/`estaAtiva`. A `SyncQueueService` valida a concessão antes de cada envio e novamente imediatamente antes do POST; concessão expirada ou revogada bloqueia a transmissão, mantém os itens e publica `consentBlocked`. A tela de coleta exibe a tarja persistente “Bloqueio por Falta de Consentimento” e desabilita o registro manual. Build_runner concluiu com 4 outputs, `flutter analyze` passou sem issues e `flutter test` passou com 116 testes.
+
+## Autenticação central e login unificado — 05/10/2026
+
+Após a consolidação do consentimento escolar e do refresh token rotativo, o desenvolvimento avançou para o fluxo central de login. O próximo escopo é validar email/senha contra hashes bcrypt no portal-api, emitir o par access/refresh e integrar a sessão segura no Portal Web e no Mobile App.
+
+## Login central web/mobile validado — 05/10/2026
+
+O portal-api agora expõe `POST /v1/auth/login`, verifica `email`/`password` com bcrypt contra credenciais do usuário, deriva organization/scopes da membership e emite access JWT de 15 minutos mais refresh token opaco rotativo de 7 dias. A migration `003_user_credentials.sql` adiciona `email` e `password_hash`. O Portal Web usa `login-view.js` e salva o par de tokens; o Mobile usa `LoginScreen`/`LoginController`, `AuthTokenService` com flutter_secure_storage e retoma a fila após login. Validação: backend 25 testes aprovados e 1 PostgreSQL condicional ignorado; web 9 testes aprovados e check; Flutter analyze sem issues e 116 testes aprovados.

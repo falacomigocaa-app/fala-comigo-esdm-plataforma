@@ -43,3 +43,11 @@ O projeto avançou para a barreira local de consentimento escolar: a fila offlin
 ## Consentimento escolar validado — 05/10/2026
 
 A concessão local permanece na box ESDM cifrada e agora guarda `revoked` e `expiresAt` (com default Hive para registros antigos). A fila bloqueia antes de qualquer POST `/school-collections` e repete a validação imediatamente antes da transmissão; expiração/revogação deixa todos os itens intactos e sinaliza o estado observável de bloqueio. A coleta mostra alerta persistente e desabilita a ação manual. Validação: build_runner 4 outputs, analyze sem issues e 116 testes Flutter aprovados.
+
+## Autenticação central e login unificado — 05/10/2026
+
+O projeto avançou para fechar o ciclo de identidade: o portal-api deverá consultar usuários por email, verificar senha com hash bcrypt e emitir access token JWT mais refresh token opaco rotativo; web e mobile consumirão o mesmo contrato e persistirão os tokens em seus armazenamentos seguros.
+
+## Login central web/mobile validado — 05/10/2026
+
+Foi fechado o ciclo de identidade com login central por email/senha, bcrypt, membership e escopos no backend, além das migrations de credenciais. A nova view web consome `/v1/auth/login` e armazena access/refresh; o mobile adiciona `LoginController` e `LoginScreen`, persiste ambos no `AuthTokenService` e dispara `SyncQueueService.syncPending()` após sucesso para destravar envios 401. Resultados: portal-api 25 aprovados/1 PostgreSQL condicional ignorado, portal-web 9 aprovados com check sintático, Flutter analyze limpo e 116 testes aprovados.

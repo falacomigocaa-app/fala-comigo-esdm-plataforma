@@ -5,6 +5,7 @@ class AuthTokenService {
 
   static const _storage = FlutterSecureStorage();
   static const _tokenKey = 'fala_comigo_portal_access_token';
+  static const _refreshTokenKey = 'fala_comigo_portal_refresh_token';
   static void Function()? onAuthenticationRequired;
 
   static Future<String?> readToken() => _storage.read(key: _tokenKey);
@@ -17,7 +18,29 @@ class AuthTokenService {
     await _storage.write(key: _tokenKey, value: normalized);
   }
 
-  static Future<void> clearToken() => _storage.delete(key: _tokenKey);
+  static Future<String?> readRefreshToken() =>
+      _storage.read(key: _refreshTokenKey);
+
+  static Future<void> saveSessionTokens({
+    required String accessToken,
+    required String refreshToken,
+  }) async {
+    await saveToken(accessToken);
+    final normalizedRefresh = refreshToken.trim();
+    if (normalizedRefresh.isEmpty) {
+      throw ArgumentError.value(
+        refreshToken,
+        'refreshToken',
+        'Refresh token não pode ser vazio.',
+      );
+    }
+    await _storage.write(key: _refreshTokenKey, value: normalizedRefresh);
+  }
+
+  static Future<void> clearToken() async {
+    await _storage.delete(key: _tokenKey);
+    await _storage.delete(key: _refreshTokenKey);
+  }
 
   static void requireAuthentication() {
     onAuthenticationRequired?.call();

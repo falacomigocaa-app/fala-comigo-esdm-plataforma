@@ -19,6 +19,31 @@ function request(app, authorization) {
   });
 }
 
+test('login central emite access e refresh token para credenciais válidas', async () => {
+  const app = createApp();
+  const result = await app.handle({
+    method: 'POST',
+    url: '/v1/auth/login',
+    body: { email: 'admin@fala-comigo.test', password: 'DemoPassword-2026' }
+  });
+
+  assert.equal(result.status, 200);
+  assert.equal(result.body.userId, 'user-admin-alpha');
+  assert.equal(result.body.organizationId, 'org-demo-alpha');
+  assert.equal(typeof result.body.accessToken, 'string');
+  assert.equal(typeof result.body.refreshToken, 'string');
+  assert.equal(verifyAccessToken(result.body.accessToken).userId, 'user-admin-alpha');
+});
+
+test('login central rejeita senha inválida sem revelar qual credencial falhou', async () => {
+  const result = await createApp().handle({
+    method: 'POST',
+    url: '/v1/auth/login',
+    body: { email: 'admin@fala-comigo.test', password: 'senha-incorreta' }
+  });
+  assert.deepEqual(result, { status: 401, body: { error: 'INVALID_CREDENTIALS' } });
+});
+
 test('middleware bloqueia requisição sem token', async () => {
   const result = await request(createApp());
   assert.equal(result.status, 401);

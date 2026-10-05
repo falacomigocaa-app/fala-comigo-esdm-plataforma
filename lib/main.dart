@@ -24,6 +24,7 @@ import 'features/esdm_aba/presentation/screens/painel_consentimento_screen.dart'
 import 'features/esdm_aba/presentation/screens/coleta_escola_screen.dart';
 import 'features/esdm_aba/presentation/screens/metas_esdm_screen.dart';
 import 'features/esdm_aba/presentation/screens/esdm_dashboard_screen.dart';
+import 'features/auth/presentation/screens/login_screen.dart';
 import 'features/onboarding/presentation/screens/splash_screen.dart';
 import 'features/parental_area/presentation/screens/parental_gate_screen.dart';
 import 'features/transition_alerts/data/providers/transition_alerts_provider.dart';
@@ -188,6 +189,7 @@ class _CaaAppState extends State<CaaApp> with WidgetsBindingObserver {
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       routes: {
+        '/login': (_) => const LoginScreen(),
         '/coleta-escola': (_) => const ColetaEscolaScreen(),
         '/painel-consentimento': (_) => const PainelConsentimentoScreen(),
         '/metas-esdm': (_) => const MetasEsdmScreen(),

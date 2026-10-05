@@ -1,5 +1,6 @@
 import pg from 'pg';
 import { randomUUID } from 'node:crypto';
+import bcrypt from 'bcryptjs';
 import {
   DEFAULT_REFRESH_TOKEN_EXPIRATION_MS,
   createOpaqueRefreshToken,
@@ -25,11 +26,11 @@ export const esdmTranslations = {
 };
 
 const baseUsers = [
-  { id: 'user-admin-alpha', externalSubject: 'synthetic:admin-alpha', status: 'active' },
-  { id: 'user-professional-alpha', externalSubject: 'synthetic:professional-alpha', status: 'active' },
-  { id: 'user-admin-beta', externalSubject: 'synthetic:admin-beta', status: 'active' },
-  { id: 'user-outsider', externalSubject: 'synthetic:outsider', status: 'active' },
-  { id: 'user-invitee-alpha', externalSubject: 'synthetic:invitee-alpha', status: 'active' }
+  { id: 'user-admin-alpha', email: 'admin@fala-comigo.test', passwordHash: '$2b$12$u7hinMZXhMWNJXvBs90RauPnmv8zVvZcSh7ohICCg/S9TJAESRqSi', externalSubject: 'synthetic:admin-alpha', status: 'active' },
+  { id: 'user-professional-alpha', email: 'profissional@fala-comigo.test', passwordHash: '$2b$12$u7hinMZXhMWNJXvBs90RauPnmv8zVvZcSh7ohICCg/S9TJAESRqSi', externalSubject: 'synthetic:professional-alpha', status: 'active' },
+  { id: 'user-admin-beta', email: 'admin.beta@fala-comigo.test', passwordHash: '$2b$12$u7hinMZXhMWNJXvBs90RauPnmv8zVvZcSh7ohICCg/S9TJAESRqSi', externalSubject: 'synthetic:admin-beta', status: 'active' },
+  { id: 'user-outsider', email: 'outsider@fala-comigo.test', passwordHash: '$2b$12$u7hinMZXhMWNJXvBs90RauPnmv8zVvZcSh7ohICCg/S9TJAESRqSi', externalSubject: 'synthetic:outsider', status: 'active' },
+  { id: 'user-invitee-alpha', email: 'invitee@fala-comigo.test', passwordHash: '$2b$12$u7hinMZXhMWNJXvBs90RauPnmv8zVvZcSh7ohICCg/S9TJAESRqSi', externalSubject: 'synthetic:invitee-alpha', status: 'active' }
 ];
 
 const baseOrganizations = [
@@ -45,6 +46,8 @@ const roleScopes = {
   caregiver: ['organization.read', 'access.read'],
   outsider: []
 };
+
+const DUMMY_PASSWORD_HASH = '$2b$12$u7hinMZXhMWNJXvBs90RauPnmv8zVvZcSh7ohICCg/S9TJAESRqSi';
 
 const baseMemberships = [
   { id: 'membership-admin-alpha', userId: 'user-admin-alpha', organizationId: 'org-demo-alpha', role: 'owner', status: 'active', validUntil: '2099-01-01T00:00:00.000Z' },
@@ -182,6 +185,52 @@ export function createStore({ pool = createPostgresPool() } = {}) {
         return result.rows.map(mapCollection);
       }
       return store.collections.filter((collection) => collection.subjectId === subjectId).sort((a, b) => new Date(b.dataRegistro) - new Date(a.dataRegistro));
+    },
+
+    async authenticateCredentials({ email, password }, now = new Date()) {
+      const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
+      const suppliedPassword = typeof password === 'string' ? password : '';
+      let user;
+      let membership;
+
+      if (pool) {
+        const result = await pool.query(`
+          select u.id, u.email, u.password_hash, m.organization_id, m.role
+            from users u
+            join memberships m on m.user_id = u.id
+           where lower(u.email) = $1
+             and u.status = 'active'
+             and m.status = 'active'
+             and m.valid_until > $2
+           order by m.valid_until desc
+           limit 1
+        `, [normalizedEmail, now.toISOString()]);
+        const row = result.rows[0];
+        if (row) {
+          user = row;
+          membership = row;
+        }
+      } else {
+        user = store.users.find((candidate) => candidate.email === normalizedEmail && candidate.status === 'active');
+        membership = user
+          ? store.memberships
+              .filter((candidate) => candidate.userId === user.id && candidate.status === 'active' && new Date(candidate.validUntil) > now)
+              .sort((left, right) => new Date(right.validUntil) - new Date(left.validUntil))[0]
+          : null;
+      }
+
+      const passwordHash = user?.passwordHash ?? user?.password_hash ?? DUMMY_PASSWORD_HASH;
+      const passwordMatches = await bcrypt.compare(suppliedPassword, passwordHash);
+      if (!user || !membership || !passwordMatches) {
+        throw new AuthorizationError('INVALID_CREDENTIALS', 401);
+      }
+
+      const role = membership.role;
+      return {
+        userId: user.id,
+        organizationId: membership.organizationId ?? membership.organization_id,
+        scopes: roleScopes[role] ?? []
+      };
     },
 
     async createRefreshToken({ userId, organizationId, scopes }, now = new Date()) {

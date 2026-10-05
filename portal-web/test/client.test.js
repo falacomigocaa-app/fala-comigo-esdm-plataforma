@@ -141,3 +141,37 @@ test('APIClient renova a sessão e repete a requisição após TOKEN_EXPIRED', a
   assert.equal(persisted.token, 'access-new');
   assert.equal(persisted.refreshToken, 'refresh-new');
 });
+
+test('APIClient.login envia email e senha ao provedor central', async () => {
+  let request;
+  installBrowser(async (url, options) => {
+    request = { url, options };
+    return {
+      ok: true,
+      status: 200,
+      async json() {
+        return {
+          userId: 'user-professional-alpha',
+          organizationId: 'org-demo-alpha',
+          scopes: ['esdm_goal.read'],
+          accessToken: 'access-login',
+          refreshToken: 'refresh-login'
+        };
+      }
+    };
+  });
+
+  const { APIClient } = await import(`../src/api/client.js?case=${Date.now()}`);
+  const result = await new APIClient().login(
+    ' profissional@fala-comigo.test ',
+    'DemoPassword-2026'
+  );
+
+  assert.equal(request.url, 'http://127.0.0.1:8787/v1/auth/login');
+  assert.equal(request.options.method, 'POST');
+  assert.deepEqual(JSON.parse(request.options.body), {
+    email: ' profissional@fala-comigo.test ',
+    password: 'DemoPassword-2026'
+  });
+  assert.equal(result.accessToken, 'access-login');
+});
