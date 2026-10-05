@@ -1,4 +1,4 @@
-import { apiClient } from '../api/client.js';
+import { apiClient, getSession } from '../api/client.js';
 
 const levels = { Recusa: 0, 'Ajuda Física': 1, 'Ajuda Verbal': 2, Independente: 3 };
 const periodOptions = [
@@ -15,8 +15,9 @@ function renderHeader(session) {
 
 export function renderReportsView({ session }) {
   return `<div class="app-shell report-page">${renderHeader(session)}<main class="page-content">
-    <div class="page-heading"><div><p class="eyebrow">Compilado clínico</p><h1>Relatórios de evolução</h1><p class="muted">Leitura temporal das coletas escolares e das metas ESDM/ABA autorizadas.</p></div><div class="report-actions"><button class="secondary-button" data-refresh-report type="button">Atualizar dados</button><button class="primary-button" data-print-report type="button">Imprimir relatório</button></div></div>
+    <div class="page-heading"><div><p class="eyebrow">Compilado clínico</p><h1>Relatórios de evolução</h1><p class="muted">Leitura temporal das coletas escolares e das metas ESDM/ABA autorizadas.</p></div><div class="report-actions"><button class="secondary-button" data-refresh-report type="button">Atualizar dados</button><button class="primary-button" data-print-report type="button">Baixar PDF</button></div></div>
     <section class="panel report-filters" aria-labelledby="report-filters-title"><div class="section-heading"><div><p class="eyebrow">Filtros de análise</p><h2 id="report-filters-title">Escolha o recorte do paciente</h2></div><span class="form-status" data-report-status>Carregando dados autorizados…</span></div><div class="report-filter-grid"><label>Paciente<select data-report-subject disabled><option>Carregando pacientes…</option></select></label><label>Período<select data-report-period>${periodOptions.map((option) => `<option value="${option.value}"${option.value === '30' ? ' selected' : ''}>${option.label}</option>`).join('')}</select></label><label>Tipo de meta<select data-report-goal-filter disabled><option value="all">Todas as metas</option></select></label></div></section>
+    <section class="report-print-cover" data-report-print-cover aria-label="Identificação do relatório"><div><p class="eyebrow">Relatório clínico ESDM / ABA</p><h2 data-print-patient>Paciente</h2><p data-print-organization>Organização</p></div><dl><div><dt>Período</dt><dd data-print-period>—</dd></div><div><dt>Filtro de meta</dt><dd data-print-goal>—</dd></div><div><dt>Emissão</dt><dd data-print-issued-at>—</dd></div></dl></section>
     <section class="report-summary-grid" aria-label="Indicadores do relatório"><article class="report-metric"><span>Coletas no período</span><strong data-report-collection-count>—</strong><small>registros escolares</small></article><article class="report-metric"><span>Autonomia média</span><strong data-report-average>—</strong><small>de 3 pontos</small></article><article class="report-metric"><span>Metas acompanhadas</span><strong data-report-goal-count>—</strong><small>metas ativas</small></article><article class="report-metric"><span>Último registro</span><strong data-report-last-date>—</strong><small>data da coleta</small></article></section>
     <section class="panel report-chart-panel"><div class="section-heading"><div><p class="eyebrow">Evolução temporal</p><h2>Autonomia observada nas coletas</h2></div><span class="chart-legend"><i></i> Pontuação de autonomia</span></div><div class="report-chart-wrap" data-report-chart aria-live="polite"><p class="report-empty">Carregando gráfico…</p></div></section>
     <section class="panel report-goals-panel"><div class="section-heading"><div><p class="eyebrow">ESDM / ABA</p><h2>Metas do paciente</h2></div></div><div class="table-wrap"><table><thead><tr><th>Código</th><th>Missão para a família</th><th>Status</th><th>Atualização</th></tr></thead><tbody data-report-goals><tr><td colspan="4">Carregando metas…</td></tr></tbody></table></div></section>
@@ -44,6 +45,37 @@ export function summarizeReport(collections, goals) {
     goalCount: goals.length,
     lastDate: last ? new Date(last.dataRegistro) : null
   };
+}
+
+export function buildReportPrintMetadata({
+  patient,
+  organization,
+  periodLabel,
+  goalLabel,
+  summary,
+  emittedAt = new Date()
+}) {
+  return {
+    patientName: patient?.displayName || patient?.id || 'Paciente não identificado',
+    organizationName: organization || 'Organização não identificada',
+    periodLabel: periodLabel || 'Todo o histórico',
+    goalLabel: goalLabel || 'Todas as metas',
+    issuedAt: emittedAt.toLocaleString('pt-BR'),
+    collectionCount: summary?.collectionCount ?? 0,
+    average: summary?.average == null ? '—' : summary.average.toFixed(1),
+    goalCount: summary?.goalCount ?? 0,
+    lastDate: summary?.lastDate ? summary.lastDate.toLocaleDateString('pt-BR') : '—'
+  };
+}
+
+export function exportClinicalReportPdf({
+  documentRef = globalThis.document,
+  windowRef = globalThis.window,
+  session = getSession()
+} = {}) {
+  if (!session?.token || !documentRef || typeof windowRef?.print !== 'function') return false;
+  windowRef.print();
+  return true;
 }
 
 function renderChart(collections) {
@@ -85,6 +117,8 @@ export async function hydrateReportsView({ session }) {
 
   let collections = [];
   let goals = [];
+  let patients = [];
+  let currentPatient = null;
   let currentSubjectId = session?.subjectId || '';
   const metricNodes = {
     collectionCount: document.querySelector('[data-report-collection-count]'),
@@ -93,10 +127,24 @@ export async function hydrateReportsView({ session }) {
     lastDate: document.querySelector('[data-report-last-date]'),
     summary: document.querySelector('[data-report-summary]')
   };
+  const printNodes = {
+    patient: document.querySelector('[data-print-patient]'),
+    organization: document.querySelector('[data-print-organization]'),
+    period: document.querySelector('[data-print-period]'),
+    goal: document.querySelector('[data-print-goal]'),
+    issuedAt: document.querySelector('[data-print-issued-at]')
+  };
 
   const render = () => {
     const filtered = filterReportData(collections, goals, { period: periodSelect.value, goalCode: goalFilter.value });
     const summary = summarizeReport(filtered.collections, filtered.goals);
+    const metadata = buildReportPrintMetadata({
+      patient: currentPatient,
+      organization: session?.organizationName || session?.organizationId,
+      periodLabel: periodSelect.options[periodSelect.selectedIndex]?.textContent,
+      goalLabel: goalFilter.options[goalFilter.selectedIndex]?.textContent,
+      summary
+    });
     chart.innerHTML = renderChart(filtered.collections);
     goalsBody.innerHTML = renderGoals(filtered.goals);
     metricNodes.collectionCount.textContent = summary.collectionCount;
@@ -106,6 +154,11 @@ export async function hydrateReportsView({ session }) {
     metricNodes.summary.textContent = summary.collectionCount
       ? `Foram observadas ${summary.collectionCount} coleta(s), com autonomia média de ${summary.average.toFixed(1)} de 3 no período selecionado. ${summary.goalCount} meta(s) permanecem no recorte para discussão com a equipe.`
       : 'Nenhuma coleta realizada no período selecionado. O histórico permanece protegido e poderá ser consultado após novo registro autorizado.';
+    printNodes.patient.textContent = metadata.patientName;
+    printNodes.organization.textContent = metadata.organizationName;
+    printNodes.period.textContent = metadata.periodLabel;
+    printNodes.goal.textContent = metadata.goalLabel;
+    printNodes.issuedAt.textContent = metadata.issuedAt;
   };
 
   const loadSubject = async (subjectId) => {
@@ -126,7 +179,7 @@ export async function hydrateReportsView({ session }) {
 
   try {
     const patientsResult = await apiClient.carregarPacientes(session?.organizationId || 'org-demo-alpha');
-    const patients = patientsResult.subjects || [];
+    patients = patientsResult.subjects || [];
     if (!patients.length) {
       status.textContent = 'Nenhum paciente autorizado.';
       subjectSelect.innerHTML = '<option>Sem pacientes autorizados</option>';
@@ -135,12 +188,20 @@ export async function hydrateReportsView({ session }) {
     subjectSelect.innerHTML = patients.map((patient) => `<option value="${escapeHtml(patient.id)}">${escapeHtml(patient.displayName)}</option>`).join('');
     currentSubjectId = patients.some((patient) => patient.id === currentSubjectId) ? currentSubjectId : patients[0].id;
     subjectSelect.value = currentSubjectId;
+    currentPatient = patients.find((patient) => patient.id === currentSubjectId) || patients[0];
     subjectSelect.disabled = false;
-    subjectSelect.addEventListener('change', () => loadSubject(subjectSelect.value).catch((error) => { status.textContent = `Não foi possível carregar o relatório: ${escapeHtml(error.message)}`; }));
+    subjectSelect.addEventListener('change', () => {
+      currentPatient = patients.find((patient) => patient.id === subjectSelect.value) || null;
+      loadSubject(subjectSelect.value).catch((error) => { status.textContent = `Não foi possível carregar o relatório: ${escapeHtml(error.message)}`; });
+    });
     periodSelect.addEventListener('change', render);
     goalFilter.addEventListener('change', render);
     document.querySelector('[data-refresh-report]')?.addEventListener('click', () => loadSubject(currentSubjectId).catch((error) => { status.textContent = `Falha ao atualizar: ${escapeHtml(error.message)}`; }));
-    document.querySelector('[data-print-report]')?.addEventListener('click', () => window.print());
+    document.querySelector('[data-print-report]')?.addEventListener('click', () => {
+      if (!exportClinicalReportPdf()) {
+        status.textContent = 'Sessão ausente. Faça login novamente para exportar o relatório.';
+      }
+    });
     await loadSubject(currentSubjectId);
   } catch (error) {
     status.textContent = error.status === 401 ? 'Sessão expirada. Redirecionando para o login…' : `Falha ao carregar dados: ${escapeHtml(error.message)}`;

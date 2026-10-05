@@ -51,3 +51,11 @@ O projeto avançou para fechar o ciclo de identidade: o portal-api deverá consu
 ## Login central web/mobile validado — 05/10/2026
 
 Foi fechado o ciclo de identidade com login central por email/senha, bcrypt, membership e escopos no backend, além das migrations de credenciais. A nova view web consome `/v1/auth/login` e armazena access/refresh; o mobile adiciona `LoginController` e `LoginScreen`, persiste ambos no `AuthTokenService` e dispara `SyncQueueService.syncPending()` após sucesso para destravar envios 401. Resultados: portal-api 25 aprovados/1 PostgreSQL condicional ignorado, portal-web 9 aprovados com check sintático, Flutter analyze limpo e 116 testes aprovados.
+
+## Exportação PDF de relatórios clínicos — 05/10/2026
+
+O Portal Web avançou para a exportação de relatórios clínicos: a view de relatórios deverá compor cabeçalho do paciente/organização, período filtrado, métricas e SVG de evolução em layout de impressão sem cortes. O gatilho deve exigir sessão ativa e continuar usando o APIClient com Bearer/refresh.
+
+## Exportação PDF de relatórios validada — 05/10/2026
+
+Foi implementado o motor de exportação clínica baseado em `window.print()`, com capa de identificação, filtros/métricas sincronizados e gráfico SVG em `viewBox` vetorial. O layout usa `@page` A4 e regras de impressão para evitar cortes; o gatilho consulta a sessão ativa e falha fechado sem token, preservando o interceptor Bearer/refresh para o carregamento dos dados. Portal-web: 11 testes aprovados e check sintático aprovado.

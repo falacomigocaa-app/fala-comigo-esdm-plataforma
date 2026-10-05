@@ -48,3 +48,11 @@ Após a consolidação do consentimento escolar e do refresh token rotativo, o d
 ## Login central web/mobile validado — 05/10/2026
 
 O portal-api agora expõe `POST /v1/auth/login`, verifica `email`/`password` com bcrypt contra credenciais do usuário, deriva organization/scopes da membership e emite access JWT de 15 minutos mais refresh token opaco rotativo de 7 dias. A migration `003_user_credentials.sql` adiciona `email` e `password_hash`. O Portal Web usa `login-view.js` e salva o par de tokens; o Mobile usa `LoginScreen`/`LoginController`, `AuthTokenService` com flutter_secure_storage e retoma a fila após login. Validação: backend 25 testes aprovados e 1 PostgreSQL condicional ignorado; web 9 testes aprovados e check; Flutter analyze sem issues e 116 testes aprovados.
+
+## Exportação PDF de relatórios clínicos — 05/10/2026
+
+Após a publicação do login central web/mobile, o desenvolvimento avançou para o motor de geração e download de relatórios em PDF no Portal Web. O próximo escopo é exportar o paciente selecionado, filtros, métricas e gráfico SVG em layout clínico de impressão, mantendo as travas de sessão e o refresh silencioso.
+
+## Exportação PDF de relatórios validada — 05/10/2026
+
+O Portal Web agora exporta o estado atual do relatório pela impressão nativa do navegador: a capa identifica paciente, organização, período, filtro de meta e data de emissão; métricas, sumário e gráfico SVG vetorial permanecem no documento. O botão consulta a sessão persistida no clique e falha fechado sem token. O CSS define A4, margens, quebra de página e largura sem corte para o SVG. Validação: `npm test` passou com 11 testes e `npm run check` passou.
