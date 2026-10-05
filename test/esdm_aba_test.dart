@@ -8,6 +8,8 @@ import 'package:fala_comigo/features/esdm_aba/data/concessao_acesso_store.dart';
 import 'package:fala_comigo/features/esdm_aba/data/sincronizacao_queue_store.dart';
 import 'package:fala_comigo/features/esdm_aba/domain/models/concessao_acesso_model.dart';
 import 'package:fala_comigo/features/esdm_aba/domain/models/sincronizacao_queue_model.dart';
+import 'package:fala_comigo/features/esdm_aba/domain/models/sync_item.dart';
+import 'package:fala_comigo/features/esdm_aba/data/sync_queue_store.dart';
 import 'package:fala_comigo/features/esdm_aba/domain/services/esdm_translator.dart';
 
 void main() {
@@ -107,5 +109,23 @@ void main() {
     expect(pending.single.endpointAlvo, '/coletas');
     expect(pending.single.acao, 'INSERT');
     expect(pending.single.processado, isFalse);
+  });
+
+  test('persiste SyncItem em box AES-256 com tentativas e endpoint', () async {
+    final item = SyncItem(
+      id: 'sync-item-test-1',
+      payload: '{"subjectId":"local-subject","id":"coleta-1"}',
+      createdAt: DateTime.utc(2026, 10, 5),
+      attempts: 2,
+      endpoint: '/school-collections',
+    );
+
+    await SyncQueueStore.enqueue(item);
+    final pending = await SyncQueueStore.pending();
+
+    expect(pending, hasLength(1));
+    expect(pending.single.payload, contains('local-subject'));
+    expect(pending.single.attempts, 2);
+    expect(pending.single.endpoint, '/school-collections');
   });
 }

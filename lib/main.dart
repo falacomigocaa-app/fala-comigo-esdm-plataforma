@@ -18,6 +18,8 @@ import 'features/esdm_aba/domain/models/coleta_escola_model.dart';
 import 'features/esdm_aba/domain/models/concessao_acesso_model.dart';
 import 'features/esdm_aba/domain/models/meta_esdm_model.dart';
 import 'features/esdm_aba/domain/models/sincronizacao_queue_model.dart';
+import 'features/esdm_aba/domain/models/sync_item.dart';
+import 'features/esdm_aba/domain/services/sync_queue_service.dart';
 import 'features/esdm_aba/presentation/screens/painel_consentimento_screen.dart';
 import 'features/esdm_aba/presentation/screens/coleta_escola_screen.dart';
 import 'features/esdm_aba/presentation/screens/metas_esdm_screen.dart';
@@ -58,6 +60,9 @@ Future<void> _bootstrap() async {
   if (!Hive.isAdapterRegistered(SincronizacaoQueueModelAdapter().typeId)) {
     Hive.registerAdapter(SincronizacaoQueueModelAdapter());
   }
+  if (!Hive.isAdapterRegistered(SyncQueueAdapter().typeId)) {
+    Hive.registerAdapter(SyncQueueAdapter());
+  }
 
   final box = await SecureBoxService.openSecureBox<PictogramCard>(
     cardsBoxName,
@@ -77,6 +82,7 @@ Future<void> _bootstrap() async {
   }
 
   _configureAlertHandler();
+  SyncQueueService.start();
 }
 
 void _configureAlertHandler() {

@@ -1,13 +1,9 @@
-import 'dart:convert';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
-import '../../data/concessao_acesso_store.dart';
 import '../../data/coleta_escola_store.dart';
-import '../../data/sincronizacao_queue_store.dart';
 import '../../domain/models/coleta_escola_model.dart';
-import '../../domain/models/sincronizacao_queue_model.dart';
+import '../../domain/services/sync_queue_service.dart';
 
 const blocosRotinaEscolar = [
   'Lanche',
@@ -28,6 +24,7 @@ class ColetaEscolaState {
   final String? nivelSuporteSelecionado;
   final bool salvando;
   final ColetaEscolaModel? ultimaColeta;
+  final String? sincronizacaoStatus;
   final Object? erro;
 
   const ColetaEscolaState({
@@ -35,6 +32,7 @@ class ColetaEscolaState {
     this.nivelSuporteSelecionado,
     this.salvando = false,
     this.ultimaColeta,
+    this.sincronizacaoStatus,
     this.erro,
   });
 
@@ -46,6 +44,7 @@ class ColetaEscolaState {
     String? nivelSuporteSelecionado,
     bool? salvando,
     ColetaEscolaModel? ultimaColeta,
+    String? sincronizacaoStatus,
     Object? erro,
   }) {
     return ColetaEscolaState(
@@ -54,6 +53,7 @@ class ColetaEscolaState {
           nivelSuporteSelecionado ?? this.nivelSuporteSelecionado,
       salvando: salvando ?? this.salvando,
       ultimaColeta: ultimaColeta ?? this.ultimaColeta,
+      sincronizacaoStatus: sincronizacaoStatus ?? this.sincronizacaoStatus,
       erro: erro,
     );
   }
@@ -89,8 +89,15 @@ class ColetaEscolaController extends StateNotifier<ColetaEscolaState> {
         nivelSuporte: nivel,
       );
       await ColetaEscolaStore.save(coleta);
-      await _enqueueIfAllowed(coleta);
-      state = state.copyWith(salvando: false, ultimaColeta: coleta);
+      final syncStatus = await SyncQueueService.saveOrSyncCollection(
+        coleta: coleta,
+        subjectId: syncSubjectId,
+      );
+      state = state.copyWith(
+        salvando: false,
+        ultimaColeta: coleta,
+        sincronizacaoStatus: syncStatus.name,
+      );
       return true;
     } catch (error) {
       state = state.copyWith(salvando: false, erro: error);
@@ -98,22 +105,4 @@ class ColetaEscolaController extends StateNotifier<ColetaEscolaState> {
     }
   }
 
-  Future<void> _enqueueIfAllowed(ColetaEscolaModel coleta) async {
-    final grant = await ConcessaoAcessoStore.findActive(escolaPerfilAlvo);
-    if (grant == null) return;
-
-    await SincronizacaoQueueStore.enqueue(
-      SincronizacaoQueueModel(
-        id: 'coleta:${coleta.id}:INSERT',
-        payloadJson: jsonEncode({
-          'id': coleta.id,
-          'dataRegistro': coleta.dataRegistro.toIso8601String(),
-          'blocoRotinaEscolar': coleta.blocoRotinaEscolar,
-          'nivelSuporte': coleta.nivelSuporte,
-        }),
-        endpointAlvo: '/coletas',
-        acao: 'INSERT',
-      ),
-    );
-  }
 }

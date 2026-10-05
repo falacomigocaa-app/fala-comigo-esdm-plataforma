@@ -17,11 +17,13 @@ class ColetaEscolaScreen extends ConsumerWidget {
       (previous, next) {
         if (next.ultimaColeta != previous?.ultimaColeta &&
             next.ultimaColeta != null) {
+          final message = switch (next.sincronizacaoStatus) {
+            'synced' => 'Registro salvo e sincronizado com segurança.',
+            'queued' => 'Sem conexão: registro guardado neste aparelho e será enviado quando a rede voltar.',
+            _ => 'Registro salvo neste aparelho. O acesso remoto não está ativo.',
+          };
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              behavior: SnackBarBehavior.floating,
-              content: Text('Registro salvo com sucesso.'),
-            ),
+            SnackBar(behavior: SnackBarBehavior.floating, content: Text(message)),
           );
         } else if (next.erro != null && next.erro != previous?.erro) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -91,7 +93,7 @@ class ColetaEscolaScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: 12),
                 const Text(
-                  'O registro fica salvo neste aparelho. Ele descreve uma observação da rotina e não é uma avaliação clínica.',
+                  'O registro fica salvo neste aparelho. Quando houver autorização e conexão, será enviado com segurança; ele não é uma avaliação clínica.',
                   textAlign: TextAlign.center,
                   style: TextStyle(color: AppTheme.mutedText, height: 1.35),
                 ),

@@ -49,6 +49,9 @@ dependencies:
   # Reprodução do áudio gravado do alerta de transição
   audioplayers: ^6.1.0
   url_launcher: ^6.3.1
+  # Conectividade e transporte HTTP da fila offline do Cuidado Conectado
+  connectivity_plus: ^6.1.0
+  http: ^1.2.2
 
 dev_dependencies:
   flutter_test:
