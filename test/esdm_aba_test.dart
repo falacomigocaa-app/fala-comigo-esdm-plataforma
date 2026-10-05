@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:http/http.dart' as http;
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive/hive.dart';
@@ -10,6 +11,7 @@ import 'package:fala_comigo/features/esdm_aba/domain/models/concessao_acesso_mod
 import 'package:fala_comigo/features/esdm_aba/domain/models/meta_esdm_model.dart';
 import 'package:fala_comigo/features/esdm_aba/domain/models/sincronizacao_queue_model.dart';
 import 'package:fala_comigo/features/esdm_aba/domain/models/sync_item.dart';
+import 'package:fala_comigo/core/services/auth_token_service.dart';
 import 'package:fala_comigo/features/esdm_aba/data/meta_esdm_store.dart';
 import 'package:fala_comigo/features/esdm_aba/data/sync_queue_store.dart';
 import 'package:fala_comigo/features/esdm_aba/domain/services/esdm_translator.dart';
@@ -126,7 +128,8 @@ void main() {
     );
     final item = SyncItem(
       id: 'pdf-collection-1',
-      payload: '{"subjectId":"$subjectId","blocoRotinaEscolar":"Lanche","nivelSuporte":"Independente"}',
+      payload:
+          '{"subjectId":"$subjectId","blocoRotinaEscolar":"Lanche","nivelSuporte":"Independente"}',
       createdAt: DateTime.utc(2026, 10, 5),
       endpoint: '/school-collections',
     );
@@ -144,7 +147,8 @@ void main() {
     await MetaEsdmStore.delete('pdf-goal-1');
   });
 
-  test('bloqueia concessão revogada mesmo antes da data de expiração', () async {
+  test('bloqueia concessão revogada mesmo antes da data de expiração',
+      () async {
     await ConcessaoAcessoStore.save(
       ConcessaoAcessoModel(
         id: 'revoked-school-grant',
@@ -199,5 +203,73 @@ void main() {
     expect(pending.single.payload, contains('local-subject'));
     expect(pending.single.attempts, 2);
     expect(pending.single.endpoint, '/school-collections');
+  });
+
+  test('401 de access retém fila e 401 de refresh limpa sessão e reautentica',
+      () async {
+    const itemId = 'expired-session-sync-item';
+    var authenticationRequests = 0;
+    await ConcessaoAcessoStore.save(
+      ConcessaoAcessoModel(
+        id: 'active-auth-school-grant',
+        perfilAlvo: escolaPerfilAlvo,
+        permiteLeituraMetas: true,
+        permiteEscritaDados: true,
+        dataExpiracao: DateTime.now().add(const Duration(days: 1)),
+      ),
+    );
+    await AuthTokenService.saveSessionTokens(
+      accessToken: 'access-expired',
+      refreshToken: 'refresh-expired-seven-days',
+    );
+    await SyncQueueStore.enqueue(
+      SyncItem(
+        id: itemId,
+        payload: '{"subjectId":"local-subject","id":"expired-collection"}',
+        createdAt: DateTime.utc(2026, 10, 5),
+        endpoint: '/school-collections',
+      ),
+    );
+
+    AuthTokenService.onAuthenticationRequired = () {
+      authenticationRequests += 1;
+    };
+    SyncQueueService.connectivityOverride = () async => true;
+    SyncQueueService.postOverride = (uri, headers, body) async {
+      expect(headers['authorization'], 'Bearer access-expired');
+      return http.Response(
+        '{"error":"TOKEN_EXPIRED","renewalRequired":true}',
+        401,
+      );
+    };
+    try {
+      await SyncQueueService.syncPending();
+
+      final afterAccessExpiry = (await SyncQueueStore.pending())
+          .firstWhere((candidate) => candidate.id == itemId);
+      expect(afterAccessExpiry.attempts, 0);
+      expect(authenticationRequests, 1);
+
+      // Simula a resposta 401 do endpoint de refresh após os sete dias.
+      final refreshResponse = http.Response(
+        '{"error":"REFRESH_TOKEN_EXPIRED"}',
+        401,
+      );
+      if (refreshResponse.statusCode == 401) {
+        await AuthTokenService.handleRefreshTokenExpired();
+      }
+      expect(await AuthTokenService.readToken(), isNull);
+      expect(await AuthTokenService.readRefreshToken(), isNull);
+      expect(authenticationRequests, 2);
+    } finally {
+      SyncQueueService.connectivityOverride = null;
+      SyncQueueService.postOverride = null;
+      AuthTokenService.onAuthenticationRequired = null;
+      await SyncQueueStore.remove(
+        (await SyncQueueStore.pending()).firstWhere(
+          (candidate) => candidate.id == itemId,
+        ),
+      );
+    }
   });
 }

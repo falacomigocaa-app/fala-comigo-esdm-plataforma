@@ -13,7 +13,8 @@ class AuthTokenService {
   static Future<void> saveToken(String token) async {
     final normalized = token.trim();
     if (normalized.isEmpty) {
-      throw ArgumentError.value(token, 'token', 'Token JWT não pode ser vazio.');
+      throw ArgumentError.value(
+          token, 'token', 'Token JWT não pode ser vazio.');
     }
     await _storage.write(key: _tokenKey, value: normalized);
   }
@@ -40,6 +41,14 @@ class AuthTokenService {
   static Future<void> clearToken() async {
     await _storage.delete(key: _tokenKey);
     await _storage.delete(key: _refreshTokenKey);
+  }
+
+  /// Deve ser chamado quando o endpoint de refresh também responde 401.
+  /// Nesse ponto a sessão de sete dias terminou e nenhum token pode ser
+  /// reutilizado silenciosamente.
+  static Future<void> handleRefreshTokenExpired() async {
+    await clearToken();
+    requireAuthentication();
   }
 
   static void requireAuthentication() {

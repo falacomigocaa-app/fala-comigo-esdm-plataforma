@@ -142,6 +142,67 @@ test('APIClient renova a sessão e repete a requisição após TOKEN_EXPIRED', a
   assert.equal(persisted.refreshToken, 'refresh-new');
 });
 
+test('APIClient compartilha um único refresh em requisições clínicas paralelas', async () => {
+  const session = {
+    userId: 'user-professional-alpha',
+    organizationId: 'org-demo-alpha',
+    token: 'access-expired',
+    refreshToken: 'refresh-seven-days'
+  };
+  let persisted;
+  let refreshCalls = 0;
+  let expiredCalls = 0;
+  let retriedCalls = 0;
+  globalThis.window = {
+    PORTAL_API_BASE: 'http://127.0.0.1:8787',
+    localStorage: {
+      getItem: () => JSON.stringify(persisted || session),
+      setItem: (_key, value) => { persisted = JSON.parse(value); },
+      removeItem: () => {}
+    },
+    dispatchEvent: () => true
+  };
+  globalThis.fetch = async (url, options) => {
+    if (url.endsWith('/v1/auth/refresh')) {
+      refreshCalls += 1;
+      await new Promise((resolve) => setTimeout(resolve, 15));
+      return {
+        ok: true,
+        status: 200,
+        async json() { return { accessToken: 'access-recovered', refreshToken: 'refresh-rotated', expiresIn: 900 }; }
+      };
+    }
+    if (options.headers.authorization === 'Bearer access-expired') {
+      expiredCalls += 1;
+      return {
+        ok: false,
+        status: 401,
+        async json() { return { error: 'TOKEN_EXPIRED', renewalRequired: true }; }
+      };
+    }
+    retriedCalls += 1;
+    assert.equal(options.headers.authorization, 'Bearer access-recovered');
+    return url.endsWith('/esdm-goals')
+      ? { ok: true, status: 200, async json() { return { goals: ['recovered-goal'] }; } }
+      : { ok: true, status: 200, async json() { return { collections: ['recovered-collection'] }; } };
+  };
+
+  const { APIClient } = await import(`../src/api/client.js?case=${Date.now()}`);
+  const client = new APIClient();
+  const [goals, collections] = await Promise.all([
+    client.carregarMetas('subject-demo-child'),
+    client.carregarHistoricoEscolar('subject-demo-child')
+  ]);
+
+  assert.deepEqual(goals, { goals: ['recovered-goal'] });
+  assert.deepEqual(collections, { collections: ['recovered-collection'] });
+  assert.equal(expiredCalls, 2);
+  assert.equal(refreshCalls, 1);
+  assert.equal(retriedCalls, 2);
+  assert.equal(persisted.token, 'access-recovered');
+  assert.equal(persisted.refreshToken, 'refresh-rotated');
+});
+
 test('APIClient.login envia email e senha ao provedor central', async () => {
   let request;
   installBrowser(async (url, options) => {

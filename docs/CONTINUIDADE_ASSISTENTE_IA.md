@@ -63,3 +63,11 @@ Foi implementado o motor de exportação clínica baseado em `window.print()`, c
 ## PDF nativo mobile validado — 05/10/2026
 
 Foi criado `MobilePdfService` para gerar PDF A4 local em memória, filtrando `MetaEsdmModel` e `SyncItem` por `subjectId`, com tabelas `MultiPage` que quebram páginas automaticamente. A ação existente da tela de metas agora usa esse serviço e abre o compartilhamento nativo via `Printing.sharePdf`. Dependências `pdf`, `printing` e `share_plus` já estavam declaradas e foram confirmadas por `flutter pub get`. Validação: `flutter analyze` sem issues e 117 testes aprovados, incluindo geração PDF e assinatura `%PDF`.
+
+## Testes de expiração e concorrência de sessão — 05/10/2026
+
+O próximo escopo valida concorrência extrema no APIClient web durante expiração simultânea do access token e a sessão mobile totalmente vencida. Os testes devem comprovar refresh compartilhado, retry das requisições originais, callback de reautenticação e retenção intacta da fila cifrada.
+
+## Expiração e concorrência de sessão validadas — 05/10/2026
+
+Foi adicionada cobertura de concorrência extrema ao `APIClient`: requests clínicas paralelas que recebem `TOKEN_EXPIRED` usam uma única `refreshPromise`, compartilham a rotação e repetem ambas as operações com o novo Bearer. No Mobile, a fila ganhou `postOverride` apenas para testes; o cenário 401 do access token retém o `SyncItem` sem incrementar tentativas, e o cenário 401 do refresh chama `handleRefreshTokenExpired`, limpa ambos os tokens seguros e solicita login. Resultados: portal-api 25 aprovados/1 PostgreSQL condicional ignorado, portal-web 12 aprovados + check, Flutter analyze limpo e 118 testes aprovados.

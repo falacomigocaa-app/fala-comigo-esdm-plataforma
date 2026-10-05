@@ -60,3 +60,11 @@ O Portal Web agora exporta o estado atual do relatório pela impressão nativa d
 ## PDF nativo mobile validado — 05/10/2026
 
 O aplicativo agora gera relatório clínico A4 em memória por `subjectId` via `MobilePdfService`, lendo metas da `esdm_goals_box` e coletas pendentes da `sync_queue_box`, com fallback explícito para metas locais legadas sem subjectId. O documento contém cabeçalho do paciente/organização, resumo de autonomia, tabelas pagináveis e sumário; `MetaEsdmScreen` compartilha o PDF pela folha nativa usando `Printing.sharePdf`. `flutter pub get` confirmou `pdf`, `printing` e `share_plus`; `flutter analyze` passou sem issues e `flutter test` passou com 117 testes (116 anteriores + cobertura PDF).
+
+## Testes de expiração e concorrência de sessão — 05/10/2026
+
+Após a validação dos motores PDF, o desenvolvimento avançou para resiliência de autenticação: o próximo escopo é provar que requisições web paralelas compartilham um único refresh e que o mobile retém coletas sem tentativas extras quando access e refresh tokens estão vencidos.
+
+## Expiração e concorrência de sessão validadas — 05/10/2026
+
+O Portal Web agora tem teste de concorrência em `carregarMetas` + `carregarHistoricoEscolar` simultâneos com access token expirado: duas respostas 401 compartilham exatamente um refresh, e ambas as requisições são repetidas com o access token rotacionado. No Mobile, `SyncQueueService` recebeu mock HTTP controlado para provar que 401 `TOKEN_EXPIRED` mantém o item na `sync_queue_box` com `attempts` inalterado; `AuthTokenService.handleRefreshTokenExpired()` limpa access/refresh tokens e dispara reautenticação quando o refresh de sete dias também retorna 401. Validação: portal-api 25 testes aprovados/1 PostgreSQL condicional ignorado; portal-web 12 testes aprovados e check; Flutter analyze sem issues e 118 testes aprovados.

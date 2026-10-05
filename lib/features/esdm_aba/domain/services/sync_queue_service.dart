@@ -19,6 +19,7 @@ const syncApiBaseUrl = String.fromEnvironment(
   'PORTAL_API_BASE_URL',
   defaultValue: 'http://127.0.0.1:8787',
 );
+
 enum SyncOutcome { synced, queued, localOnly, blockedByConsent }
 
 class ConsentBlockedException implements Exception {
@@ -32,10 +33,17 @@ class SyncQueueService {
   static final Connectivity _connectivity = Connectivity();
   static final http.Client _client = http.Client();
   static Future<bool> Function()? connectivityOverride;
-  static StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
+  static Future<http.Response> Function(
+    Uri uri,
+    Map<String, String> headers,
+    String body,
+  )? postOverride;
+  static StreamSubscription<List<ConnectivityResult>>?
+      _connectivitySubscription;
   static Timer? _fallbackTimer;
   static bool _isSyncing = false;
-  static final ValueNotifier<bool> consentBlockedNotifier = ValueNotifier(false);
+  static final ValueNotifier<bool> consentBlockedNotifier =
+      ValueNotifier(false);
 
   static bool get consentBlocked => consentBlockedNotifier.value;
 
@@ -170,19 +178,19 @@ class SyncQueueService {
     final uri = Uri.parse(syncApiBaseUrl).resolve(
       '/v1/subjects/${Uri.encodeComponent(subjectId)}${item.endpoint}',
     );
-    final response = await _client
-        .post(
-          uri,
-          headers: {
-            'accept': 'application/json',
-            'content-type': 'application/json',
-            'authorization': 'Bearer $token',
-            'x-consent-profile': escolaPerfilAlvo,
-            'x-request-id': item.id,
-          },
-          body: item.payload,
-        )
-        .timeout(const Duration(seconds: 15));
+    final headers = {
+      'accept': 'application/json',
+      'content-type': 'application/json',
+      'authorization': 'Bearer $token',
+      'x-consent-profile': escolaPerfilAlvo,
+      'x-request-id': item.id,
+    };
+    final override = postOverride;
+    final response = override != null
+        ? await override(uri, headers, item.payload)
+        : await _client
+            .post(uri, headers: headers, body: item.payload)
+            .timeout(const Duration(seconds: 15));
 
     if (response.statusCode == 401) {
       throw AuthTokenExpiredException(response.statusCode, response.body);
