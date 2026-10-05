@@ -1,7 +1,7 @@
 
 
-## Atualização — 04/10/2026 — persistência PostgreSQL de staging preparada
+## Atualização — 05/10/2026 — PostgreSQL staging efêmero validado
 
-O store do `portal-api` foi ajustado para inicializar um `pg.Pool` quando `DATABASE_URL` estiver definida, usando configuração de conexões, timeouts e TLS opcional. As operações `saveGoal`, `getGoalsBySubject`, `saveCollection` e `getCollectionsBySubject` usam SQL parametrizado nas tabelas da migration. O novo `portal-api/.env.example` documenta `PORT`, `DATABASE_URL`, `NODE_ENV` e ajustes do pool; o README inclui o comando de aplicação da migration e carregamento do `.env`.
+Foi instalado PostgreSQL 16 localmente porque Docker e `psql` não estavam disponíveis. O cluster efêmero foi iniciado, o banco `fala_comigo_staging` foi criado com a URL do `.env.example`, a migration completa foi aplicada e fixtures sintéticas mínimas foram inseridas para satisfazer as foreign keys de `child_subjects` e `users`.
 
-A validação local passou com 17 testes e um teste PostgreSQL ignorado por ausência de banco. Foi validada também uma chamada com pool mock para confirmar query parametrizada. Nenhum `DATABASE_URL` real foi usado e nenhuma migration foi aplicada em staging nesta etapa.
+A execução com `DATABASE_URL` e `PGTEST_URL` confirmou: `npm run test:db` passou com `storageMode: postgres`; `npm test` passou com 18 testes, incluindo o teste PostgreSQL antes ignorado; e o round-trip real de `saveGoal/getGoalsBySubject` e `saveCollection/getCollectionsBySubject` passou contra as tabelas PostgreSQL. O teste de schema foi ampliado para verificar `esdm_goals` e `school_collections`. O banco foi apagado e o cluster parado depois da validação. Nenhuma credencial real ou dado de criança foi usado.

@@ -16,11 +16,11 @@ test('PostgreSQL migration exposes Gate 3A authorization tables and tenant const
       order by table_name
     `, [[
       'users', 'organizations', 'memberships', 'child_subjects', 'consents', 'invitations', 'care_relationships',
-      'access_grants', 'benefit_entitlements', 'audit_events'
+      'access_grants', 'benefit_entitlements', 'audit_events', 'esdm_goals', 'school_collections'
     ]]);
     assert.deepEqual(tables.rows.map((row) => row.table_name), [
-      'access_grants', 'audit_events', 'benefit_entitlements', 'care_relationships', 'child_subjects', 'consents', 'invitations',
-      'memberships', 'organizations', 'users'
+      'access_grants', 'audit_events', 'benefit_entitlements', 'care_relationships', 'child_subjects', 'consents', 'esdm_goals',
+      'invitations', 'memberships', 'organizations', 'school_collections', 'users'
     ]);
 
     await client.query('begin');
