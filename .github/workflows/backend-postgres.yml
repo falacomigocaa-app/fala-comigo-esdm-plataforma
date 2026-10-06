@@ -1,0 +1,84 @@
+name: Backend PostgreSQL integration
+
+on:
+  push:
+    branches: [main, 'feat/**']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  portal-api-postgres:
+    name: portal-api with PostgreSQL 16
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: fala_comigo_staging
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d fala_comigo_staging"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: portal-api/package-lock.json
+
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes postgresql-client
+
+      - name: Wait for PostgreSQL
+        env:
+          PGPASSWORD: postgres
+        run: |
+          until pg_isready --host localhost --port 5432 --username postgres --dbname fala_comigo_staging; do
+            echo "Waiting for PostgreSQL..."
+            sleep 2
+          done
+
+      - name: Install portal-api dependencies
+        working-directory: portal-api
+        run: npm ci
+
+      - name: Apply PostgreSQL migrations
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/fala_comigo_staging
+          PGPASSWORD: postgres
+        run: |
+          for migration in portal-api/migrations/*.sql; do
+            echo "Applying ${migration}"
+            psql "$DATABASE_URL" --set=ON_ERROR_STOP=1 --file "$migration"
+          done
+
+      - name: Seed synthetic PostgreSQL integration fixtures
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/fala_comigo_staging
+          PGPASSWORD: postgres
+        run: psql "$DATABASE_URL" --set=ON_ERROR_STOP=1 --file portal-api/scripts/ci-seed.sql
+
+      - name: Run portal-api tests against PostgreSQL
+        working-directory: portal-api
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/fala_comigo_staging
+          PGTEST_URL: postgres://postgres:postgres@localhost:5432/fala_comigo_staging
+          JWT_SECRET: ci-only-jwt-secret-with-at-least-32-characters
+        run: npm test

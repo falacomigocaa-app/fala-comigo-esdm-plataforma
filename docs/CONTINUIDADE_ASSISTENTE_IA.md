@@ -95,3 +95,11 @@ O próximo módulo adapta `POST/GET /v1/subjects/{subjectId}/school-collections`
 ## Recepção E2EE implementada — 06/10/2026
 
 Concluída a adaptação do backend: `app.js` valida a organização contra o JWT e o formato/base64 do envelope; `store.js` grava `organization_id`, `encrypted_data` e `iv` sem descriptografar; a migration 004 atualiza `school_collections`; testes cobrem sucesso, mismatch cross-tenant e envelope inválido. Resultado: 28 testes aprovados; a integração PostgreSQL foi pulada porque `PGTEST_URL` não está disponível no ambiente atual.
+
+## PostgreSQL efêmero no CI/CD — 06/10/2026
+
+O projeto avançou para a infraestrutura de teste contínuo: será criado um workflow backend com serviço PostgreSQL 16 Alpine, credenciais de staging, espera por prontidão, aplicação ordenada das migrations 001, 002, 003 e 004 e execução de `npm test` com `DATABASE_URL` injetada. A integração PostgreSQL passará a executar no GitHub Actions em vez de ser pulada por ausência de `PGTEST_URL`.
+
+## PostgreSQL efêmero no CI/CD implementado — 06/10/2026
+
+O GitHub Actions agora possui o job `portal-api-postgres`, usando `postgres:16-alpine` com `fala_comigo_staging`, usuário `postgres` e senha de CI. O job instala o cliente PostgreSQL, aguarda prontidão, executa migrations 001–004 em ordem, aplica seed sintético idempotente e roda a suíte com `DATABASE_URL`/`PGTEST_URL`. O teste PostgreSQL valida schema e round-trip de um envelope E2EE sem plaintext. YAML validado com sucesso; localmente, `npm test` passou com 28 aprovados e 1 teste condicional pulado por ausência de banco.

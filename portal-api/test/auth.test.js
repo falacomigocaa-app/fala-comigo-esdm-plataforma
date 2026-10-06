@@ -57,7 +57,7 @@ test('middleware aceita token válido e disponibiliza a identidade', async () =>
   assert.deepEqual(result.body, {
     id: validClaims.userId,
     status: 'active',
-    storageMode: 'memory-test-only'
+    storageMode: process.env.DATABASE_URL ? 'postgres' : 'memory-test-only'
   });
 });
 

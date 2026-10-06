@@ -44,6 +44,27 @@ test('PostgreSQL migration exposes Gate 3A authorization tables and tenant const
       ('pg-membership-alpha', 'pg-user-alpha', 'pg-org-alpha', 'owner', 'active', '2099-01-01T00:00:00Z'),
       ('pg-membership-beta', 'pg-user-beta', 'pg-org-beta', 'owner', 'active', '2099-01-01T00:00:00Z')`);
 
+    await client.query(`insert into child_subjects (id, family_space_id, owner_user_id, display_name, status)
+      values ('pg-subject-alpha', 'pg-family-alpha', 'pg-user-alpha', 'PG Demo Child', 'active')`);
+
+    const encryptedData = Buffer.from('pg-encrypted-clinical-payload').toString('base64');
+    const iv = Buffer.alloc(12, 9).toString('base64');
+    await client.query(`
+      insert into school_collections (id, subject_id, organization_id, encrypted_data, iv, data_registro, created_by_user_id)
+      values ('pg-collection-e2ee', 'pg-subject-alpha', 'pg-org-alpha', $1, $2, '2026-10-06T00:00:00Z', 'pg-user-alpha')
+    `, [encryptedData, iv]);
+    const persistedEnvelope = await client.query(`
+      select organization_id, encrypted_data, iv, bloco_rotina_escolar, nivel_suporte
+      from school_collections where id = 'pg-collection-e2ee'
+    `);
+    assert.deepEqual(persistedEnvelope.rows[0], {
+      organization_id: 'pg-org-alpha',
+      encrypted_data: encryptedData,
+      iv,
+      bloco_rotina_escolar: null,
+      nivel_suporte: null
+    });
+
     const isolated = await client.query(`
       select count(*)::int as count
       from memberships

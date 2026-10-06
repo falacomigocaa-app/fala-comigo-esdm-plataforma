@@ -92,3 +92,11 @@ Após a publicação da criptografia por organização no Mobile, o desenvolvime
 ## Recepção E2EE implementada — 06/10/2026
 
 O `portal-api` agora valida envelopes `{organizationId, encryptedData, iv}` no POST de `school-collections`, exige correspondência exata entre organização do envelope e claim JWT, rejeita envelopes malformados ou cross-tenant e persiste/retorna somente os campos cifrados. A migration `004_e2ee_school_collections.sql` adiciona as colunas PostgreSQL e torna os campos clínicos legados opcionais para novos registros E2EE. `npm test`: 28 aprovados e 1 teste PostgreSQL pulado por ausência de `PGTEST_URL` nesta sandbox.
+
+## PostgreSQL efêmero no CI/CD — 06/10/2026
+
+O próximo avanço é automatizar a validação real do banco no GitHub Actions. O pipeline deverá iniciar `postgres:16-alpine`, aguardar o healthcheck, aplicar as migrations 001–004 em ordem e executar `portal-api` com `DATABASE_URL`, eliminando o teste PostgreSQL condicionalmente pulado em ambientes de CI.
+
+## PostgreSQL efêmero no CI/CD implementado — 06/10/2026
+
+Foi criado `.github/workflows/backend-postgres.yml` com serviço `postgres:16-alpine`, healthcheck e espera explícita por `pg_isready`. O job aplica ordenadamente as migrations 001–004, carrega fixtures sintéticos isolados em `portal-api/scripts/ci-seed.sql` e executa `npm test` com `DATABASE_URL` e `PGTEST_URL`. O teste de integração agora verifica o round-trip real de `encrypted_data`/`iv` no PostgreSQL; o workflow YAML foi validado estruturalmente com PyYAML. A suíte local permaneceu em 28 testes aprovados e 1 integração pulada apenas por não haver PostgreSQL nesta sandbox.
