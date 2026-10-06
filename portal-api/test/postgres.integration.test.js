@@ -23,6 +23,16 @@ test('PostgreSQL migration exposes Gate 3A authorization tables and tenant const
       'invitations', 'memberships', 'organizations', 'school_collections', 'users'
     ]);
 
+    const e2eeColumns = await client.query(`
+      select column_name
+      from information_schema.columns
+      where table_schema = 'public'
+        and table_name = 'school_collections'
+        and column_name = any($1::text[])
+      order by column_name
+    `, [['organization_id', 'encrypted_data', 'iv']]);
+    assert.deepEqual(e2eeColumns.rows.map((row) => row.column_name), ['encrypted_data', 'iv', 'organization_id']);
+
     await client.query('begin');
     await client.query(`insert into users (id, external_subject, status) values
       ('pg-user-alpha', 'synthetic:pg-alpha', 'active'),

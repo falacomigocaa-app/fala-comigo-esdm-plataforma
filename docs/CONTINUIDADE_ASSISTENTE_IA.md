@@ -87,3 +87,11 @@ O próximo módulo implementará criptografia ponta a ponta dos payloads escolar
 ## E2EE por organização validado — 05/10/2026
 
 Foi implementado `CryptoService` com AES-256-GCM autenticado via pacote `cryptography`, chave de 32 bytes segregada por organização no `flutter_secure_storage` e envelope JSON com `organizationId`, `encryptedData` e `iv`. O JWT define a organização corrente; o fallback `PORTAL_ORGANIZATION_ID` serve somente ao staging sem claims válidos. A fila cifra antes de persistir/transmitir, migra itens legados antes do POST, valida que o envelope pertence à organização corrente e conserva subjectId fora do payload no `SyncItem` HiveField 5. O `MobilePdfService` suporta envelopes cifrados. Build_runner concluiu com 2 outputs; `flutter analyze` limpo; `flutter test` com 120 aprovados, incluindo round-trip e ausência de plaintext.
+
+## Recepção E2EE no portal-api — 06/10/2026
+
+O próximo módulo adapta `POST/GET /v1/subjects/{subjectId}/school-collections` para envelopes E2EE. O backend deverá conferir que o `organizationId` do corpo coincide exatamente com o claim do JWT, rejeitar tentativa cross-tenant e persistir/servir apenas o bloco cifrado e seu IV, mantendo o plaintext fora da memória e do PostgreSQL.
+
+## Recepção E2EE implementada — 06/10/2026
+
+Concluída a adaptação do backend: `app.js` valida a organização contra o JWT e o formato/base64 do envelope; `store.js` grava `organization_id`, `encrypted_data` e `iv` sem descriptografar; a migration 004 atualiza `school_collections`; testes cobrem sucesso, mismatch cross-tenant e envelope inválido. Resultado: 28 testes aprovados; a integração PostgreSQL foi pulada porque `PGTEST_URL` não está disponível no ambiente atual.

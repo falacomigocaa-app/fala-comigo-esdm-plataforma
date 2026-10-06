@@ -211,3 +211,46 @@ test('subject owner can read the subject without a remote grant', async () => {
   assert.equal(result.status, 200);
   assert.equal(result.body.ownerUserId, 'user-admin-alpha');
 });
+
+test('school collection accepts and persists an E2EE envelope without plaintext', async () => {
+  const app = createApp();
+  const envelope = {
+    organizationId: 'org-demo-alpha',
+    encryptedData: Buffer.from('ciphertext-and-authentication-tag').toString('base64'),
+    iv: Buffer.alloc(12, 7).toString('base64')
+  };
+  const result = await request(app, 'POST', '/v1/subjects/subject-demo-child/school-collections', 'user-admin-alpha', { body: envelope });
+
+  assert.equal(result.status, 201);
+  assert.equal(result.body.collection.organizationId, envelope.organizationId);
+  assert.equal(result.body.collection.encryptedData, envelope.encryptedData);
+  assert.equal(result.body.collection.iv, envelope.iv);
+  assert.equal(result.body.collection.blocoRotinaEscolar, null);
+  assert.equal(app.store.collections[0].encryptedData, envelope.encryptedData);
+  assert.equal('ciphertext-and-authentication-tag' in app.store.collections[0], false);
+});
+
+test('school collection rejects an envelope from another organization', async () => {
+  const app = createApp();
+  const result = await request(app, 'POST', '/v1/subjects/subject-demo-child/school-collections', 'user-admin-alpha', {
+    body: {
+      organizationId: 'org-demo-beta',
+      encryptedData: Buffer.from('cross-tenant-secret').toString('base64'),
+      iv: Buffer.alloc(12, 8).toString('base64')
+    }
+  });
+
+  assert.equal(result.status, 403);
+  assert.equal(result.body.error, 'ORGANIZATION_MISMATCH');
+  assert.equal(app.store.collections.length, 0);
+});
+
+test('school collection rejects malformed E2EE envelope', async () => {
+  const app = createApp();
+  const result = await request(app, 'POST', '/v1/subjects/subject-demo-child/school-collections', 'user-admin-alpha', {
+    body: { organizationId: 'org-demo-alpha', encryptedData: 'not-enough', iv: 'short' }
+  });
+
+  assert.equal(result.status, 400);
+  assert.equal(result.body.error, 'INVALID_E2EE_ENVELOPE');
+});

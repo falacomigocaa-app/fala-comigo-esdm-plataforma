@@ -84,3 +84,11 @@ Após o painel administrativo de profissionais, o desenvolvimento avança para p
 ## E2EE por organização validado — 05/10/2026
 
 O Mobile agora usa `CryptoService` com AES-256-GCM (`cryptography`, equivalente autenticado ao pacote `encrypt`), chave aleatória de 32 bytes por `organizationId` armazenada no `flutter_secure_storage` e envelope `{organizationId, encryptedData, iv}`. O `organizationId` é lido do JWT ativo, com fallback explícito ao `PORTAL_ORGANIZATION_ID` de staging. A `SyncQueueService` cifra novas coletas antes da `sync_queue_box`, cifra itens legados antes do POST e mantém `subjectId` apenas no `SyncItem` local (HiveField 5) para roteamento. O PDF mobile também descriptografa envelopes locais para compor o histórico. Build_runner gerou 2 outputs, `flutter analyze` passou sem issues e `flutter test` passou com 120 testes.
+
+## Recepção E2EE no portal-api — 06/10/2026
+
+Após a publicação da criptografia por organização no Mobile, o desenvolvimento avança para o backend aceitar somente envelopes estruturados de `school-collections`, validar `organizationId` contra o JWT e persistir `encryptedData`/`iv` no PostgreSQL sem descriptografar o conteúdo clínico.
+
+## Recepção E2EE implementada — 06/10/2026
+
+O `portal-api` agora valida envelopes `{organizationId, encryptedData, iv}` no POST de `school-collections`, exige correspondência exata entre organização do envelope e claim JWT, rejeita envelopes malformados ou cross-tenant e persiste/retorna somente os campos cifrados. A migration `004_e2ee_school_collections.sql` adiciona as colunas PostgreSQL e torna os campos clínicos legados opcionais para novos registros E2EE. `npm test`: 28 aprovados e 1 teste PostgreSQL pulado por ausência de `PGTEST_URL` nesta sandbox.

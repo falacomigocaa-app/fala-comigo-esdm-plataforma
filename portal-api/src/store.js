@@ -97,6 +97,9 @@ function mapCollection(row) {
   return {
     id: row.id,
     subjectId: row.subject_id,
+    organizationId: row.organization_id,
+    encryptedData: row.encrypted_data,
+    iv: row.iv,
     dataRegistro: row.data_registro,
     blocoRotinaEscolar: row.bloco_rotina_escolar,
     nivelSuporte: row.nivel_suporte,
@@ -165,16 +168,27 @@ export function createStore({ pool = createPostgresPool() } = {}) {
       return store.goals.filter((goal) => goal.subjectId === subjectId && goal.status !== 'Archived');
     },
 
-    async saveCollection({ subjectId, dataRegistro, blocoRotinaEscolar, nivelSuporte, createdByUserId }) {
+    async saveCollection({ subjectId, organizationId, encryptedData, iv, dataRegistro, createdByUserId }) {
       const id = `collection-${randomUUID()}`;
       if (pool) {
         const result = await pool.query(`
-          insert into school_collections (id, subject_id, data_registro, bloco_rotina_escolar, nivel_suporte, created_by_user_id)
-          values ($1,$2,$3,$4,$5,$6) returning *
-        `, [id, subjectId, dataRegistro, blocoRotinaEscolar, nivelSuporte, createdByUserId]);
+          insert into school_collections (id, subject_id, organization_id, encrypted_data, iv, data_registro, created_by_user_id)
+          values ($1,$2,$3,$4,$5,$6,$7) returning *
+        `, [id, subjectId, organizationId, encryptedData, iv, dataRegistro, createdByUserId]);
         return mapCollection(result.rows[0]);
       }
-      const collection = { id, subjectId, dataRegistro, blocoRotinaEscolar, nivelSuporte, createdByUserId, createdAt: new Date().toISOString() };
+      const collection = {
+        id,
+        subjectId,
+        organizationId,
+        encryptedData,
+        iv,
+        dataRegistro,
+        blocoRotinaEscolar: null,
+        nivelSuporte: null,
+        createdByUserId,
+        createdAt: new Date().toISOString()
+      };
       store.collections.push(collection);
       return collection;
     },

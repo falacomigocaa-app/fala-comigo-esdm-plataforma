@@ -81,12 +81,31 @@ function requireGoalCode(code) {
   return esdmTranslations[code];
 }
 
-function requireCollectionPayload(body) {
-  const blocks = new Set(['Lanche', 'Recreio', 'Roda de Conversa', 'Atividade Sentada']);
-  const levels = new Set(['Independente', 'Ajuda Verbal', 'Ajuda Física', 'Recusa']);
-  if (!blocks.has(body?.blocoRotinaEscolar) || !levels.has(body?.nivelSuporte)) {
-    throw new AuthorizationError('INVALID_SCHOOL_COLLECTION', 400);
+function isBase64(value) {
+  return typeof value === 'string' && value.length > 0 && /^[A-Za-z0-9+/_-]+={0,2}$/.test(value);
+}
+
+function decodedByteLength(value) {
+  try {
+    return Buffer.from(value.replace(/-/g, '+').replace(/_/g, '/'), 'base64').length;
+  } catch (_) {
+    return 0;
   }
+}
+
+function requireEncryptedCollectionEnvelope(body, organizationId) {
+  if (body?.organizationId !== organizationId) {
+    throw new AuthorizationError('ORGANIZATION_MISMATCH');
+  }
+  if (!isBase64(body?.encryptedData) || decodedByteLength(body.encryptedData) <= 16 ||
+      !isBase64(body?.iv) || decodedByteLength(body.iv) < 12) {
+    throw new AuthorizationError('INVALID_E2EE_ENVELOPE', 400);
+  }
+  return {
+    organizationId,
+    encryptedData: body.encryptedData,
+    iv: body.iv
+  };
 }
 
 export function createApp({ store = createStore(), now = () => new Date('2026-09-25T12:00:00.000Z') } = {}) {
@@ -198,7 +217,7 @@ export function createApp({ store = createStore(), now = () => new Date('2026-09
         const readScope = isGoal ? 'esdm_goal.read' : 'school_collection.read';
         const writeScope = isGoal ? 'esdm_goal.write' : 'school_collection.write';
         const { subject, grant } = subjectWithScope(store, subjectId, context.user.id, method === 'POST' ? writeScope : readScope, clock);
-        context.organizationId = grant?.organizationId ?? null;
+        context.organizationId = grant?.organizationId ?? context.user.organizationId;
 
         if (method === 'GET' && isGoal) {
           const goals = await store.getGoalsBySubject(subject.id);
@@ -223,12 +242,13 @@ export function createApp({ store = createStore(), now = () => new Date('2026-09
           return response(200, { collections });
         }
         if (method === 'POST' && !isGoal) {
-          requireCollectionPayload(body);
+          const envelope = requireEncryptedCollectionEnvelope(body, context.user.organizationId);
           const result = await idempotentAsync(store, requestId, () => store.saveCollection({
             subjectId: subject.id,
-            dataRegistro: body.dataRegistro ?? clock.toISOString(),
-            blocoRotinaEscolar: body.blocoRotinaEscolar,
-            nivelSuporte: body.nivelSuporte,
+            organizationId: envelope.organizationId,
+            encryptedData: envelope.encryptedData,
+            iv: envelope.iv,
+            dataRegistro: clock.toISOString(),
             createdByUserId: context.user.id
           }));
           sendAudit(store, context, 'school_collection.create', 'allowed');
@@ -303,8 +323,9 @@ export function createApp({ store = createStore(), now = () => new Date('2026-09
         }
         let consent = null;
         if (invitation.subjectId || invitation.consentId) {
+          if (!invitation.subjectId || !invitation.consentId) throw new AuthorizationError('CONSENT_REQUIRED', 400);
           consent = activeConsent(store, invitation.consentId, clock);
-          if (consent.recipientUserId !== context.user.id || consent.subjectId !== invitation.subjectId) throw new AuthorizationError('CONSENT_MISMATCH');
+          if (consent.subjectId !== invitation.subjectId || consent.recipientUserId !== context.user.id || consent.organizationId !== invitation.organizationId) throw new AuthorizationError('CONSENT_MISMATCH', 400);
         }
         invitation.status = 'accepted';
         const membership = { id: `membership-${invitation.id}`, userId: context.user.id, organizationId: invitation.organizationId, role: invitation.role, status: 'active', validUntil: invitation.expiresAt };
@@ -320,7 +341,7 @@ export function createApp({ store = createStore(), now = () => new Date('2026-09
         return response(200, { invitation, membership, grant });
       }
 
-      if (method === 'POST' && path[1] === 'subjects' && path[2] && path[3] === 'grants' && path[4] && path[5] === 'revoke') {
+      if (method === 'POST' && path[1] === 'subjects' && path[2] && path[3] === 'grants' && path[5] === 'revoke') {
         const subject = subjectForOwner(store, path[2], context.user.id);
         const grant = store.grants.find((item) => item.id === path[4] && item.subjectId === subject.id);
         if (!grant) throw new AuthorizationError('RELATIONSHIP_REQUIRED');
