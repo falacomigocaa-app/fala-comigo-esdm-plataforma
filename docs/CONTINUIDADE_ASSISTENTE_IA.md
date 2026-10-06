@@ -103,3 +103,7 @@ O projeto avançou para a infraestrutura de teste contínuo: será criado um wor
 ## PostgreSQL efêmero no CI/CD implementado — 06/10/2026
 
 O GitHub Actions agora possui o job `portal-api-postgres`, usando `postgres:16-alpine` com `fala_comigo_staging`, usuário `postgres` e senha de CI. O job instala o cliente PostgreSQL, aguarda prontidão, executa migrations 001–004 em ordem, aplica seed sintético idempotente e roda a suíte com `DATABASE_URL`/`PGTEST_URL`. O teste PostgreSQL valida schema e round-trip de um envelope E2EE sem plaintext. YAML validado com sucesso; localmente, `npm test` passou com 28 aprovados e 1 teste condicional pulado por ausência de banco.
+
+## Correção do CI PostgreSQL — 06/10/2026
+
+A primeira execução do job `portal-api-postgres` passou por inicialização, migrations e seed, mas detectou estado compartilhado entre os testes E2EE no banco real. Foi adicionada limpeza explícita de `school_collections` por sujeito nos cenários de teste. A execução local permaneceu verde com 28 aprovados e 1 teste PostgreSQL pulado por ausência de banco local; o CI será reexecutado com o isolamento corrigido.

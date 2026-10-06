@@ -27,6 +27,14 @@ function request(app, method, url, userId, extra = {}) {
   });
 }
 
+async function clearSchoolCollections(app) {
+  if (app.store.pool) {
+    await app.store.pool.query('delete from school_collections where subject_id = $1', ['subject-demo-child']);
+    return;
+  }
+  app.store.collections.length = 0;
+}
+
 test('owner reads its own organization', async () => {
   const app = createApp();
   const result = await request(app, 'GET', '/v1/organizations/org-demo-alpha', 'user-admin-alpha');
@@ -214,6 +222,7 @@ test('subject owner can read the subject without a remote grant', async () => {
 
 test('school collection accepts and persists an E2EE envelope without plaintext', async () => {
   const app = createApp();
+  await clearSchoolCollections(app);
   const envelope = {
     organizationId: 'org-demo-alpha',
     encryptedData: Buffer.from('ciphertext-and-authentication-tag').toString('base64'),
@@ -234,6 +243,7 @@ test('school collection accepts and persists an E2EE envelope without plaintext'
 
 test('school collection rejects an envelope from another organization', async () => {
   const app = createApp();
+  await clearSchoolCollections(app);
   const result = await request(app, 'POST', '/v1/subjects/subject-demo-child/school-collections', 'user-admin-alpha', {
     body: {
       organizationId: 'org-demo-beta',
