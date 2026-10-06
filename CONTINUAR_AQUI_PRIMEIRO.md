@@ -104,3 +104,11 @@ Foi criado `.github/workflows/backend-postgres.yml` com serviço `postgres:16-al
 ## Correção do CI PostgreSQL — 06/10/2026
 
 A primeira execução do workflow confirmou serviço, migrations e seed, mas revelou que os testes E2EE compartilhavam uma coleção entre casos ao usar o banco real. O teste foi corrigido para limpar as coleções do sujeito antes de cada cenário, mantendo isolamento determinístico entre memória e PostgreSQL. A suíte local voltou a passar com 28 aprovados e 1 teste PostgreSQL condicional pulado por ausência de banco na sandbox; o workflow será reexecutado após o push corretivo.
+
+## Descriptografia E2EE no portal-web — 06/10/2026
+
+Após o CI PostgreSQL validar o round-trip dos envelopes, o desenvolvimento avança para a camada cliente: o Portal Web deverá usar `window.crypto.subtle` para descriptografar AES-256-GCM no navegador do profissional, usando a chave da organização presente na sessão ativa, antes de calcular métricas e gráficos.
+
+## Descriptografia E2EE web validada — 06/10/2026
+
+O Portal Web agora usa `crypto.subtle` com AES-256-GCM para importar a chave base64 da organização da sessão ativa e descriptografar envelopes de `school-collections` no navegador. A view de relatórios mescla o JSON clínico descriptografado antes de filtrar métricas e gerar o SVG; chave ausente, divergente ou inválida falha fechado com “Erro de Decodificação: Chave de Organização inválida”. O login preserva `organizationKey`/`organizationKeys` recebidos pelo provedor. `npm run check` passou e `npm test` passou com 18 testes.

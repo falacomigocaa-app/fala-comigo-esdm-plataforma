@@ -4,9 +4,13 @@ import {
   buildReportPrintMetadata,
   exportClinicalReportPdf,
   filterReportData,
+  renderReportChart,
   renderReportsView,
   summarizeReport
 } from '../src/views/reports-view.js';
+import { DECODE_ERROR_MESSAGE, decryptCollectionEnvelopes } from '../src/services/crypto-web.service.js';
+
+const toBase64 = (bytes) => Buffer.from(bytes).toString('base64');
 
 test('reports view renderiza filtros, estados e área SVG do compilado', () => {
   const html = renderReportsView({ session: { userId: 'user-professional-alpha' } });
@@ -87,4 +91,39 @@ test('exportação chama impressão apenas com sessão autenticada', () => {
   assert.equal(printCalls, 1);
   assert.equal(exportClinicalReportPdf({ documentRef: {}, windowRef, session: null }), false);
   assert.equal(printCalls, 1);
+});
+
+test('descriptografa envelope AES-GCM da organização e renderiza o gráfico clínico', async () => {
+  const cryptoRef = globalThis.crypto;
+  const key = await cryptoRef.subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']);
+  const rawKey = new Uint8Array(await cryptoRef.subtle.exportKey('raw', key));
+  const iv = cryptoRef.getRandomValues(new Uint8Array(12));
+  const plaintext = JSON.stringify({
+    dataRegistro: '2026-10-04T12:00:00.000Z',
+    nivelSuporte: 'Independente'
+  });
+  const encrypted = new Uint8Array(await cryptoRef.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(plaintext)));
+  const [collection] = await decryptCollectionEnvelopes([{
+    organizationId: 'org-demo-alpha',
+    encryptedData: toBase64(encrypted),
+    iv: toBase64(iv)
+  }], {
+    session: { organizationId: 'org-demo-alpha', organizationKey: toBase64(rawKey) },
+    cryptoRef
+  });
+  const chart = renderReportChart([collection]);
+  assert.equal(collection.nivelSuporte, 'Independente');
+  assert.match(chart, /<svg/);
+  assert.match(chart, /Evolução da autonomia/);
+});
+
+test('chave E2EE ausente falha com mensagem amigável de decodificação', async () => {
+  await assert.rejects(
+    decryptCollectionEnvelopes([{
+      organizationId: 'org-demo-alpha',
+      encryptedData: 'AA==',
+      iv: 'AAAAAAAAAAAAAAAA'
+    }], { session: { organizationId: 'org-demo-alpha' } }),
+    (error) => error.code === 'E2EE_KEY_INVALID' && error.message === DECODE_ERROR_MESSAGE
+  );
 });

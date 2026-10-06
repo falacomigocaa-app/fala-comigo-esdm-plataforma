@@ -107,3 +107,11 @@ O GitHub Actions agora possui o job `portal-api-postgres`, usando `postgres:16-a
 ## Correção do CI PostgreSQL — 06/10/2026
 
 A primeira execução do job `portal-api-postgres` passou por inicialização, migrations e seed, mas detectou estado compartilhado entre os testes E2EE no banco real. Foi adicionada limpeza explícita de `school_collections` por sujeito nos cenários de teste. A execução local permaneceu verde com 28 aprovados e 1 teste PostgreSQL pulado por ausência de banco local; o CI será reexecutado com o isolamento corrigido.
+
+## Descriptografia E2EE no portal-web — 06/10/2026
+
+O próximo módulo integra Web Crypto AES-256-GCM à view de relatórios. Envelopes de `school-collections` serão descriptografados somente no navegador, com a chave base64 da organização disponível na sessão ativa; ausência, organização divergente ou chave inválida deverá falhar fechado com a mensagem `Erro de Decodificação: Chave de Organização inválida`.
+
+## Descriptografia E2EE web validada — 06/10/2026
+
+Foi implementado `portal-web/src/services/crypto-web.service.js` usando Web Crypto AES-256-GCM, com validação de organização, chave de 32 bytes, IV de 12 bytes, autenticação GCM e parsing JSON. `reports-view.js` descriptografa envelopes antes de alimentar filtros, métricas e gráfico SVG, exibindo erro amigável sem renderizar plaintext quando a chave é inválida. A sessão de login preserva as chaves de organização fornecidas pelo IdP. Validação: `npm run check` aprovado e 18 testes do portal-web aprovados, incluindo round-trip e falha por chave ausente.

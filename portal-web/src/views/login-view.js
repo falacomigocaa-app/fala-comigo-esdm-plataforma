@@ -44,7 +44,9 @@ export function hydrateLoginView({ navigate }) {
         refreshToken: payload.refreshToken,
         userId: payload.userId,
         organizationId: payload.organizationId,
-        scopes: payload.scopes
+        scopes: payload.scopes,
+        organizationKey: payload.organizationKey,
+        organizationKeys: payload.organizationKeys
       });
       navigate('/clinica');
     } catch (error) {

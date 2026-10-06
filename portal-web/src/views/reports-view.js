@@ -1,4 +1,5 @@
 import { apiClient, getSession } from '../api/client.js';
+import { decryptCollectionEnvelopes, WebE2EEError } from '../services/crypto-web.service.js';
 
 const levels = { Recusa: 0, 'Ajuda Física': 1, 'Ajuda Verbal': 2, Independente: 3 };
 const periodOptions = [
@@ -78,7 +79,7 @@ export function exportClinicalReportPdf({
   return true;
 }
 
-function renderChart(collections) {
+export function renderReportChart(collections) {
   if (!collections.length) return '<div class="report-empty"><strong>Nenhuma coleta realizada no período.</strong><span>Amplie o período ou selecione outro paciente para visualizar a evolução.</span></div>';
   const width = 900;
   const height = 300;
@@ -145,7 +146,7 @@ export async function hydrateReportsView({ session }) {
       goalLabel: goalFilter.options[goalFilter.selectedIndex]?.textContent,
       summary
     });
-    chart.innerHTML = renderChart(filtered.collections);
+    chart.innerHTML = renderReportChart(filtered.collections);
     goalsBody.innerHTML = renderGoals(filtered.goals);
     metricNodes.collectionCount.textContent = summary.collectionCount;
     metricNodes.average.textContent = summary.average === null ? '—' : summary.average.toFixed(1);
@@ -169,7 +170,17 @@ export async function hydrateReportsView({ session }) {
       apiClient.carregarHistoricoEscolar(subjectId),
       apiClient.carregarMetas(subjectId)
     ]);
-    collections = collectionResult.collections || [];
+    try {
+      collections = await decryptCollectionEnvelopes(collectionResult.collections || [], { session });
+    } catch (error) {
+      if (error instanceof WebE2EEError || error?.code === 'E2EE_KEY_INVALID') {
+        status.textContent = error.message;
+        chart.innerHTML = `<div class="report-empty"><strong>${error.message}</strong><span>O conteúdo clínico permanece protegido e não foi renderizado.</span></div>`;
+        goalsBody.innerHTML = '<tr><td colspan="4">Coletas indisponíveis até a validação da chave da organização.</td></tr>';
+        return;
+      }
+      throw error;
+    }
     goals = goalResult.goals || [];
     goalFilter.innerHTML = `<option value="all">Todas as metas</option>${goals.map((goal) => `<option value="${escapeHtml(goal.codigoTecnicoDenver)}">${escapeHtml(goal.codigoTecnicoDenver)}</option>`).join('')}`;
     goalFilter.disabled = false;
