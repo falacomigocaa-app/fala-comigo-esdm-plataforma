@@ -23,6 +23,11 @@ class ConcessaoAcessoStore {
     await box.put(concessao.id, concessao);
   }
 
+  static Future<void> delete(String id) async {
+    final box = await _box();
+    await box.delete(id);
+  }
+
   static Future<ConcessaoAcessoModel?> find(String perfilAlvo) async {
     final concessoes = await loadAll();
     for (final concessao in concessoes) {
@@ -34,8 +39,8 @@ class ConcessaoAcessoStore {
   static Future<ConcessaoAcessoModel?> findActive(String perfilAlvo) async {
     final concessoes = await loadAll();
     for (final concessao in concessoes) {
-      final enabled = concessao.permiteLeituraMetas ||
-          concessao.permiteEscritaDados;
+      final enabled =
+          concessao.permiteLeituraMetas || concessao.permiteEscritaDados;
       if (concessao.perfilAlvo == perfilAlvo &&
           enabled &&
           concessao.estaAtiva) {

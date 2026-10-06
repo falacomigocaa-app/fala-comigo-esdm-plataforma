@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class AuthTokenService {
@@ -9,6 +11,23 @@ class AuthTokenService {
   static void Function()? onAuthenticationRequired;
 
   static Future<String?> readToken() => _storage.read(key: _tokenKey);
+
+  static Future<String?> readOrganizationId() async {
+    final token = await readToken();
+    if (token == null) return null;
+    try {
+      final segments = token.split('.');
+      if (segments.length != 3) return null;
+      final claims = jsonDecode(
+          utf8.decode(base64Url.decode(base64Url.normalize(segments[1]))));
+      return claims is Map<String, dynamic> &&
+              claims['organizationId'] is String
+          ? claims['organizationId'] as String
+          : null;
+    } catch (_) {
+      return null;
+    }
+  }
 
   static Future<void> saveToken(String token) async {
     final normalized = token.trim();

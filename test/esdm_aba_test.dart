@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:http/http.dart' as http;
@@ -8,10 +9,12 @@ import 'package:hive/hive.dart';
 import 'package:fala_comigo/features/esdm_aba/data/concessao_acesso_store.dart';
 import 'package:fala_comigo/features/esdm_aba/data/sincronizacao_queue_store.dart';
 import 'package:fala_comigo/features/esdm_aba/domain/models/concessao_acesso_model.dart';
+import 'package:fala_comigo/features/esdm_aba/domain/models/coleta_escola_model.dart';
 import 'package:fala_comigo/features/esdm_aba/domain/models/meta_esdm_model.dart';
 import 'package:fala_comigo/features/esdm_aba/domain/models/sincronizacao_queue_model.dart';
 import 'package:fala_comigo/features/esdm_aba/domain/models/sync_item.dart';
 import 'package:fala_comigo/core/services/auth_token_service.dart';
+import 'package:fala_comigo/core/services/crypto_service.dart';
 import 'package:fala_comigo/features/esdm_aba/data/meta_esdm_store.dart';
 import 'package:fala_comigo/features/esdm_aba/data/sync_queue_store.dart';
 import 'package:fala_comigo/features/esdm_aba/domain/services/esdm_translator.dart';
@@ -145,6 +148,74 @@ void main() {
     expect(String.fromCharCodes(bytes.take(4)), '%PDF');
     await SyncQueueStore.remove(item);
     await MetaEsdmStore.delete('pdf-goal-1');
+  });
+
+  test('E2EE faz round-trip por organização sem vazar plaintext no envelope',
+      () async {
+    const organizationId = 'org-e2ee-roundtrip-test';
+    const plaintext =
+        '{"subjectId":"subject-clinical","nivelSuporte":"Independente","id":"coleta-1"}';
+    await CryptoService.clearOrganizationKey(organizationId);
+
+    final envelopeJson = await CryptoService.encryptPayload(
+      organizationId: organizationId,
+      plaintext: plaintext,
+    );
+    final envelope = jsonDecode(envelopeJson) as Map<String, dynamic>;
+
+    expect(envelope['organizationId'], organizationId);
+    expect(envelope['encryptedData'], isA<String>());
+    expect(envelope['iv'], isA<String>());
+    expect(envelopeJson, isNot(contains('subject-clinical')));
+    expect(envelopeJson, isNot(contains('Independente')));
+    expect(await CryptoService.decryptPayload(envelopeJson), plaintext);
+
+    await CryptoService.clearOrganizationKey(organizationId);
+  });
+
+  test('fila escolar persiste envelope E2EE e não o payload clínico em claro',
+      () async {
+    const itemId = 'school-collection-e2ee-test';
+    await ConcessaoAcessoStore.save(
+      ConcessaoAcessoModel(
+        id: 'e2ee-active-school-grant',
+        perfilAlvo: escolaPerfilAlvo,
+        permiteLeituraMetas: true,
+        permiteEscritaDados: true,
+        dataExpiracao: DateTime.now().add(const Duration(days: 1)),
+      ),
+    );
+    SyncQueueService.connectivityOverride = () async => false;
+    SyncItem? queuedItem;
+    try {
+      final outcome = await SyncQueueService.saveOrSyncCollection(
+        subjectId: 'subject-e2ee-test',
+        coleta: ColetaEscolaModel(
+          id: itemId,
+          dataRegistro: DateTime.utc(2026, 10, 5),
+          blocoRotinaEscolar: 'Rotina confidencial',
+          nivelSuporte: 'Independente',
+        ),
+      );
+      expect(outcome, SyncOutcome.queued);
+
+      final item = (await SyncQueueStore.pending()).firstWhere(
+        (candidate) => candidate.id == 'school-collection:$itemId',
+      );
+      queuedItem = item;
+      final envelope = jsonDecode(item.payload) as Map<String, dynamic>;
+      expect(CryptoService.isEnvelope(envelope), isTrue);
+      expect(item.payload, isNot(contains('Rotina confidencial')));
+      expect(
+        await CryptoService.decryptPayload(item.payload),
+        contains('Rotina confidencial'),
+      );
+    } finally {
+      SyncQueueService.connectivityOverride = null;
+      final itemToRemove = queuedItem;
+      if (itemToRemove != null) await SyncQueueStore.remove(itemToRemove);
+      await ConcessaoAcessoStore.delete('e2ee-active-school-grant');
+    }
   });
 
   test('bloqueia concessão revogada mesmo antes da data de expiração',

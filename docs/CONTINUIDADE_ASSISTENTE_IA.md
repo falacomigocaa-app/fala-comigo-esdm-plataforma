@@ -79,3 +79,11 @@ O próximo módulo do Portal Web é o painel administrativo de profissionais: co
 ## Gerenciamento de profissionais validado — 05/10/2026
 
 Foi implementada a interface administrativa Vanilla ES Modules em `/admin/profissionais`, com proteção de rota por `membership.read`/`access.invite`, tabela de memberships, edição/reenvio de acesso e checkboxes para `esdm_goal.read/write`, `school_collection.read/write` e `report.read`. O APIClient adicionou os métodos de memberships e invitations com `Authorization: Bearer`; a tela trata carregamento, vazio, erro, salvamento e reload limpo. Portal-web: 16 testes aprovados e check sintático aprovado.
+
+## E2EE por organização no mobile — 05/10/2026
+
+O próximo módulo implementará criptografia ponta a ponta dos payloads escolares: chave AES-256-GCM por organização em armazenamento seguro, envelope JSON com `organizationId`/`encryptedData`/`iv`, e adaptação da fila Hive para conservar subjectId apenas como metadado de roteamento local, nunca no plaintext transmitido.
+
+## E2EE por organização validado — 05/10/2026
+
+Foi implementado `CryptoService` com AES-256-GCM autenticado via pacote `cryptography`, chave de 32 bytes segregada por organização no `flutter_secure_storage` e envelope JSON com `organizationId`, `encryptedData` e `iv`. O JWT define a organização corrente; o fallback `PORTAL_ORGANIZATION_ID` serve somente ao staging sem claims válidos. A fila cifra antes de persistir/transmitir, migra itens legados antes do POST, valida que o envelope pertence à organização corrente e conserva subjectId fora do payload no `SyncItem` HiveField 5. O `MobilePdfService` suporta envelopes cifrados. Build_runner concluiu com 2 outputs; `flutter analyze` limpo; `flutter test` com 120 aprovados, incluindo round-trip e ausência de plaintext.

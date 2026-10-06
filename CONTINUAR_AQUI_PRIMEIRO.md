@@ -76,3 +76,11 @@ Após a validação de expiração e concorrência, o desenvolvimento avança pa
 ## Gerenciamento de profissionais validado — 05/10/2026
 
 O Portal Web agora possui a rota `/admin/profissionais` e a view `admin-professionals-view.js`. Sessões sem `membership.read` ou `access.invite` recebem uma tela amigável de Acesso Negado; administradores veem memberships da organização, escopos explícitos/fallback por perfil e controles para adicionar ou editar/reenviar a configuração de acesso. O APIClient usa Bearer em `GET /v1/organizations/{organizationId}/memberships` e `POST /v1/organizations/{organizationId}/invitations`. A lista é recarregada após salvar e os estados de carregamento, vazio e erro são tratados. Validação: portal-web 16 testes aprovados e `npm run check` aprovado.
+
+## E2EE por organização no mobile — 05/10/2026
+
+Após o painel administrativo de profissionais, o desenvolvimento avança para proteger payloads de `school-collections` com AES-256-GCM e chaves simétricas por `organizationId`, armazenadas no `flutter_secure_storage`. O envelope transmitido terá `organizationId`, `encryptedData` e `iv`; a fila deverá manter apenas o envelope cifrado.
+
+## E2EE por organização validado — 05/10/2026
+
+O Mobile agora usa `CryptoService` com AES-256-GCM (`cryptography`, equivalente autenticado ao pacote `encrypt`), chave aleatória de 32 bytes por `organizationId` armazenada no `flutter_secure_storage` e envelope `{organizationId, encryptedData, iv}`. O `organizationId` é lido do JWT ativo, com fallback explícito ao `PORTAL_ORGANIZATION_ID` de staging. A `SyncQueueService` cifra novas coletas antes da `sync_queue_box`, cifra itens legados antes do POST e mantém `subjectId` apenas no `SyncItem` local (HiveField 5) para roteamento. O PDF mobile também descriptografa envelopes locais para compor o histórico. Build_runner gerou 2 outputs, `flutter analyze` passou sem issues e `flutter test` passou com 120 testes.

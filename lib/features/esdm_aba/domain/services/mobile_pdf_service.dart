@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
+import '../../../../core/services/crypto_service.dart';
 import '../../data/goal_store.dart';
 import '../../data/meta_esdm_store.dart';
 import '../../data/sync_queue_store.dart';
@@ -111,13 +112,17 @@ class MobilePdfService {
     String subjectId,
   ) async {
     final items = await SyncQueueStore.pending();
-    return items
-        .where((item) => item.endpoint == '/school-collections')
-        .map(_QueuedCollection.tryParse)
-        .whereType<_QueuedCollection>()
-        .where((collection) => collection.subjectId == subjectId)
-        .toList()
-      ..sort((left, right) => left.createdAt.compareTo(right.createdAt));
+    final collections = <_QueuedCollection>[];
+    for (final item
+        in items.where((item) => item.endpoint == '/school-collections')) {
+      final collection = await _QueuedCollection.tryParse(item);
+      if (collection != null && collection.subjectId == subjectId) {
+        collections.add(collection);
+      }
+    }
+    collections
+        .sort((left, right) => left.createdAt.compareTo(right.createdAt));
+    return collections;
   }
 
   static Future<Map<String, dynamic>?> _loadProfile() async {
@@ -142,12 +147,14 @@ class MobilePdfService {
   ) {
     return pw.TableHelper.fromTextArray(
       headers: const ['Paciente', 'Organização', 'Subject ID', 'Emissão'],
-      data: [[
-        patientName,
-        organization,
-        subjectId,
-        _formatDateTime(DateTime.now()),
-      ]],
+      data: [
+        [
+          patientName,
+          organization,
+          subjectId,
+          _formatDateTime(DateTime.now()),
+        ]
+      ],
       headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9),
       cellStyle: const pw.TextStyle(fontSize: 9),
       headerDecoration: const pw.BoxDecoration(color: PdfColors.blue50),
@@ -158,7 +165,9 @@ class MobilePdfService {
   static pw.Widget _summaryTable(int count, double? average) {
     return pw.TableHelper.fromTextArray(
       headers: const ['Coletas no cache', 'Autonomia média', 'Escala'],
-      data: [[count.toString(), average?.toStringAsFixed(1) ?? '—', '0 a 3']],
+      data: [
+        [count.toString(), average?.toStringAsFixed(1) ?? '—', '0 a 3']
+      ],
       headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9),
       cellStyle: const pw.TextStyle(fontSize: 10),
       headerDecoration: const pw.BoxDecoration(color: PdfColors.blue50),
@@ -255,9 +264,14 @@ class _QueuedCollection {
     required this.attempts,
   });
 
-  static _QueuedCollection? tryParse(SyncItem item) {
+  static Future<_QueuedCollection?> tryParse(SyncItem item) async {
     try {
-      final map = jsonDecode(item.payload) as Map<String, dynamic>;
+      final decoded = jsonDecode(item.payload);
+      final clearPayload =
+          decoded is Map<String, dynamic> && CryptoService.isEnvelope(decoded)
+              ? await CryptoService.decryptPayload(item.payload)
+              : item.payload;
+      final map = jsonDecode(clearPayload) as Map<String, dynamic>;
       final subjectId = map['subjectId']?.toString();
       if (subjectId == null || subjectId.isEmpty) return null;
       return _QueuedCollection(

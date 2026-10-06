@@ -9,7 +9,7 @@ class SyncItem extends HiveObject {
   final String id;
 
   @HiveField(1)
-  final String payload;
+  String payload;
 
   @HiveField(2)
   final DateTime createdAt;
@@ -20,11 +20,16 @@ class SyncItem extends HiveObject {
   @HiveField(4)
   final String endpoint;
 
+  /// Mantido fora do payload para permitir roteamento sem expor plaintext.
+  @HiveField(5)
+  final String? subjectId;
+
   SyncItem({
     required this.id,
     required this.payload,
     required this.createdAt,
     this.attempts = 0,
     required this.endpoint,
+    this.subjectId,
   });
 }

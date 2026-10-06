@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import '../../../../core/services/auth_token_service.dart';
+import '../../../../core/services/crypto_service.dart';
 import '../../data/concessao_acesso_store.dart';
 import '../../data/sync_queue_store.dart';
 import '../../domain/models/coleta_escola_model.dart';
@@ -18,6 +19,10 @@ const syncSubjectId = String.fromEnvironment(
 const syncApiBaseUrl = String.fromEnvironment(
   'PORTAL_API_BASE_URL',
   defaultValue: 'http://127.0.0.1:8787',
+);
+const syncOrganizationId = String.fromEnvironment(
+  'PORTAL_ORGANIZATION_ID',
+  defaultValue: 'org-demo-alpha',
 );
 
 enum SyncOutcome { synced, queued, localOnly, blockedByConsent }
@@ -77,7 +82,7 @@ class SyncQueueService {
     }
     _notifyConsentValid();
 
-    final item = _itemFor(coleta, subjectId: subjectId);
+    final item = await _itemFor(coleta, subjectId: subjectId);
     if (!await _isOnline()) {
       await SyncQueueStore.enqueue(item);
       return SyncOutcome.queued;
@@ -140,22 +145,29 @@ class SyncQueueService {
     }
   }
 
-  static SyncItem _itemFor(
+  static Future<SyncItem> _itemFor(
     ColetaEscolaModel coleta, {
     required String subjectId,
-  }) {
+  }) async {
+    final organizationId =
+        await AuthTokenService.readOrganizationId() ?? syncOrganizationId;
+    final clearPayload = jsonEncode({
+      'subjectId': subjectId,
+      'id': coleta.id,
+      'dataRegistro': coleta.dataRegistro.toIso8601String(),
+      'blocoRotinaEscolar': coleta.blocoRotinaEscolar,
+      'nivelSuporte': coleta.nivelSuporte,
+      'metaId': coleta.metaId,
+    });
     return SyncItem(
       id: 'school-collection:${coleta.id}',
-      payload: jsonEncode({
-        'subjectId': subjectId,
-        'id': coleta.id,
-        'dataRegistro': coleta.dataRegistro.toIso8601String(),
-        'blocoRotinaEscolar': coleta.blocoRotinaEscolar,
-        'nivelSuporte': coleta.nivelSuporte,
-        'metaId': coleta.metaId,
-      }),
+      payload: await CryptoService.encryptPayload(
+        organizationId: organizationId,
+        plaintext: clearPayload,
+      ),
       createdAt: DateTime.now(),
       endpoint: '/school-collections',
+      subjectId: subjectId,
     );
   }
 
@@ -169,10 +181,22 @@ class SyncQueueService {
     if (token == null || token.isEmpty) {
       throw const AuthTokenRequiredException();
     }
-    final payload = jsonDecode(item.payload) as Map<String, dynamic>;
-    final subjectId = payload['subjectId'] as String?;
+    final subjectId = item.subjectId ?? _legacySubjectId(item.payload);
     if (subjectId == null || subjectId.isEmpty) {
       throw const FormatException('SyncItem sem subjectId.');
+    }
+
+    final organizationId =
+        await AuthTokenService.readOrganizationId() ?? syncOrganizationId;
+    final envelope = _decodeEnvelopeOrEmpty(item.payload);
+    if (!CryptoService.isEnvelope(envelope)) {
+      item.payload = await CryptoService.encryptPayload(
+        organizationId: organizationId,
+        plaintext: item.payload,
+      );
+      await SyncQueueStore.enqueue(item);
+    } else if (envelope['organizationId'] != organizationId) {
+      throw StateError('Envelope E2EE pertence a outra organização.');
     }
 
     final uri = Uri.parse(syncApiBaseUrl).resolve(
@@ -197,6 +221,26 @@ class SyncQueueService {
     }
     if (response.statusCode != 200 && response.statusCode != 201) {
       throw StateError('Sincronização recusada: HTTP ${response.statusCode}.');
+    }
+  }
+
+  static String? _legacySubjectId(String payload) {
+    try {
+      final decoded = jsonDecode(payload);
+      return decoded is Map<String, dynamic>
+          ? decoded['subjectId'] as String?
+          : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static Map<String, dynamic> _decodeEnvelopeOrEmpty(String payload) {
+    try {
+      final decoded = jsonDecode(payload);
+      return decoded is Map<String, dynamic> ? decoded : <String, dynamic>{};
+    } catch (_) {
+      return <String, dynamic>{};
     }
   }
 
