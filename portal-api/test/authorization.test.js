@@ -266,3 +266,53 @@ test('school collection rejects malformed E2EE envelope', async () => {
   assert.equal(result.status, 400);
   assert.equal(result.body.error, 'INVALID_E2EE_ENVELOPE');
 });
+
+test('organization owner can provision and read only the unwrapped organization key', async () => {
+  const previousMasterKey = process.env.MASTER_CRYPTO_KEY;
+  process.env.MASTER_CRYPTO_KEY = Buffer.alloc(32, 23).toString('base64');
+  try {
+    const app = createApp();
+    await app.store.provisionOrganizationKey({ organizationId: 'org-demo-alpha', createdByUserId: 'user-admin-alpha' });
+    const result = await request(app, 'GET', '/v1/organizations/org-demo-alpha/keys', 'user-admin-alpha');
+
+    assert.equal(result.status, 200);
+    assert.equal(result.body.organizationId, 'org-demo-alpha');
+    assert.equal(Buffer.from(result.body.organizationKey, 'base64').length, 32);
+    assert.equal('keyEncrypted' in result.body, false);
+  } finally {
+    if (previousMasterKey === undefined) delete process.env.MASTER_CRYPTO_KEY;
+    else process.env.MASTER_CRYPTO_KEY = previousMasterKey;
+  }
+});
+
+test('professional without organization.key.read cannot read organization key', async () => {
+  const previousMasterKey = process.env.MASTER_CRYPTO_KEY;
+  process.env.MASTER_CRYPTO_KEY = Buffer.alloc(32, 23).toString('base64');
+  try {
+    const app = createApp();
+    await app.store.provisionOrganizationKey({ organizationId: 'org-demo-alpha', createdByUserId: 'user-admin-alpha' });
+    const result = await request(app, 'GET', '/v1/organizations/org-demo-alpha/keys', 'user-professional-alpha');
+
+    assert.equal(result.status, 403);
+    assert.equal(result.body.error, 'SCOPE_DENIED');
+  } finally {
+    if (previousMasterKey === undefined) delete process.env.MASTER_CRYPTO_KEY;
+    else process.env.MASTER_CRYPTO_KEY = previousMasterKey;
+  }
+});
+
+test('organization key endpoint denies a member from a different organization', async () => {
+  const previousMasterKey = process.env.MASTER_CRYPTO_KEY;
+  process.env.MASTER_CRYPTO_KEY = Buffer.alloc(32, 23).toString('base64');
+  try {
+    const app = createApp();
+    await app.store.provisionOrganizationKey({ organizationId: 'org-demo-beta', createdByUserId: 'user-admin-beta' });
+    const result = await request(app, 'GET', '/v1/organizations/org-demo-beta/keys', 'user-admin-alpha');
+
+    assert.equal(result.status, 403);
+    assert.equal(result.body.error, 'RELATIONSHIP_REQUIRED');
+  } finally {
+    if (previousMasterKey === undefined) delete process.env.MASTER_CRYPTO_KEY;
+    else process.env.MASTER_CRYPTO_KEY = previousMasterKey;
+  }
+});

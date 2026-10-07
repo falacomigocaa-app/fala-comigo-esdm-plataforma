@@ -112,3 +112,11 @@ Após o CI PostgreSQL validar o round-trip dos envelopes, o desenvolvimento avan
 ## Descriptografia E2EE web validada — 06/10/2026
 
 O Portal Web agora usa `crypto.subtle` com AES-256-GCM para importar a chave base64 da organização da sessão ativa e descriptografar envelopes de `school-collections` no navegador. A view de relatórios mescla o JSON clínico descriptografado antes de filtrar métricas e gerar o SVG; chave ausente, divergente ou inválida falha fechado com “Erro de Decodificação: Chave de Organização inválida”. O login preserva `organizationKey`/`organizationKeys` recebidos pelo provedor. `npm run check` passou e `npm test` passou com 18 testes.
+
+## Provisionamento seguro de chaves de organização — 06/10/2026
+
+Com a descriptografia Web Crypto pronta no Portal Web, o próximo módulo fecha o provisionamento no backend: armazenar chaves AES-256-GCM cifradas em repouso com `MASTER_CRYPTO_KEY`, proteger o endpoint de leitura por membership e escopo dedicado e injetar a chave legítima no login sem expor material criptográfico no JWT.
+
+## Provisionamento de chaves de organização implementado — 07/10/2026
+
+Implementado o cofre `organization_keys` na migration 005. O backend armazena somente envelopes AES-256-GCM cifrados com `MASTER_CRYPTO_KEY`, com AAD vinculada ao `organizationId`, versão e auditoria de criação/rotação. O endpoint `GET /v1/organizations/{organizationId}/keys` exige membership ativa e o escopo `organization.key.read`; profissionais comuns e membros de outras organizações recebem 403. O login injeta `organizationKey` base64 de 32 bytes quando o cofre está configurado. O CI aplica migrations 001–005 e provisiona fixtures cifradas antes da suíte. Validação local: 32 testes aprovados, 1 integração PostgreSQL pulada por ausência de banco; sintaxe e YAML aprovados.

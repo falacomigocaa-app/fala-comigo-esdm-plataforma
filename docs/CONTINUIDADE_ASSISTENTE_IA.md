@@ -115,3 +115,11 @@ O próximo módulo integra Web Crypto AES-256-GCM à view de relatórios. Envelo
 ## Descriptografia E2EE web validada — 06/10/2026
 
 Foi implementado `portal-web/src/services/crypto-web.service.js` usando Web Crypto AES-256-GCM, com validação de organização, chave de 32 bytes, IV de 12 bytes, autenticação GCM e parsing JSON. `reports-view.js` descriptografa envelopes antes de alimentar filtros, métricas e gráfico SVG, exibindo erro amigável sem renderizar plaintext quando a chave é inválida. A sessão de login preserva as chaves de organização fornecidas pelo IdP. Validação: `npm run check` aprovado e 18 testes do portal-web aprovados, incluindo round-trip e falha por chave ausente.
+
+## Provisionamento seguro de chaves de organização — 06/10/2026
+
+O projeto avança para o repositório de chaves organizacionais no `portal-api`. A migration 005 deverá armazenar apenas `key_encrypted` e metadados; a chave AES-256-GCM será desembrulhada em memória com `MASTER_CRYPTO_KEY` somente para profissionais autorizados por membership/escopo, e o login anexará `organizationKey` em resposta para o cliente Web Crypto.
+
+## Provisionamento de chaves de organização implementado — 07/10/2026
+
+O `portal-api` agora possui `organization-key.service.js`, com envelope AES-256-GCM cifrado pela chave mestra do servidor, validação de 32 bytes e AAD por organização. `store.js` implementa provisionamento/rotação e leitura desembalada em memória; `app.js` protege o endpoint de chave com JWT, membership e `organization.key.read`, e injeta a chave no login. A migration 005 e o script de seed do CI foram adicionados; o workflow aplica automaticamente 001–005. Cobertura inclui escopo negado, tenant divergente, login e round-trip PostgreSQL. Resultado local: 32 aprovados e 1 teste PostgreSQL condicionalmente pulado por ausência do serviço local.

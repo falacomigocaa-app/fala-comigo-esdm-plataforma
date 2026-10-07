@@ -44,6 +44,27 @@ test('login central rejeita senha inválida sem revelar qual credencial falhou',
   assert.deepEqual(result, { status: 401, body: { error: 'INVALID_CREDENTIALS' } });
 });
 
+test('login central injeta a chave AES-256-GCM da organização autorizada', async () => {
+  const previousMasterKey = process.env.MASTER_CRYPTO_KEY;
+  process.env.MASTER_CRYPTO_KEY = Buffer.alloc(32, 23).toString('base64');
+  try {
+    const app = createApp();
+    await app.store.provisionOrganizationKey({ organizationId: 'org-demo-alpha', createdByUserId: 'user-admin-alpha' });
+    const result = await app.handle({
+      method: 'POST',
+      url: '/v1/auth/login',
+      body: { email: 'admin@fala-comigo.test', password: 'DemoPassword-2026' }
+    });
+
+    assert.equal(result.status, 200);
+    assert.equal(result.body.organizationId, 'org-demo-alpha');
+    assert.equal(Buffer.from(result.body.organizationKey, 'base64').length, 32);
+  } finally {
+    if (previousMasterKey === undefined) delete process.env.MASTER_CRYPTO_KEY;
+    else process.env.MASTER_CRYPTO_KEY = previousMasterKey;
+  }
+});
+
 test('middleware bloqueia requisição sem token', async () => {
   const result = await request(createApp());
   assert.equal(result.status, 401);

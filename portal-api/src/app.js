@@ -120,6 +120,12 @@ export function createApp({ store = createStore(), now = () => new Date('2026-09
         const claims = await store.authenticateCredentials(body ?? {}, clock);
         const accessToken = issueAccessToken(claims);
         const refreshToken = await store.createRefreshToken(claims, clock);
+        const organizationKey = process.env.MASTER_CRYPTO_KEY
+          ? await store.getOrganizationKey(claims.organizationId)
+          : null;
+        if (process.env.MASTER_CRYPTO_KEY && !organizationKey) {
+          throw new AuthorizationError('ORGANIZATION_KEY_UNAVAILABLE', 503);
+        }
         return response(200, {
           userId: claims.userId,
           organizationId: claims.organizationId,
@@ -127,7 +133,8 @@ export function createApp({ store = createStore(), now = () => new Date('2026-09
           accessToken,
           refreshToken,
           expiresIn: 15 * 60,
-          refreshExpiresIn: 7 * 24 * 60 * 60
+          refreshExpiresIn: 7 * 24 * 60 * 60,
+          ...(organizationKey ?? {})
         });
       }
 
@@ -153,6 +160,15 @@ export function createApp({ store = createStore(), now = () => new Date('2026-09
       context.user = authenticateRequest(store, headers);
       context.organizationId = context.user.organizationId;
       if (path[0] !== 'v1') return response(404, { error: 'NOT_FOUND' });
+
+      if (method === 'GET' && path[1] === 'organizations' && path[3] === 'keys') {
+        context.organizationId = path[2];
+        requireScope(store, context.user.id, context.organizationId, 'organization.key.read', clock);
+        const organizationKey = await store.getOrganizationKey(context.organizationId);
+        if (!organizationKey) throw new AuthorizationError('ORGANIZATION_KEY_UNAVAILABLE', 404);
+        sendAudit(store, context, 'organization.key.read', 'allowed');
+        return response(200, organizationKey);
+      }
 
       if (method === 'GET' && path[1] === 'organizations' && path[3] === undefined && path[2]) {
         context.organizationId = path[2];

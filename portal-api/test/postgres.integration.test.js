@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import pg from 'pg';
+import { decryptOrganizationKey, encryptOrganizationKey } from '../src/services/organization-key.service.js';
 
 const connectionString = process.env.PGTEST_URL;
 
@@ -16,11 +17,23 @@ test('PostgreSQL migration exposes Gate 3A authorization tables and tenant const
       order by table_name
     `, [[
       'users', 'organizations', 'memberships', 'child_subjects', 'consents', 'invitations', 'care_relationships',
-      'access_grants', 'benefit_entitlements', 'audit_events', 'esdm_goals', 'school_collections'
+      'access_grants', 'benefit_entitlements', 'audit_events', 'esdm_goals', 'school_collections', 'organization_keys'
     ]]);
     assert.deepEqual(tables.rows.map((row) => row.table_name), [
       'access_grants', 'audit_events', 'benefit_entitlements', 'care_relationships', 'child_subjects', 'consents', 'esdm_goals',
-      'invitations', 'memberships', 'organizations', 'school_collections', 'users'
+      'invitations', 'memberships', 'organization_keys', 'organizations', 'school_collections', 'users'
+    ]);
+
+    const keyColumns = await client.query(`
+      select column_name
+      from information_schema.columns
+      where table_schema = 'public'
+        and table_name = 'organization_keys'
+        and column_name = any($1::text[])
+      order by column_name
+    `, [['organization_id', 'key_encrypted', 'key_version', 'created_by_user_id', 'rotated_by_user_id', 'created_at', 'rotated_at']]);
+    assert.deepEqual(keyColumns.rows.map((row) => row.column_name), [
+      'created_at', 'created_by_user_id', 'key_encrypted', 'key_version', 'organization_id', 'rotated_at', 'rotated_by_user_id'
     ]);
 
     const e2eeColumns = await client.query(`
@@ -43,6 +56,22 @@ test('PostgreSQL migration exposes Gate 3A authorization tables and tenant const
     await client.query(`insert into memberships (id, user_id, organization_id, role, status, valid_until) values
       ('pg-membership-alpha', 'pg-user-alpha', 'pg-org-alpha', 'owner', 'active', '2099-01-01T00:00:00Z'),
       ('pg-membership-beta', 'pg-user-beta', 'pg-org-beta', 'owner', 'active', '2099-01-01T00:00:00Z')`);
+
+    const previousMasterKey = process.env.MASTER_CRYPTO_KEY;
+    process.env.MASTER_CRYPTO_KEY = Buffer.alloc(32, 23).toString('base64');
+    const rawOrganizationKey = Buffer.alloc(32, 71);
+    const encryptedOrganizationKey = encryptOrganizationKey(rawOrganizationKey, { organizationId: 'pg-org-alpha', now: new Date('2026-10-06T00:00:00Z') });
+    await client.query(`
+      insert into organization_keys (organization_id, key_encrypted, key_version, created_by_user_id, rotated_by_user_id)
+      values ('pg-org-alpha', $1, 1, 'pg-user-alpha', 'pg-user-alpha')
+    `, [encryptedOrganizationKey]);
+    const persistedOrganizationKey = await client.query(`
+      select key_encrypted from organization_keys where organization_id = 'pg-org-alpha'
+    `);
+    assert.equal(persistedOrganizationKey.rows[0].key_encrypted, encryptedOrganizationKey);
+    assert.deepEqual(decryptOrganizationKey(persistedOrganizationKey.rows[0].key_encrypted, { organizationId: 'pg-org-alpha' }), rawOrganizationKey);
+    if (previousMasterKey === undefined) delete process.env.MASTER_CRYPTO_KEY;
+    else process.env.MASTER_CRYPTO_KEY = previousMasterKey;
 
     await client.query(`insert into child_subjects (id, family_space_id, owner_user_id, display_name, status)
       values ('pg-subject-alpha', 'pg-family-alpha', 'pg-user-alpha', 'PG Demo Child', 'active')`);

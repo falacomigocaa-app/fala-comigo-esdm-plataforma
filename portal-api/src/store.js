@@ -6,6 +6,12 @@ import {
   createOpaqueRefreshToken,
   hashRefreshToken
 } from './services/auth.service.js';
+import {
+  decryptOrganizationKey,
+  encryptOrganizationKey,
+  generateOrganizationKey,
+  organizationKeyToBase64
+} from './services/organization-key.service.js';
 import { AuthorizationError } from './authorization.js';
 
 const { Pool } = pg;
@@ -39,8 +45,8 @@ const baseOrganizations = [
 ];
 
 const roleScopes = {
-  owner: ['organization.read', 'membership.read', 'access.invite', 'access.read', 'access.revoke', 'benefit.read', 'audit.read', 'esdm_goal.read', 'esdm_goal.write', 'routine.read', 'school_collection.read', 'school_collection.write'],
-  org_admin: ['organization.read', 'membership.read', 'access.invite', 'access.read', 'benefit.read', 'esdm_goal.read', 'esdm_goal.write', 'routine.read', 'school_collection.read', 'school_collection.write'],
+  owner: ['organization.read', 'organization.key.read', 'membership.read', 'access.invite', 'access.read', 'access.revoke', 'benefit.read', 'audit.read', 'esdm_goal.read', 'esdm_goal.write', 'routine.read', 'school_collection.read', 'school_collection.write'],
+  org_admin: ['organization.read', 'organization.key.read', 'membership.read', 'access.invite', 'access.read', 'benefit.read', 'esdm_goal.read', 'esdm_goal.write', 'routine.read', 'school_collection.read', 'school_collection.write'],
   professional: ['organization.read', 'access.read', 'esdm_goal.read', 'esdm_goal.write'],
   teacher: ['organization.read', 'access.read', 'routine.read', 'school_collection.read', 'school_collection.write'],
   caregiver: ['organization.read', 'access.read'],
@@ -139,10 +145,55 @@ export function createStore({ pool = createPostgresPool() } = {}) {
     goals: [],
     collections: [],
     refreshTokens: new Map(),
+    organizationKeys: new Map(),
     auditEvents: [],
     idempotency: new Map(),
     pool,
     storageMode: pool ? 'postgres' : 'memory-test-only',
+
+    async getOrganizationKey(organizationId) {
+      let encryptedValue;
+      if (pool) {
+        const result = await pool.query(`
+          select organization_id, key_encrypted
+            from organization_keys
+           where organization_id = $1
+        `, [organizationId]);
+        encryptedValue = result.rows[0]?.key_encrypted;
+      } else {
+        encryptedValue = store.organizationKeys.get(organizationId)?.keyEncrypted;
+      }
+      if (!encryptedValue) return null;
+      return {
+        organizationId,
+        organizationKey: organizationKeyToBase64(decryptOrganizationKey(encryptedValue, { organizationId }))
+      };
+    },
+
+    async provisionOrganizationKey({ organizationId, createdByUserId, now = new Date() }) {
+      const keyEncrypted = encryptOrganizationKey(generateOrganizationKey(), { organizationId, now });
+      if (pool) {
+        await pool.query(`
+          insert into organization_keys (organization_id, key_encrypted, key_version, created_by_user_id, rotated_by_user_id, created_at, rotated_at)
+          values ($1, $2, 1, $3, $3, $4, $4)
+          on conflict (organization_id) do update set
+            key_encrypted = excluded.key_encrypted,
+            key_version = organization_keys.key_version + 1,
+            rotated_by_user_id = excluded.rotated_by_user_id,
+            rotated_at = excluded.rotated_at
+        `, [organizationId, keyEncrypted, createdByUserId, now.toISOString()]);
+      } else {
+        store.organizationKeys.set(organizationId, {
+          keyEncrypted,
+          keyVersion: (store.organizationKeys.get(organizationId)?.keyVersion ?? 0) + 1,
+          createdByUserId,
+          rotatedByUserId: createdByUserId,
+          createdAt: now.toISOString(),
+          rotatedAt: now.toISOString()
+        });
+      }
+      return store.getOrganizationKey(organizationId);
+    },
 
     async saveGoal({ subjectId, codigoTecnicoDenver, status = 'Em Progresso', passoAtualAba = 1, createdByUserId }) {
       const translation = esdmTranslations[codigoTecnicoDenver];

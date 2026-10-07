@@ -75,10 +75,18 @@ jobs:
           PGPASSWORD: postgres
         run: psql "$DATABASE_URL" --set=ON_ERROR_STOP=1 --file portal-api/scripts/ci-seed.sql
 
+      - name: Provision encrypted organization keys
+        working-directory: portal-api
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/fala_comigo_staging
+          MASTER_CRYPTO_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
+        run: node scripts/ci-seed-organization-keys.js
+
       - name: Run portal-api tests against PostgreSQL
         working-directory: portal-api
         env:
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/fala_comigo_staging
           PGTEST_URL: postgres://postgres:postgres@localhost:5432/fala_comigo_staging
           JWT_SECRET: ci-only-jwt-secret-with-at-least-32-characters
+          MASTER_CRYPTO_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
         run: npm test
