@@ -126,6 +126,30 @@ class MediaStorageService {
     }
   }
 
+  /// Cria um caminho temporário privado para o gravador nativo.
+  static Future<String> createTemporaryRecordingPath(String recordingId) async {
+    if (!RegExp(r'^[A-Za-z0-9_-]+$').hasMatch(recordingId)) {
+      throw ArgumentError.value(recordingId, 'recordingId', 'Identificador inválido.');
+    }
+    final temporaryDir = await getTemporaryDirectory();
+    final recordingsDir = Directory('${temporaryDir.path}/fala_comigo_audio_recordings');
+    await recordingsDir.create(recursive: true);
+    return '${recordingsDir.path}/$recordingId.m4a';
+  }
+
+  /// Remove somente uma gravação temporária pertencente à pasta privada do app.
+  static Future<void> deleteTemporaryRecording(String path) async {
+    final temporaryDir = await getTemporaryDirectory();
+    final recordingsDir = Directory('${temporaryDir.path}/fala_comigo_audio_recordings');
+    if (!await recordingsDir.exists()) return;
+    final directoryPath = await recordingsDir.resolveSymbolicLinks();
+    final file = File(path);
+    if (!await file.exists()) return;
+    final filePath = await file.resolveSymbolicLinks();
+    if (!filePath.startsWith('$directoryPath${Platform.pathSeparator}')) return;
+    await file.delete();
+  }
+
   static Future<void> clearAllMedia() async {
     final appDir = await getApplicationDocumentsDirectory();
     final temporaryDir = await getTemporaryDirectory();

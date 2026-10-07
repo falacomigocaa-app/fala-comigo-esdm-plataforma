@@ -123,3 +123,7 @@ O projeto avança para o repositório de chaves organizacionais no `portal-api`.
 ## Provisionamento de chaves de organização implementado — 07/10/2026
 
 O `portal-api` agora possui `organization-key.service.js`, com envelope AES-256-GCM cifrado pela chave mestra do servidor, validação de 32 bytes e AAD por organização. `store.js` implementa provisionamento/rotação e leitura desembalada em memória; `app.js` protege o endpoint de chave com JWT, membership e `organization.key.read`, e injeta a chave no login. A migration 005 e o script de seed do CI foram adicionados; o workflow aplica automaticamente 001–005. Cobertura inclui escopo negado, tenant divergente, login e round-trip PostgreSQL. Resultado local: 32 aprovados e 1 teste PostgreSQL condicionalmente pulado por ausência do serviço local.
+
+## Fechamento dos bloqueadores P0 da auditoria — 07/10/2026
+
+A auditoria anexada foi reconciliada com o estado real do repositório. Hive já tinha proteção não destrutiva; mídia nativa já tinha cleanup, recebendo agora APIs explícitas para caminho/remoção de gravação temporária; a tela de alertas não importa mais `dart:io`, permitindo compilação Web. Foi adicionada a suíte backend `critical-security.test.js` para os quatro cenários P0 de segurança. Validação final: `flutter test` 121 aprovados, `flutter analyze` sem issues, `flutter build web --release` concluído e `npm test` do `portal-api` com 36 aprovados e 1 teste PostgreSQL condicionalmente pulado por indisponibilidade local.

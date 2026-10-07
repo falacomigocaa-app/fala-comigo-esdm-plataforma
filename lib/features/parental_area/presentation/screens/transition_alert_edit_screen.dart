@@ -1,11 +1,9 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 
 import '../../../../core/services/media_storage_service.dart';
@@ -110,12 +108,7 @@ class _TransitionAlertEditScreenState
   }
 
   Future<String> _recordingFilePath() async {
-    final dir = await getTemporaryDirectory();
-    final recordingsDir = Directory('${dir.path}/fala_comigo_audio_recordings');
-    if (!await recordingsDir.exists()) {
-      await recordingsDir.create(recursive: true);
-    }
-    return '${recordingsDir.path}/$_alertId.m4a';
+    return MediaStorageService.createTemporaryRecordingPath(_alertId);
   }
 
   Future<void> _toggleRecording() async {
@@ -123,8 +116,8 @@ class _TransitionAlertEditScreenState
     if (_isRecording) {
       final path = await _recorder.stop();
       if (path != null) {
-        final encryptedPath = await MediaStorageService.persistFile(path);
-        await File(path).delete();
+      final encryptedPath = await MediaStorageService.persistFile(path);
+      await MediaStorageService.deleteTemporaryRecording(path);
         final previousPath = _recordedAudioPath;
         if (previousPath != null) {
           await MediaStorageService.deleteFile(previousPath);

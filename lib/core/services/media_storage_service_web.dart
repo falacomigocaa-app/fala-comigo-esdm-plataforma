@@ -33,6 +33,14 @@ class MediaStorageService {
 
   static Future<void> clearStalePreviews() async {}
 
+  static Future<String> createTemporaryRecordingPath(String recordingId) async {
+    throw UnsupportedError(
+      'A gravação de áudio privada ainda não está disponível na versão Web.',
+    );
+  }
+
+  static Future<void> deleteTemporaryRecording(String path) async {}
+
   static Future<void> deleteFile(String path) async {}
 
   static Future<void> clearAllMedia() async {}

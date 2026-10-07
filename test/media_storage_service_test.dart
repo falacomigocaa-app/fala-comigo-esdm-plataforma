@@ -107,6 +107,16 @@ void main() {
     expect(await preview.exists(), isFalse);
   });
 
+  test('gravação temporária usa diretório privado e pode ser removida', () async {
+    final path = await MediaStorageService.createTemporaryRecordingPath('alert-1');
+    final recording = File(path);
+    await recording.writeAsBytes([8, 9, 10]);
+
+    expect(await recording.exists(), isTrue);
+    await MediaStorageService.deleteTemporaryRecording(path);
+    expect(await recording.exists(), isFalse);
+  });
+
   test(
       'limpeza no bootstrap remove previews órfãos sem apagar mídia permanente',
       () async {
