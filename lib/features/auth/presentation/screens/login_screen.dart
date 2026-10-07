@@ -67,9 +67,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       keyboardType: TextInputType.emailAddress,
                       autofillHints: const [AutofillHints.username],
                       decoration: const InputDecoration(labelText: 'Email'),
-                      validator: (value) => value == null || !value.contains('@')
-                          ? 'Informe um email válido.'
-                          : null,
+                      validator: (value) =>
+                          value == null || !value.contains('@')
+                              ? 'Informe um email válido.'
+                              : null,
                     ),
                     const SizedBox(height: 14),
                     TextFormField(

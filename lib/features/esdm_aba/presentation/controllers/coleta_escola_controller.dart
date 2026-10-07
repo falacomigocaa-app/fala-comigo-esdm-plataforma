@@ -175,8 +175,7 @@ class ColetaEscolaController extends StateNotifier<ColetaEscolaState> {
         salvando: false,
         ultimaColeta: coleta,
         sincronizacaoStatus: syncStatus.name,
-        consentimentoBloqueado:
-            syncStatus == SyncOutcome.blockedByConsent,
+        consentimentoBloqueado: syncStatus == SyncOutcome.blockedByConsent,
       );
       return true;
     } catch (error) {
@@ -190,5 +189,4 @@ class ColetaEscolaController extends StateNotifier<ColetaEscolaState> {
     SyncQueueService.consentBlockedNotifier.removeListener(_onConsentChanged);
     super.dispose();
   }
-
 }

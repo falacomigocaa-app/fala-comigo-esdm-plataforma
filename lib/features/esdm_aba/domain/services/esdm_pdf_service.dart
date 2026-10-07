@@ -134,7 +134,8 @@ class EsdmPdfService {
 
   static pw.Widget _schoolCollectionBlock(ColetaEscolaModel collection) {
     return _recordBlock(
-      title: '${collection.blocoRotinaEscolar} — ${_formatDateTime(collection.dataRegistro)}',
+      title:
+          '${collection.blocoRotinaEscolar} — ${_formatDateTime(collection.dataRegistro)}',
       lines: ['Nível de suporte empregado: ${collection.nivelSuporte}'],
     );
   }

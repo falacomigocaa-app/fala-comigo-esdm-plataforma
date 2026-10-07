@@ -50,9 +50,8 @@ class MetasEsdmScreen extends ConsumerWidget {
           else
             IconButton(
               tooltip: 'Exportar relatório unificado em PDF',
-              onPressed: state.salvando
-                  ? null
-                  : () => _exportPdf(context, controller),
+              onPressed:
+                  state.salvando ? null : () => _exportPdf(context, controller),
               icon: const Icon(Icons.picture_as_pdf_outlined),
             ),
         ],
@@ -73,9 +72,8 @@ class MetasEsdmScreen extends ConsumerWidget {
                   ),
                 ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: state.salvando
-            ? null
-            : () => _showAddMetaDialog(context, ref),
+        onPressed:
+            state.salvando ? null : () => _showAddMetaDialog(context, ref),
         icon: const Icon(Icons.add),
         label: const Text('Nova meta'),
       ),
@@ -142,7 +140,8 @@ class MetasEsdmScreen extends ConsumerWidget {
                 ),
                 FilledButton(
                   onPressed: () async {
-                    final success = await controller.adicionarMeta(selectedCode);
+                    final success =
+                        await controller.adicionarMeta(selectedCode);
                     if (dialogContext.mounted) {
                       Navigator.of(dialogContext).pop(success);
                     }
@@ -297,7 +296,8 @@ class _DetailBlock extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
+                Text(title,
+                    style: const TextStyle(fontWeight: FontWeight.w800)),
                 const SizedBox(height: 4),
                 Text(text, style: const TextStyle(height: 1.35)),
               ],

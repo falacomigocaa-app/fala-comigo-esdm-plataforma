@@ -86,7 +86,8 @@ class _EsdmEvolucaoPainter extends CustomPainter {
       final x = points.length == 1
           ? _left + chartWidth / 2
           : _left + (index / (points.length - 1)) * chartWidth;
-      final normalized = (points[index].averageSupport / _maxValue).clamp(0.0, 1.0);
+      final normalized =
+          (points[index].averageSupport / _maxValue).clamp(0.0, 1.0);
       final y = _top + chartHeight - normalized * chartHeight;
       pointsInPixels.add(Offset(x, y));
     }

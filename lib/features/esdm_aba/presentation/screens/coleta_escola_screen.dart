@@ -28,11 +28,14 @@ class ColetaEscolaScreen extends ConsumerWidget {
             next.ultimaColeta != null) {
           final message = switch (next.sincronizacaoStatus) {
             'synced' => 'Registro salvo e sincronizado com segurança.',
-            'queued' => 'Sem conexão: registro guardado neste aparelho e será enviado quando a rede voltar.',
-            _ => 'Registro salvo neste aparelho. O acesso remoto não está ativo.',
+            'queued' =>
+              'Sem conexão: registro guardado neste aparelho e será enviado quando a rede voltar.',
+            _ =>
+              'Registro salvo neste aparelho. O acesso remoto não está ativo.',
           };
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(behavior: SnackBarBehavior.floating, content: Text(message)),
+            SnackBar(
+                behavior: SnackBarBehavior.floating, content: Text(message)),
           );
         } else if (next.erro != null && next.erro != previous?.erro) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -267,7 +270,8 @@ class _IntroCard extends StatelessWidget {
       child: const Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.school_outlined, color: AppTheme.professionalAccent, size: 30),
+          Icon(Icons.school_outlined,
+              color: AppTheme.professionalAccent, size: 30),
           SizedBox(width: 14),
           Expanded(
             child: Text(

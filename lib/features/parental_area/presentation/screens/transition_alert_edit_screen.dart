@@ -116,8 +116,8 @@ class _TransitionAlertEditScreenState
     if (_isRecording) {
       final path = await _recorder.stop();
       if (path != null) {
-      final encryptedPath = await MediaStorageService.persistFile(path);
-      await MediaStorageService.deleteTemporaryRecording(path);
+        final encryptedPath = await MediaStorageService.persistFile(path);
+        await MediaStorageService.deleteTemporaryRecording(path);
         final previousPath = _recordedAudioPath;
         if (previousPath != null) {
           await MediaStorageService.deleteFile(previousPath);

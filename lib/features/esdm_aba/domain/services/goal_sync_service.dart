@@ -49,7 +49,8 @@ class GoalSyncService {
       if (response.statusCode != 200) return GoalSyncResult.failed;
 
       final decoded = jsonDecode(response.body);
-      final rawGoals = decoded is Map<String, dynamic> ? decoded['goals'] : null;
+      final rawGoals =
+          decoded is Map<String, dynamic> ? decoded['goals'] : null;
       if (rawGoals is! List) return GoalSyncResult.failed;
       final goals = rawGoals
           .map((raw) => _fromApi(raw, subjectId))
@@ -74,7 +75,8 @@ class GoalSyncService {
       subjectId: raw['subjectId'] as String? ?? subjectId,
       codigoTecnicoDenver: code,
       status: raw['status'] as String? ?? 'Em Progresso',
-      passoAtualAba: raw['passoAtualAba'] is int ? raw['passoAtualAba'] as int : 0,
+      passoAtualAba:
+          raw['passoAtualAba'] is int ? raw['passoAtualAba'] as int : 0,
       missaoPais: raw['missaoPais'] as String?,
       dicaPratica: raw['dicaPratica'] as String?,
     );

@@ -36,7 +36,8 @@ class ColetaEscolaStore {
       _legacyColetaEscolaBoxName,
     );
     records.addAll(legacyBox.values);
-    records.sort((left, right) => right.dataRegistro.compareTo(left.dataRegistro));
+    records
+        .sort((left, right) => right.dataRegistro.compareTo(left.dataRegistro));
     return records;
   }
 }

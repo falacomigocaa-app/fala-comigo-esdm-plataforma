@@ -18,8 +18,10 @@ class GoalStore {
 
   static Future<List<MetaEsdmModel>> loadForSubject(String subjectId) async {
     final box = await _box();
-    final goals = box.values.where((goal) => goal.subjectId == subjectId).toList();
-    goals.sort((left, right) => left.codigoTecnicoDenver.compareTo(right.codigoTecnicoDenver));
+    final goals =
+        box.values.where((goal) => goal.subjectId == subjectId).toList();
+    goals.sort((left, right) =>
+        left.codigoTecnicoDenver.compareTo(right.codigoTecnicoDenver));
     return goals;
   }
 

@@ -79,7 +79,8 @@ class _EsdmDashboardScreenState extends State<EsdmDashboardScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.error_outline, size: 48, color: AppTheme.primary),
+              const Icon(Icons.error_outline,
+                  size: 48, color: AppTheme.primary),
               const SizedBox(height: 12),
               const Text(
                 'Não foi possível carregar os dados da evolução.',
@@ -131,7 +132,8 @@ class _EsdmDashboardScreenState extends State<EsdmDashboardScreen> {
         const SizedBox(height: 12),
         const Text(
           'A linha representa uma tendência descritiva dos registros escolares. Ela não substitui uma avaliação clínica ou uma análise funcional completa.',
-          style: TextStyle(color: AppTheme.mutedText, fontSize: 12, height: 1.35),
+          style:
+              TextStyle(color: AppTheme.mutedText, fontSize: 12, height: 1.35),
         ),
       ],
     );
@@ -167,11 +169,13 @@ class _DashboardAnalysis {
     }
 
     final weeks = byWeek.keys.toList()..sort();
-    final visibleWeeks = weeks.length > 8 ? weeks.sublist(weeks.length - 8) : weeks;
+    final visibleWeeks =
+        weeks.length > 8 ? weeks.sublist(weeks.length - 8) : weeks;
     final points = visibleWeeks
         .map(
           (week) => EsdmEvolucaoPoint(
-            label: '${week.day.toString().padLeft(2, '0')}/${week.month.toString().padLeft(2, '0')}',
+            label:
+                '${week.day.toString().padLeft(2, '0')}/${week.month.toString().padLeft(2, '0')}',
             averageSupport: _average(byWeek[week]!),
           ),
         )
@@ -330,7 +334,8 @@ class _SummaryGrid extends StatelessWidget {
               width: itemWidth,
               icon: Icons.speed_outlined,
               label: 'Média de autonomia',
-              value: average == null ? '—' : '${average!.toStringAsFixed(1)} / 3',
+              value:
+                  average == null ? '—' : '${average!.toStringAsFixed(1)} / 3',
             ),
             _SummaryCard(
               width: itemWidth,
@@ -377,7 +382,9 @@ class _SummaryCard extends StatelessWidget {
             children: [
               Icon(icon, color: AppTheme.primary),
               const SizedBox(height: 10),
-              Text(label, style: const TextStyle(color: AppTheme.mutedText, fontSize: 12)),
+              Text(label,
+                  style:
+                      const TextStyle(color: AppTheme.mutedText, fontSize: 12)),
               const SizedBox(height: 4),
               Text(value, style: const TextStyle(fontWeight: FontWeight.w800)),
             ],

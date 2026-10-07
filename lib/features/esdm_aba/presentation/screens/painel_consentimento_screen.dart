@@ -54,9 +54,8 @@ class PainelConsentimentoScreen extends ConsumerWidget {
               description:
                   'Permite leitura de rotinas visuais e escrita da coleta rápida.',
               value: state.permitindoEscola && !state.acessoExpirado,
-              onChanged: state.acessoExpirado
-                  ? null
-                  : controller.definirAcessoEscola,
+              onChanged:
+                  state.acessoExpirado ? null : controller.definirAcessoEscola,
             ),
             const SizedBox(height: 12),
             _AccessCard(
@@ -81,8 +80,7 @@ class PainelConsentimentoScreen extends ConsumerWidget {
               const _ExpiredNotice(),
             ],
             const SizedBox(height: 20),
-            if (state.salvando)
-              const LinearProgressIndicator(minHeight: 3),
+            if (state.salvando) const LinearProgressIndicator(minHeight: 3),
             const SizedBox(height: 12),
             const Text(
               'As permissões ficam salvas localmente e expiram automaticamente na data definida. A autorização server-side será necessária para qualquer portal conectado.',
@@ -97,7 +95,8 @@ class PainelConsentimentoScreen extends ConsumerWidget {
 
   Future<void> _pickExpiration(BuildContext context, WidgetRef ref) async {
     final controller = ref.read(painelConsentimentoControllerProvider.notifier);
-    final current = ref.read(painelConsentimentoControllerProvider).dataExpiracao;
+    final current =
+        ref.read(painelConsentimentoControllerProvider).dataExpiracao;
     final today = DateTime.now();
     final selected = await showDatePicker(
       context: context,
@@ -134,7 +133,8 @@ class _HeaderCard extends StatelessWidget {
       child: const Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.shield_outlined, color: AppTheme.professionalAccent, size: 30),
+          Icon(Icons.shield_outlined,
+              color: AppTheme.professionalAccent, size: 30),
           SizedBox(width: 14),
           Expanded(
             child: Text(
@@ -213,7 +213,8 @@ class _ExpirationCard extends StatelessWidget {
       ),
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
-        leading: const Icon(Icons.event_outlined, color: AppTheme.primary, size: 30),
+        leading:
+            const Icon(Icons.event_outlined, color: AppTheme.primary, size: 30),
         title: const Text(
           'Data de Expiração do Acesso',
           style: TextStyle(fontWeight: FontWeight.w800),

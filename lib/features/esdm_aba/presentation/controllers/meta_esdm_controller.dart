@@ -44,8 +44,9 @@ class MetaEsdmState {
   }
 }
 
-final metaEsdmControllerProvider = StateNotifierProvider<MetaEsdmController,
-    MetaEsdmState>((ref) => MetaEsdmController());
+final metaEsdmControllerProvider =
+    StateNotifierProvider<MetaEsdmController, MetaEsdmState>(
+        (ref) => MetaEsdmController());
 
 class MetaEsdmController extends StateNotifier<MetaEsdmState> {
   MetaEsdmController() : super(const MetaEsdmState()) {
@@ -93,9 +94,8 @@ class MetaEsdmController extends StateNotifier<MetaEsdmState> {
     try {
       await MetaEsdmStore.save(meta);
       await _enqueueIfAllowed(meta, 'UPDATE');
-      final updated = state.metas
-          .map((item) => item.id == meta.id ? meta : item)
-          .toList();
+      final updated =
+          state.metas.map((item) => item.id == meta.id ? meta : item).toList();
       state = state.copyWith(metas: updated, salvando: false);
       return true;
     } catch (error) {

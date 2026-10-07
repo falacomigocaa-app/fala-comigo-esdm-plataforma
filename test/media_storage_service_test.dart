@@ -107,8 +107,10 @@ void main() {
     expect(await preview.exists(), isFalse);
   });
 
-  test('gravação temporária usa diretório privado e pode ser removida', () async {
-    final path = await MediaStorageService.createTemporaryRecordingPath('alert-1');
+  test('gravação temporária usa diretório privado e pode ser removida',
+      () async {
+    final path =
+        await MediaStorageService.createTemporaryRecordingPath('alert-1');
     final recording = File(path);
     await recording.writeAsBytes([8, 9, 10]);
 
