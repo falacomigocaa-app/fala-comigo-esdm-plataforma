@@ -127,3 +127,7 @@ O `portal-api` agora possui `organization-key.service.js`, com envelope AES-256-
 ## Fechamento dos bloqueadores P0 da auditoria — 07/10/2026
 
 A auditoria anexada foi reconciliada com o estado real do repositório. Hive já tinha proteção não destrutiva; mídia nativa já tinha cleanup, recebendo agora APIs explícitas para caminho/remoção de gravação temporária; a tela de alertas não importa mais `dart:io`, permitindo compilação Web. Foi adicionada a suíte backend `critical-security.test.js` para os quatro cenários P0 de segurança. Validação final: `flutter test` 121 aprovados, `flutter analyze` sem issues, `flutter build web --release` concluído e `npm test` do `portal-api` com 36 aprovados e 1 teste PostgreSQL condicionalmente pulado por indisponibilidade local.
+
+## Correção do workflow Flutter Web/Pages — 07/10/2026
+
+O gate Flutter remoto passou com formatter, análise, testes e build Web. O workflow de Pages falhou em `configure-pages` por ausência de site Pages habilitado no repositório; adicionamos `enablement: true` ao passo de configuração para tornar o deploy autocontido. A correção será validada no próximo push.

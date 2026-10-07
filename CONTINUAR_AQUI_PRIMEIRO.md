@@ -124,3 +124,7 @@ Implementado o cofre `organization_keys` na migration 005. O backend armazena so
 ## Fechamento dos bloqueadores P0 da auditoria — 07/10/2026
 
 A lista de auditoria anexada foi revisada. O P0-1 de migração Hive já estava protegido pelo commit `21a981f`: snapshot verificado, restauração em falha, preservação de chave ausente/errada e nenhuma migração destrutiva; seus 7 testes focados passaram. O P0-2 também já possuía materialização com `try/finally`, limpeza no bootstrap e remoção de órfãos; foi adicionada a API segura para gravações temporárias e cobertura de cleanup. Para o P0-3, `transition_alert_edit_screen.dart` deixou de importar `dart:io`/`path_provider` diretamente e passou a usar a abstração condicional de mídia; `flutter analyze` e `flutter build web --release` passaram. Para o P0-4, foi criada `portal-api/test/critical-security.test.js` cobrindo JWT expirado, rotação concorrente de refresh, mismatch E2EE e consentimento expirado/revogado. Resultado: 121 testes Flutter e 36 testes backend aprovados; 1 teste PostgreSQL é pulado apenas na Sandbox sem serviço local.
+
+## Correção do workflow Flutter Web/Pages — 07/10/2026
+
+O workflow de quality checks passou no SHA `52340ed`. A publicação Web falhou exclusivamente porque o repositório ainda não tinha GitHub Pages habilitado; o workflow foi ajustado para `actions/configure-pages@v5` com `enablement: true`, permitindo provisionamento automático antes do upload/deploy. O erro remoto não estava relacionado ao código Flutter ou aos gates P0.
