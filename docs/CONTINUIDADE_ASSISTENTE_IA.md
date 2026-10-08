@@ -135,3 +135,7 @@ O gate Flutter remoto passou com formatter, análise, testes e build Web. O work
 ## P1 — Enforcement de sessão parental implementado — 08/10/2026
 
 Os stores parentais não dependem mais somente do gate visual: coordenação de cuidados, lembretes, tarefas compartilhadas e concessões exigem `ParentalSessionService.requireAuthenticated()` antes de acessar Hive. A exceção explícita permite testes negativos de acesso após lock/expiração, enquanto o wipe continua autorizado como operação de sistema. Validação final: 122 testes Flutter aprovados, formatter e analyzer verdes; site institucional e app Web publicados continuam HTTP 200.
+
+## Correção da corrida de testes PostgreSQL — 08/10/2026
+
+O CI identificou uma corrida somente no modo PostgreSQL entre o teste de login e o teste que troca `MASTER_CRYPTO_KEY` globalmente. A correção foi tornar o script `npm test` do `portal-api` serial (`node --test --test-concurrency=1`), sem alterar o comportamento de produção. A suíte local passou com 36 testes e 1 integração PostgreSQL pulada por ausência de banco local.
