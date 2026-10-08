@@ -12,6 +12,7 @@ on:
       - "assets/**"
       - "pubspec.*"
       - ".github/workflows/site-pages.yml"
+      - ".github/workflows/static.yml"
   pull_request:
     branches: [main]
     paths:
@@ -23,6 +24,7 @@ on:
       - "assets/**"
       - "pubspec.*"
       - ".github/workflows/site-pages.yml"
+      - ".github/workflows/static.yml"
   workflow_dispatch:
 
 permissions:

@@ -136,3 +136,7 @@ Após os P0 e a publicação permanente do site/app Web, foi fechada a defesa em
 ## Correção da corrida de testes PostgreSQL — 08/10/2026
 
 O workflow PostgreSQL do commit do P1 revelou uma corrida determinística entre arquivos do `node:test`: `auth.test.js` altera temporariamente `MASTER_CRYPTO_KEY` enquanto o teste de login assíncrono ainda recuperava a chave provisionada. A aplicação não apresentou falha funcional; o teste recebeu `500` por estado global concorrente. O script `portal-api` foi ajustado para `node --test --test-concurrency=1`, mantendo a suíte determinística para os testes que exercitam chaves mestras e stores compartilhados. Validação local: 36 aprovados, 1 integração PostgreSQL pulada sem `PGTEST_URL`, 0 falhas.
+
+## Correção de sobrescrita do GitHub Pages — 08/10/2026
+
+A auditoria pós-publicação encontrou dois workflows usando o mesmo ambiente Pages. `static.yml` publicava o repositório inteiro e sobrescrevia o artefato oficial, causando 404 na raiz e em `/app/`. O workflow duplicado foi removido; `site-pages.yml` permanece como única fonte de deploy, preparando `site/` na raiz e o Flutter Web em `/app/`, e agora reage explicitamente à remoção do workflow antigo. Será validado no próximo deploy.

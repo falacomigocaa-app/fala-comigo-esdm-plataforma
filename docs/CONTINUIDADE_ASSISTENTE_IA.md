@@ -139,3 +139,7 @@ Os stores parentais não dependem mais somente do gate visual: coordenação de 
 ## Correção da corrida de testes PostgreSQL — 08/10/2026
 
 O CI identificou uma corrida somente no modo PostgreSQL entre o teste de login e o teste que troca `MASTER_CRYPTO_KEY` globalmente. A correção foi tornar o script `npm test` do `portal-api` serial (`node --test --test-concurrency=1`), sem alterar o comportamento de produção. A suíte local passou com 36 testes e 1 integração PostgreSQL pulada por ausência de banco local.
+
+## Correção de sobrescrita do GitHub Pages — 08/10/2026
+
+Havia dois deploys concorrentes no mesmo Pages: o workflow estático publicava `.` e podia sobrescrever o payload correto. `static.yml` foi removido e `site-pages.yml` ficou como workflow único, com o artefato combinado do site institucional e do app Web. A alteração será confirmada pelo novo deploy.
