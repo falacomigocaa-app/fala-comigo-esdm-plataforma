@@ -131,3 +131,7 @@ A auditoria anexada foi reconciliada com o estado real do repositório. Hive já
 ## Correção do workflow Flutter Web/Pages — 07/10/2026
 
 O gate Flutter remoto passou com formatter, análise, testes e build Web. O workflow de Pages falhou em `configure-pages` por ausência de site Pages habilitado no repositório; adicionamos `enablement: true` ao passo de configuração para tornar o deploy autocontido. A correção será validada no próximo push.
+
+## P1 — Enforcement de sessão parental implementado — 08/10/2026
+
+Os stores parentais não dependem mais somente do gate visual: coordenação de cuidados, lembretes, tarefas compartilhadas e concessões exigem `ParentalSessionService.requireAuthenticated()` antes de acessar Hive. A exceção explícita permite testes negativos de acesso após lock/expiração, enquanto o wipe continua autorizado como operação de sistema. Validação final: 122 testes Flutter aprovados, formatter e analyzer verdes; site institucional e app Web publicados continuam HTTP 200.

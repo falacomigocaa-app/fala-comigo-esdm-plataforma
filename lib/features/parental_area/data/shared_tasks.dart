@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
 import '../../../core/services/secure_box_service.dart';
+import '../../../core/services/parental_session_service.dart';
 
 const _taskBoxName = 'shared_tasks';
 const _syncBoxName = 'shared_task_sync_queue';
@@ -190,6 +191,7 @@ class SharedTaskStore {
   }
 
   static Future<List<SharedTask>> load() async {
+    ParentalSessionService.requireAuthenticated();
     final box = await _box(_taskBoxName);
     return box.values
         .whereType<Map>()
@@ -203,6 +205,7 @@ class SharedTaskStore {
     SharedTask task, {
     String operation = 'upsert',
   }) async {
+    ParentalSessionService.requireAuthenticated();
     final box = await _box(_taskBoxName);
     await box.put(task.id, task.toMap());
     final queue = await _box(_syncBoxName);
@@ -214,6 +217,7 @@ class SharedTaskStore {
   }
 
   static Future<List<Map<String, dynamic>>> pendingSyncOperations() async {
+    ParentalSessionService.requireAuthenticated();
     final queue = await _box(_syncBoxName);
     return queue.values
         .whereType<Map>()
@@ -222,6 +226,7 @@ class SharedTaskStore {
   }
 
   static Future<void> acknowledgeSyncOperation(dynamic key) async {
+    ParentalSessionService.requireAuthenticated();
     final queue = await _box(_syncBoxName);
     await queue.delete(key);
   }

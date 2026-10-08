@@ -1,4 +1,5 @@
 import '../../../../core/services/secure_box_service.dart';
+import '../../../../core/services/parental_session_service.dart';
 
 enum CarePlanStatus { draft, active, needsReview, archived }
 
@@ -225,6 +226,7 @@ class CareCoordinationStore {
   static const appointmentsBox = 'care_appointments';
 
   static Future<CommunicationProfile> loadProfile() async {
+    ParentalSessionService.requireAuthenticated();
     final box = await SecureBoxService.openSecureBox(profileBox);
     final raw = box.get('data') as Map?;
     return raw == null
@@ -233,27 +235,32 @@ class CareCoordinationStore {
   }
 
   static Future<void> saveProfile(CommunicationProfile profile) async {
+    ParentalSessionService.requireAuthenticated();
     final box = await SecureBoxService.openSecureBox(profileBox);
     await box.put('data', profile.toMap());
   }
 
   static Future<List<CommunicationPlan>> loadPlans() async {
+    ParentalSessionService.requireAuthenticated();
     final box = await SecureBoxService.openSecureBox(plansBox);
     return box.values.whereType<Map>().map(CommunicationPlan.fromMap).toList();
   }
 
   static Future<void> savePlan(CommunicationPlan plan) async {
+    ParentalSessionService.requireAuthenticated();
     final box = await SecureBoxService.openSecureBox(plansBox);
     await box.put(plan.id, plan.toMap());
   }
 
   static Future<List<Appointment>> loadAppointments() async {
+    ParentalSessionService.requireAuthenticated();
     final box = await SecureBoxService.openSecureBox(appointmentsBox);
     return box.values.whereType<Map>().map(Appointment.fromMap).toList()
       ..sort((a, b) => a.startsAt.compareTo(b.startsAt));
   }
 
   static Future<void> saveAppointment(Appointment appointment) async {
+    ParentalSessionService.requireAuthenticated();
     final box = await SecureBoxService.openSecureBox(appointmentsBox);
     await box.put(appointment.id, appointment.toMap());
   }

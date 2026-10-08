@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive/hive.dart';
 
+import 'package:fala_comigo/core/services/parental_session_service.dart';
 import 'package:fala_comigo/features/parental_area/data/care_coordination.dart';
 
 void main() {
@@ -14,6 +15,10 @@ void main() {
   const pathProviderChannel = MethodChannel('plugins.flutter.io/path_provider');
   final secureValues = <String, String>{};
   late Directory root;
+
+  setUp(() {
+    ParentalSessionService.authenticate();
+  });
 
   setUpAll(() async {
     root = await Directory.systemTemp.createTemp('fala_care_plan_store_test_');
@@ -107,5 +112,14 @@ void main() {
     expect(reloadedPlans.single.id, plan.id);
     expect(reloadedPlans.single.title, 'Plano atualizado');
     expect(reloadedPlans.single.status, CarePlanStatus.needsReview);
+  });
+
+  test('store nega leitura direta após a sessão ser bloqueada', () async {
+    ParentalSessionService.lock();
+
+    expect(
+      () => CareCoordinationStore.loadPlans(),
+      throwsA(isA<ParentalSessionRequiredException>()),
+    );
   });
 }

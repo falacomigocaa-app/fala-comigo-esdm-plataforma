@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:hive/hive.dart';
 
 import 'package:fala_comigo/core/services/data_wipe_service.dart';
+import 'package:fala_comigo/core/services/parental_session_service.dart';
 import 'package:fala_comigo/core/services/secure_box_service.dart';
 import 'package:fala_comigo/features/aac_grid/domain/models/pictogram_card.dart';
 import 'package:fala_comigo/features/parental_area/data/parent_reminders.dart';
@@ -33,6 +34,7 @@ void main() {
   setUp(() {
     notificationMethods.clear();
     failNotificationCancellation = false;
+    ParentalSessionService.authenticate();
   });
 
   setUpAll(() async {
@@ -113,6 +115,7 @@ void main() {
     expect((await ParentReminderStore.load()).single.id, reminder.id);
 
     await DataWipeService.deleteAllLocalData();
+    ParentalSessionService.authenticate();
 
     expect(await ParentReminderStore.load(), isEmpty);
     expect(notificationMethods, contains('cancelAll'));
@@ -162,6 +165,7 @@ void main() {
     failNotificationCancellation = true;
 
     final result = await DataWipeService.deleteAllLocalData();
+    ParentalSessionService.authenticate();
 
     expect(result.notificationsCancelled, isFalse);
     expect(await ParentReminderStore.load(), isEmpty);

@@ -128,3 +128,7 @@ A lista de auditoria anexada foi revisada. O P0-1 de migração Hive já estava 
 ## Correção do workflow Flutter Web/Pages — 07/10/2026
 
 O workflow de quality checks passou no SHA `52340ed`. A publicação Web falhou exclusivamente porque o repositório ainda não tinha GitHub Pages habilitado; o workflow foi ajustado para `actions/configure-pages@v5` com `enablement: true`, permitindo provisionamento automático antes do upload/deploy. O erro remoto não estava relacionado ao código Flutter ou aos gates P0.
+
+## P1 — Enforcement de sessão parental implementado — 08/10/2026
+
+Após os P0 e a publicação permanente do site/app Web, foi fechada a defesa em profundidade da Área do Responsável. `ParentalSessionService.requireAuthenticated()` agora lança `ParentalSessionRequiredException` quando a sessão está ausente, bloqueada ou expirada. A barreira foi aplicada aos stores de coordenação de cuidados, lembretes, tarefas compartilhadas e concessões antes de qualquer leitura/escrita; o `DataWipeService` permanece uma operação de sistema independente e idempotente. Foi adicionado teste de acesso direto sem sessão e os fixtures de wipe passaram a declarar sessão apenas para preparar/inspecionar dados. Validação: `flutter test` passou com 122 testes, `dart format --set-exit-if-changed` passou, `flutter analyze` passou sem issues e o site/app Pages responderam HTTP 200.

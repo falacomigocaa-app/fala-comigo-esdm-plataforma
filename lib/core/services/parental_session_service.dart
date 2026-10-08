@@ -2,6 +2,14 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
+class ParentalSessionRequiredException implements Exception {
+  const ParentalSessionRequiredException();
+
+  @override
+  String toString() =>
+      'ParentalSessionRequiredException: sessão parental exigida';
+}
+
 /// Controla a sessão temporária da Área do Responsável.
 ///
 /// A autenticação não é persistida: ao expirar o tempo ou ao aplicativo ir
@@ -31,6 +39,13 @@ class ParentalSessionService {
   static bool requireSession() {
     if (!_authenticated) return false;
     return true;
+  }
+
+  /// Barreira de defesa em profundidade para stores e casos de uso.
+  static void requireAuthenticated() {
+    if (!requireSession()) {
+      throw const ParentalSessionRequiredException();
+    }
   }
 
   static void _expire() {

@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
 import '../../../core/services/secure_box_service.dart';
+import '../../../core/services/parental_session_service.dart';
 
 const _boxName = 'parent_reminders';
 
@@ -51,6 +52,7 @@ class ParentReminderStore {
   }
 
   static Future<List<ParentReminder>> load() async {
+    ParentalSessionService.requireAuthenticated();
     final box = await _box();
     return box.values
         .whereType<Map>()
@@ -60,6 +62,7 @@ class ParentReminderStore {
   }
 
   static Future<void> save(List<ParentReminder> reminders) async {
+    ParentalSessionService.requireAuthenticated();
     final box = await _box();
     await box.clear();
     for (final reminder in reminders) {
