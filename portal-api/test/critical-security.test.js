@@ -43,6 +43,8 @@ test('P0: JWT expirado é rejeitado com sinalização de renovação', async () 
 });
 
 test('P0: refresh concorrente aceita uma rotação e rejeita o replay', async () => {
+  const previousMasterKey = process.env.MASTER_CRYPTO_KEY;
+  delete process.env.MASTER_CRYPTO_KEY;
   const app = createApp();
   const claims = {
     userId: 'user-admin-alpha',
@@ -54,6 +56,9 @@ test('P0: refresh concorrente aceita uma rotação e rejeita o replay', async ()
     app.handle({ method: 'POST', url: '/v1/auth/refresh', body: { refreshToken } }),
     app.handle({ method: 'POST', url: '/v1/auth/refresh', body: { refreshToken } }),
   ]);
+
+  if (previousMasterKey === undefined) delete process.env.MASTER_CRYPTO_KEY;
+  else process.env.MASTER_CRYPTO_KEY = previousMasterKey;
 
   assert.deepEqual(results.map((result) => result.status).sort(), [200, 401]);
   assert.equal(results.filter((result) => result.status === 401)[0].body.error, 'REFRESH_TOKEN_INVALID');
