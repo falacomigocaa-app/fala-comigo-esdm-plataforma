@@ -169,9 +169,8 @@ class TransitionAlertSyncService {
   }
 
   static Future<TransitionAlertSyncOutcome> _send(
-    Map<String, dynamic> item,
-    String token,
-  {bool allowRefresh = true}) async {
+      Map<String, dynamic> item, String token,
+      {bool allowRefresh = true}) async {
     final subjectId = item['subjectId'] as String?;
     final alertId = item['alertId'] as String?;
     if (subjectId == null || alertId == null) {

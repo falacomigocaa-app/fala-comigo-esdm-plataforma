@@ -61,7 +61,8 @@ class CryptoService {
     if (envelope is! Map<String, dynamic> || !isEnvelope(envelope)) {
       throw const FormatException('Envelope E2EE inválido.');
     }
-    final organizationId = _normalizeOrganizationId(envelope['organizationId'] as String);
+    final organizationId =
+        _normalizeOrganizationId(envelope['organizationId'] as String);
     final encryptedData = base64Decode(envelope['encryptedData'] as String);
     final nonce = base64Decode(envelope['iv'] as String);
     if (encryptedData.length <= 16 || nonce.isEmpty) {
@@ -118,19 +119,25 @@ class CryptoService {
       if (key.length == 32) return _KeyMaterial(0, key);
     }
     final key = List<int>.generate(32, (_) => Random.secure().nextInt(256));
-    await _storage.write(key: _legacyStorageKey(organizationId), value: base64UrlEncode(key));
+    await _storage.write(
+        key: _legacyStorageKey(organizationId), value: base64UrlEncode(key));
     return _KeyMaterial(0, key);
   }
 
-  static Future<List<int>> _readVersionedKey(String organizationId, int version) async {
+  static Future<List<int>> _readVersionedKey(
+      String organizationId, int version) async {
     if (version < 1) {
-      final legacy = await _storage.read(key: _legacyStorageKey(organizationId));
-      if (legacy == null) throw StateError('Chave E2EE ausente para a organização.');
+      final legacy =
+          await _storage.read(key: _legacyStorageKey(organizationId));
+      if (legacy == null)
+        throw StateError('Chave E2EE ausente para a organização.');
       return base64Url.decode(legacy);
     }
-    final stored = await _storage.read(key: _versionedStorageKey(organizationId, version));
+    final stored =
+        await _storage.read(key: _versionedStorageKey(organizationId, version));
     if (stored == null || stored.isEmpty) {
-      throw StateError('Chave E2EE versão $version ausente para a organização.');
+      throw StateError(
+          'Chave E2EE versão $version ausente para a organização.');
     }
     final key = base64Decode(stored);
     if (key.length != 32) throw const FormatException('Chave E2EE inválida.');
@@ -138,20 +145,26 @@ class CryptoService {
   }
 
   static Future<int?> _readCurrentVersion(String organizationId) async {
-    final value = await _storage.read(key: _currentVersionStorageKey(organizationId));
+    final value =
+        await _storage.read(key: _currentVersionStorageKey(organizationId));
     return int.tryParse(value ?? '');
   }
 
   static String _normalizeOrganizationId(String organizationId) {
     final normalized = organizationId.trim();
-    if (normalized.isEmpty) throw ArgumentError.value(organizationId, 'organizationId');
+    if (normalized.isEmpty)
+      throw ArgumentError.value(organizationId, 'organizationId');
     return normalized;
   }
 
-  static String _safeId(String organizationId) => base64UrlEncode(utf8.encode(organizationId));
-  static String _legacyStorageKey(String organizationId) => '$_keyPrefix${_safeId(organizationId)}';
-  static String _versionedStorageKey(String organizationId, int version) => '${_legacyStorageKey(organizationId)}_v$version';
-  static String _currentVersionStorageKey(String organizationId) => '$_currentVersionPrefix${_safeId(organizationId)}';
+  static String _safeId(String organizationId) =>
+      base64UrlEncode(utf8.encode(organizationId));
+  static String _legacyStorageKey(String organizationId) =>
+      '$_keyPrefix${_safeId(organizationId)}';
+  static String _versionedStorageKey(String organizationId, int version) =>
+      '${_legacyStorageKey(organizationId)}_v$version';
+  static String _currentVersionStorageKey(String organizationId) =>
+      '$_currentVersionPrefix${_safeId(organizationId)}';
 }
 
 class _KeyMaterial {

@@ -21,6 +21,10 @@ function request(app, method, url, userId, body = null) {
 
 test('login distribui chave com versão e rotação preserva a versão anterior', async () => {
   const app = createApp();
+  if (app.store.pool) {
+    await app.store.pool.query("delete from organization_key_versions where organization_id = 'org-demo-alpha'");
+    await app.store.pool.query("delete from organization_keys where organization_id = 'org-demo-alpha'");
+  }
   const first = await app.store.provisionOrganizationKey({ organizationId: 'org-demo-alpha', createdByUserId: 'user-admin-alpha' });
   assert.equal(first.keyVersion, 1);
 

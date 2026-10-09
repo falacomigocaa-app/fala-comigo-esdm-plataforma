@@ -25,7 +25,8 @@ class AuthTokenService {
       final claims = jsonDecode(
         utf8.decode(base64Url.decode(base64Url.normalize(segments[1]))),
       );
-      return claims is Map<String, dynamic> && claims['organizationId'] is String
+      return claims is Map<String, dynamic> &&
+              claims['organizationId'] is String
           ? claims['organizationId'] as String
           : null;
     } catch (_) {
@@ -36,7 +37,8 @@ class AuthTokenService {
   static Future<void> saveToken(String token) async {
     final normalized = token.trim();
     if (normalized.isEmpty) {
-      throw ArgumentError.value(token, 'token', 'Token JWT não pode ser vazio.');
+      throw ArgumentError.value(
+          token, 'token', 'Token JWT não pode ser vazio.');
     }
     await _storage.write(key: _tokenKey, value: normalized);
   }

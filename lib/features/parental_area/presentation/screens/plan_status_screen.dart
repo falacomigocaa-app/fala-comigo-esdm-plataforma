@@ -107,9 +107,8 @@ class _PlanStatusScreenState extends ConsumerState<PlanStatusScreen> {
             (plan) => _PlanCard(
               plan: plan,
               selected: plan.id == access.plan.id,
-              onCheckout: plan.pricePending
-                  ? () => _startSandboxCheckout(plan)
-                  : null,
+              onCheckout:
+                  plan.pricePending ? () => _startSandboxCheckout(plan) : null,
             ),
           ),
           if (license == null)

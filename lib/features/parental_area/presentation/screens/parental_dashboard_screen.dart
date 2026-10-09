@@ -190,7 +190,11 @@ class _ParentalLocationScreenState extends State<ParentalLocationScreen> {
 
   Future<void> _loadConsent() async {
     final consent = await _locationService.readConsent();
-    if (mounted) setState(() { _consent = consent; _loading = false; });
+    if (mounted)
+      setState(() {
+        _consent = consent;
+        _loading = false;
+      });
   }
 
   Future<void> _enableLocation() async {
@@ -202,8 +206,12 @@ class _ParentalLocationScreenState extends State<ParentalLocationScreen> {
           'O Fala Comigo usará o GPS somente quando você solicitar uma atualização. A localização não será enviada automaticamente para clínicas ou para a web. Você pode revogar este consentimento a qualquer momento.',
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Agora não')),
-          FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Concordo')),
+          TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Agora não')),
+          FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('Concordo')),
         ],
       ),
     );
@@ -211,7 +219,10 @@ class _ParentalLocationScreenState extends State<ParentalLocationScreen> {
 
     await _locationService.grantConsent();
     if (!mounted) return;
-    setState(() { _consent = LocationConsent.granted; _error = null; });
+    setState(() {
+      _consent = LocationConsent.granted;
+      _error = null;
+    });
     await _refreshLocation();
   }
 
@@ -219,12 +230,19 @@ class _ParentalLocationScreenState extends State<ParentalLocationScreen> {
     await _locationService.revokeConsent();
     await LocationSyncService.revoke();
     if (!mounted) return;
-    setState(() { _consent = LocationConsent.denied; _position = null; _error = null; });
+    setState(() {
+      _consent = LocationConsent.denied;
+      _position = null;
+      _error = null;
+    });
   }
 
   Future<void> _refreshLocation() async {
     if (_consent != LocationConsent.granted || _requesting) return;
-    setState(() { _requesting = true; _error = null; });
+    setState(() {
+      _requesting = true;
+      _error = null;
+    });
     try {
       final position = await _locationService.readCurrentPosition();
       await LocationSyncService.enqueuePosition(
@@ -278,7 +296,8 @@ class _ParentalLocationScreenState extends State<ParentalLocationScreen> {
                     ? 'Localização protegida, sob demanda'
                     : 'Localização desativada',
                 textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+                style:
+                    const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
               ),
               const SizedBox(height: 8),
               Text(
@@ -292,7 +311,9 @@ class _ParentalLocationScreenState extends State<ParentalLocationScreen> {
               if (_error != null)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 12),
-                  child: Text(_error!, textAlign: TextAlign.center, style: const TextStyle(color: Colors.redAccent)),
+                  child: Text(_error!,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: Colors.redAccent)),
                 ),
               if (_consent != LocationConsent.granted)
                 FilledButton.icon(
@@ -303,8 +324,15 @@ class _ParentalLocationScreenState extends State<ParentalLocationScreen> {
               else ...[
                 FilledButton.icon(
                   onPressed: _requesting ? null : _refreshLocation,
-                  icon: _requesting ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.my_location_outlined),
-                  label: Text(_requesting ? 'Consultando GPS…' : 'Atualizar localização'),
+                  icon: _requesting
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Icon(Icons.my_location_outlined),
+                  label: Text(_requesting
+                      ? 'Consultando GPS…'
+                      : 'Atualizar localização'),
                 ),
                 const SizedBox(height: 8),
                 TextButton.icon(
@@ -317,13 +345,15 @@ class _ParentalLocationScreenState extends State<ParentalLocationScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.battery_std_outlined, size: 18, color: AppTheme.mutedText),
+                  const Icon(Icons.battery_std_outlined,
+                      size: 18, color: AppTheme.mutedText),
                   const SizedBox(width: 6),
                   Text(
                     _batteryLevel == null
                         ? 'Bateria: indisponível'
                         : 'Bateria do aparelho: $_batteryLevel%',
-                    style: const TextStyle(color: AppTheme.mutedText, fontSize: 13),
+                    style: const TextStyle(
+                        color: AppTheme.mutedText, fontSize: 13),
                   ),
                 ],
               ),

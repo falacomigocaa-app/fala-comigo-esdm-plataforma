@@ -18,6 +18,13 @@ function ownerHeaders(app) {
   return { authorization: `Bearer ${token}` };
 }
 
+async function resetBilling(app) {
+  if (app.store.pool) {
+    await app.store.pool.query('delete from billing_events');
+    await app.store.pool.query('delete from subscriptions');
+  }
+}
+
 test('catálogo público expõe somente planos visíveis e modo sandbox', async () => {
   const result = await createApp().handle({ method: 'GET', url: '/v1/plans' });
   assert.equal(result.status, 200);
@@ -29,6 +36,7 @@ test('catálogo público expõe somente planos visíveis e modo sandbox', async 
 
 test('checkout sandbox cria assinatura pendente sem dados de pagamento', async () => {
   const app = createApp();
+  await resetBilling(app);
   const result = await app.handle({
     method: 'POST',
     url: '/v1/billing/checkout',
@@ -46,6 +54,7 @@ test('checkout sandbox cria assinatura pendente sem dados de pagamento', async (
 
 test('webhook assinado ativa assinatura e replay é idempotente', async () => {
   const app = createApp();
+  await resetBilling(app);
   const checkout = await app.handle({
     method: 'POST',
     url: '/v1/billing/checkout',

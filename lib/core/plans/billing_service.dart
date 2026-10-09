@@ -66,9 +66,7 @@ class BillingService {
     if (response.statusCode != 201 ||
         decoded is! Map<String, dynamic> ||
         decoded['checkout'] is! Map) {
-      final error = decoded is Map<String, dynamic>
-          ? decoded['error']
-          : null;
+      final error = decoded is Map<String, dynamic> ? decoded['error'] : null;
       throw StateError(error is String ? error : 'CHECKOUT_INDISPONIVEL');
     }
     final checkout = Map<String, dynamic>.from(decoded['checkout'] as Map);

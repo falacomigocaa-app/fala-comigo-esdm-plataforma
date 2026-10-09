@@ -32,8 +32,8 @@ class LocationSyncService {
   static final _uuid = Uuid();
   static bool _isSyncing = false;
   static Future<bool> Function()? connectivityOverride;
-  static Future<http.Response> Function(String, Uri, Map<String, String>, String?)?
-      requestOverride;
+  static Future<http.Response> Function(
+      String, Uri, Map<String, String>, String?)? requestOverride;
 
   static Future<Box<dynamic>> _box() =>
       SecureBoxService.openSecureBox<dynamic>(locationSyncBoxName);
@@ -87,8 +87,11 @@ class LocationSyncService {
     _isSyncing = true;
     try {
       final box = await _box();
-      final entries = box.values.whereType<Map>().map(Map<String, dynamic>.from)
-          .where((item) => item['subjectId'] == subjectId).toList()
+      final entries = box.values
+          .whereType<Map>()
+          .map(Map<String, dynamic>.from)
+          .where((item) => item['subjectId'] == subjectId)
+          .toList()
         ..sort((a, b) => '${a['queuedAt']}'.compareTo('${b['queuedAt']}'));
       for (final item in entries) {
         final result = await _send(item, token);
@@ -119,16 +122,23 @@ class LocationSyncService {
       '/v1/subjects/${Uri.encodeComponent(subjectId)}/location-updates/all',
     );
     try {
-      final headers = {'accept': 'application/json', 'authorization': 'Bearer $token'};
+      final headers = {
+        'accept': 'application/json',
+        'authorization': 'Bearer $token'
+      };
       final override = requestOverride;
       final response = override != null
           ? await override('DELETE', uri, headers, null)
-          : await _client.delete(uri, headers: headers).timeout(const Duration(seconds: 15));
+          : await _client
+              .delete(uri, headers: headers)
+              .timeout(const Duration(seconds: 15));
       if (response.statusCode == 401) {
         AuthTokenService.requireAuthentication();
         return LocationSyncOutcome.unauthorized;
       }
-      return response.statusCode == 200 ? LocationSyncOutcome.synced : LocationSyncOutcome.failed;
+      return response.statusCode == 200
+          ? LocationSyncOutcome.synced
+          : LocationSyncOutcome.failed;
     } catch (_) {
       return LocationSyncOutcome.failed;
     }
@@ -159,7 +169,9 @@ class LocationSyncService {
       final override = requestOverride;
       final response = override != null
           ? await override('POST', uri, headers, body)
-          : await _client.post(uri, headers: headers, body: body).timeout(const Duration(seconds: 15));
+          : await _client
+              .post(uri, headers: headers, body: body)
+              .timeout(const Duration(seconds: 15));
       if (response.statusCode == 401) {
         if (allowRefresh && AuthTokenService.autoRefreshEnabled) {
           final refreshed = await AuthTokenService.refreshSession(
