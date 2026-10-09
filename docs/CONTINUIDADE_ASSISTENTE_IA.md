@@ -215,3 +215,9 @@ Após a reconciliação reativa, os workflows remotos Flutter `37914547248` e Po
 O serviço `TransitionAlertSyncService` agora chama `_markSynced` quando um upsert remoto retorna sucesso. O registro local é atualizado para `syncState=synced` e `syncError=null` antes da remoção da operação da fila, impedindo que `_mergeRemote` continue ignorando um alerta sincronizado como se ainda estivesse pendente. O teste de sanitização também verifica esse estado.
 
 Evidência: 4 testes específicos, 139 testes Flutter completos, analyzer e build Web release aprovados. Avisos do dry-run Wasm permanecem somente em dependências externas. Nenhum dado real foi usado.
+
+
+## Compactação da fila de alertas — 09/10/2026
+`enqueueUpsert` e `enqueueDelete` agora removem operações anteriores do mesmo sujeito e alerta antes de gravar o comando novo. O teste cobre a sequência offline upsert → delete → upsert e confirma que sempre resta apenas a intenção mais recente. Isso evita que exclusões e reedições locais carreguem comandos antigos concorrentes para a sincronização remota.
+
+Evidência: 5 testes específicos, 140 testes Flutter completos, analyzer e build Web release aprovados. Nenhum dado real foi usado.

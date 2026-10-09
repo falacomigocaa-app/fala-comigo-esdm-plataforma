@@ -107,6 +107,31 @@ void main() {
     expect(queueBox.values.single, isA<Map>());
   });
 
+  test('substitui operações antigas do mesmo alerta na fila offline', () async {
+    TransitionAlertSyncService.connectivityOverride = () async => false;
+    final local = alert();
+
+    await TransitionAlertSyncService.enqueueUpsert(
+      local,
+      subjectId: 'subject-synthetic',
+    );
+    await TransitionAlertSyncService.enqueueDelete(
+      local.id,
+      subjectId: 'subject-synthetic',
+    );
+
+    expect(queueBox.length, 1);
+    expect((queueBox.values.single as Map)['operation'], 'delete');
+
+    await TransitionAlertSyncService.enqueueUpsert(
+      local,
+      subjectId: 'subject-synthetic',
+    );
+
+    expect(queueBox.length, 1);
+    expect((queueBox.values.single as Map)['operation'], 'upsert');
+  });
+
   test('preserva a fila e solicita autenticação quando recebe 401', () async {
     await AuthTokenService.saveToken('synthetic-access-token');
     TransitionAlertSyncService.requestOverride =

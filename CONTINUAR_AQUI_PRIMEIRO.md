@@ -218,3 +218,9 @@ A auditoria estática confirmou as permissões Android de notificações, alarme
 Corrigido um caso de reconciliação: após um upsert remoto bem-sucedido, o alerta local agora passa explicitamente de `pending` para `synced` e limpa `syncError` antes de remover a operação da fila. Sem essa transição, o pull seguinte podia encontrar um alerta ainda `pending` e ignorá-lo indefinidamente. A correção é idempotente e não altera o comportamento de exclusões ou conflitos.
 
 Validação: 4 testes específicos aprovados; formatter limpo; analyzer sem issues; suíte Flutter completa com 139 testes; build Web release concluído. Próximo bloqueio continua sendo a validação física em aparelhos reais.
+
+
+## Prioridade 1 — compactação da fila por alerta — 09/10/2026
+A fila offline agora remove operações pendentes anteriores do mesmo `subjectId` + `alertId` antes de enfileirar um novo upsert ou delete. Assim, uma exclusão supera uma edição antiga e uma recriação supera uma exclusão antiga, sem comandos concorrentes desnecessários. A operação final continua idempotente e o comportamento local-first é preservado.
+
+Validação: 5 testes específicos aprovados; suíte Flutter completa com 140 testes; formatter e analyzer limpos; build Web release aprovado. O próximo bloqueio segue sendo o roteiro físico em Android/iOS reais.

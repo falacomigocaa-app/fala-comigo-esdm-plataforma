@@ -70,11 +70,27 @@ class TransitionAlertSyncService {
   static Future<Box<dynamic>> _box() =>
       SecureBoxService.openSecureBox<dynamic>(transitionAlertSyncBoxName);
 
+  static Future<void> _removePendingOperations(
+    Box<dynamic> box,
+    String subjectId,
+    String alertId,
+  ) async {
+    for (final key in box.keys.toList()) {
+      final raw = box.get(key);
+      if (raw is Map &&
+          raw['subjectId'] == subjectId &&
+          raw['alertId'] == alertId) {
+        await box.delete(key);
+      }
+    }
+  }
+
   static Future<TransitionAlertSyncOutcome> enqueueUpsert(
     TransitionAlert alert, {
     String subjectId = transitionAlertSyncSubjectId,
   }) async {
     final box = await _box();
+    await _removePendingOperations(box, subjectId, alert.id);
     final operationId = 'upsert:$subjectId:${alert.id}';
     await box.put(operationId, {
       'operationId': operationId,
@@ -93,6 +109,7 @@ class TransitionAlertSyncService {
     String subjectId = transitionAlertSyncSubjectId,
   }) async {
     final box = await _box();
+    await _removePendingOperations(box, subjectId, alertId);
     final operationId = 'delete:$subjectId:$alertId';
     await box.put(operationId, {
       'operationId': operationId,
