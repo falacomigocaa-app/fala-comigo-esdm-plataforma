@@ -50,5 +50,6 @@ export function audit(store, { userId, organizationId = null, action, result, co
 
 export function stableError(error) {
   if (error instanceof AuthorizationError) return error;
+  if (error && typeof error.code === 'string' && Number.isInteger(error.status)) return error;
   return new AuthorizationError('INTERNAL_ERROR', 500);
 }

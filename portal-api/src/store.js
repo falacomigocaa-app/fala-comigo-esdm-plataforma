@@ -295,6 +295,8 @@ export function createStore({ pool = createPostgresPool() } = {}) {
         for (const table of ['location_updates', 'transition_alerts', 'school_collections', 'esdm_goals']) await pool.query(`delete from ${table} where subject_id=$1`, [subjectId]);
         await pool.query("update access_grants set status='revoked' where subject_id=$1", [subjectId]);
         await pool.query("update consents set status='revoked', revoked_at=now() where subject_id=$1 and status='active'", [subjectId]);
+        for (const grant of store.grants.filter((item) => item.subjectId === subjectId)) grant.status = 'revoked';
+        for (const consent of store.consents.filter((item) => item.subjectId === subjectId && item.status === 'active')) { consent.status = 'revoked'; consent.revokedAt = new Date().toISOString(); }
         return;
       }
       store.locationUpdates = store.locationUpdates.filter((item) => item.subjectId !== subjectId);
