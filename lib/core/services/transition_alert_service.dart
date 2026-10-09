@@ -124,6 +124,18 @@ class TransitionAlertService {
     );
   }
 
+  /// Confirma que o aparelho pode executar o alerta como um despertador.
+  /// Sem essa checagem, o Android pode rejeitar `alarmClock` depois que o
+  /// alerta já foi salvo localmente, deixando um alerta ativo que nunca toca.
+  Future<void> ensureSchedulingReady() async {
+    if (kIsWeb) return;
+    await requestPermissions();
+    final status = await checkPermissionStatus();
+    if (status.contains('BLOQUEADAS') || status.contains('BLOQUEADO')) {
+      throw TransitionAlertPermissionException(status);
+    }
+  }
+
   /// Verifica o status real das permissões no Android, para
   /// diagnóstico visível na tela (em vez de falhas silenciosas).
   Future<String> checkPermissionStatus() async {
@@ -289,6 +301,16 @@ class TransitionAlertService {
       await _plugin.cancel(alert.notificationId + weekday);
     }
   }
+}
+
+class TransitionAlertPermissionException implements Exception {
+  const TransitionAlertPermissionException(this.status);
+
+  final String status;
+
+  @override
+  String toString() =>
+      'Permissões do despertador não autorizadas. $status. Abra as configurações do Fala Comigo e permita notificações e alarmes.';
 }
 
 /// Calcula a próxima hora de disparo, já descontando a antecedência.

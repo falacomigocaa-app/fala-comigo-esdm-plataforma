@@ -263,6 +263,34 @@ class _TransitionAlertEditScreenState
       _recordedAudioPath = null;
     }
     final alert = _buildAlert();
+    try {
+      if (alert.isActive && (alert.isScheduled || alert.isRecurring)) {
+        await TransitionAlertService.instance.ensureSchedulingReady();
+      }
+    } on TransitionAlertPermissionException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(error.toString()),
+            duration: const Duration(seconds: 6),
+            action: SnackBarAction(
+              label: 'Verificar',
+              onPressed: () async {
+                final status = await TransitionAlertService.instance
+                    .checkPermissionStatus();
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text(status)),
+                  );
+                }
+              },
+            ),
+          ),
+        );
+      return;
+    }
     if (_isEditing) {
       await ref.read(transitionAlertsListProvider.notifier).updateAlert(alert);
     } else {
@@ -271,19 +299,22 @@ class _TransitionAlertEditScreenState
     var scheduleFailed = false;
     try {
       await TransitionAlertService.instance.scheduleRecurring(alert);
-    } catch (_) {
+    } catch (error) {
       scheduleFailed = true;
       alert.isActive = false;
       await ref.read(transitionAlertsListProvider.notifier).updateAlert(alert);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Agendamento recusado: $error'),
+            duration: const Duration(seconds: 6),
+          ),
+        );
+      }
     }
     unawaited(TransitionAlertSyncService.enqueueUpsert(alert));
     if (!mounted) return;
     if (scheduleFailed) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('O alerta foi salvo, mas não foi possível agendá-lo.'),
-        ),
-      );
       return;
     }
     Navigator.of(context).pop();

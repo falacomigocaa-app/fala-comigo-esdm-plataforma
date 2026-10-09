@@ -182,6 +182,8 @@ class _AlertCard extends ConsumerWidget {
                   alert.isActive = value;
                   try {
                     if (value) {
+                      await TransitionAlertService.instance
+                          .ensureSchedulingReady();
                       await TransitionAlertService.instance.scheduleRecurring(
                         alert,
                       );
@@ -192,12 +194,14 @@ class _AlertCard extends ConsumerWidget {
                     }
                     await notifier.updateAlert(alert);
                     unawaited(TransitionAlertSyncService.enqueueUpsert(alert));
-                  } catch (_) {
+                  } catch (error) {
                     alert.isActive = !value;
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Não foi possível alterar o alerta.'),
+                        SnackBar(
+                          content:
+                              Text('Não foi possível alterar o alerta: $error'),
+                          duration: const Duration(seconds: 6),
                         ),
                       );
                     }
