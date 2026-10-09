@@ -202,8 +202,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           const SizedBox(height: 16),
           _LocationHeroCard(onConnect: _showLocationRoadmap),
           const SizedBox(height: 16),
-          _PortalAccessCard(onOpen: _openPortal),
-          const SizedBox(height: 16),
           _OptionASectionBox(
             icon: Icons.track_changes_rounded,
             title: 'Acompanhamento & Rotina',
@@ -530,6 +528,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             description: 'Proteções, perfil, PIN e dados locais.',
             child: Column(
               children: [
+                _PortalAccessCard(onOpen: _openPortal),
+                const SizedBox(height: 8),
                 ListTile(
                   contentPadding: EdgeInsets.zero,
                   leading: const Icon(Icons.workspace_premium_outlined),
