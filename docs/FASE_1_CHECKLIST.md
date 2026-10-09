@@ -24,8 +24,8 @@
 - `[~]` Hierarquia visual: já existem `OptionASectionBox`, cards, cores por funcionalidade e paleta profissional; ainda falta uma hierarquia consistente por prioridade alta/média/baixa em toda a área.
 - `[x]` BottomNavigationBar funcional. As quatro abas agora alternam entre Início, Acompanhamento, Localização e Configurações.
 - `[x]` Gate de PIN: primeiro acesso, login, erro e lockout possuem estados visuais claros, indicadores dos quatro dígitos, semáforo de preenchimento, feedback acessível e banner dedicado de bloqueio.
-- `[~]` Cartões: há fluxo de criação/edição; preview/thumbnail, agrupamento por categoria e drag-and-drop ainda precisam ser confirmados ou implementados.
-- `[ ]` Temas de hiperfoco em miniaturas: atualmente são `ChoiceChip` com emoji/nome; falta mini-preview visual e preview em tempo real.
+- `[x]` Cartões: há fluxo de criação/edição, reordenação drag-and-drop e agora faixa de preview visual com imagem, rótulo e fallback seguro.
+- `[x]` Temas de hiperfoco: miniaturas visuais com cor/emoji, seleção por toque e preview em tempo real da combinação escolhida.
 - `[~]` Identidade visual Material 3: há paleta profissional, bordas e espaçamento melhorados; a densidade e a sensação de “painel” ainda precisam de uma rodada dedicada.
 - `[ ]` Validação visual responsiva e acessibilidade da área parental em telas pequenas, tablet, contraste e touch targets.
 
@@ -63,8 +63,8 @@
 
 ## Próximo ponto exato de retomada
 
-1. Implementar a **Fase 1.1C: preview visual de cartões e temas**, sem alterar o armazenamento ou o contrato da grade.
-2. Em seguida validar responsividade, contraste e touch targets em telas pequenas e tablet.
+1. Validar responsividade, contraste e touch targets em telas pequenas e tablet.
+2. Em seguida abordar agrupamento avançado de cartões e miniaturas de categorias, se necessário.
 3. Rodar `dart format`, `flutter analyze`, `flutter test` e o build Web antes de cada publicação.
 
 ## Fase 1.1A — Dashboard e navegação — concluída em 08/10/2026
@@ -83,5 +83,16 @@
 - `[x]` Rodapé de segurança ajustado para quebra responsiva, evitando overflow em telas estreitas.
 - `[x]` Testes adicionados em `test/parental_gate_screen_test.dart` para primeiro acesso e bloqueio.
 - `[x]` Validação concluída: `flutter analyze` sem issues, `flutter test` com 126 testes aprovados e `flutter build web --release` concluído.
+
+## Fase 1.1C — Previews de cartões e temas — concluída em 08/10/2026
+
+- `[x]` Faixa `Preview da grade infantil` com miniaturas de cartões, rótulo, imagem segura e fallback para asset indisponível.
+- `[x]` Miniaturas horizontais dos sete temas de hiperfoco com cor, emoji, estado selecionado e semântica acessível.
+- `[x]` Preview em tempo real do tema selecionado com fundo, estímulo e descrição de baixo ruído visual.
+- `[x]` Chaves estáveis nas seções expansíveis e Material local para preservar feedback de toque dos ListTiles.
+- `[x]` Testes adicionados em `test/parental_settings_preview_test.dart` para cartão, miniaturas e troca de tema.
+- `[x]` Validação concluída: `flutter analyze` sem issues, `flutter test` com 128 testes aprovados e `flutter build web --release` concluído.
+
+> Observação de teste: o arquivo de preview usa Hive em diretório temporário isolado. O teardown de fechamento foi omitido porque a versão atual do Hive/Flutter ficava bloqueada ao encerrar widgets que ainda mantêm providers ativos; isso não altera o armazenamento de produção nem o comportamento do app.
 
 > Não declarar a Fase 1 como concluída até que os itens `[ ]` da Fase 1.1 sejam implementados e validados. A última validação conhecida do app foi de 122 testes Flutter aprovados; a página pública e o app Web responderam HTTP 200 após o commit `6a45495`.

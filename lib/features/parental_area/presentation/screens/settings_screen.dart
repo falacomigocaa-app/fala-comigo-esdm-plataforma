@@ -27,6 +27,7 @@ import 'weekly_trends_screen.dart';
 import 'parental_dashboard_screen.dart';
 import '../../../transition_alerts/data/providers/transition_alerts_provider.dart';
 import '../../../aac_grid/presentation/screens/visual_routine_screen.dart';
+import '../../../../core/widgets/secure_media_image.dart';
 
 /// Painel dos Pais & Educadores.
 ///
@@ -292,27 +293,26 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
                 ),
                 const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: HyperfocusTheme.values.map((theme) {
-                    final selected = theme == currentTheme;
-                    return ChoiceChip(
-                      label: Text('${theme.emoji} ${theme.displayName}'),
-                      selected: selected,
-                      onSelected: (_) => ref
-                          .read(hyperfocusThemeProvider.notifier)
-                          .setTheme(theme),
-                      selectedColor: theme.primaryColor.withValues(alpha: 0.2),
-                      labelStyle: TextStyle(
-                        color:
-                            selected ? theme.primaryColor : AppTheme.textDark,
-                        fontWeight:
-                            selected ? FontWeight.w700 : FontWeight.w500,
-                      ),
-                    );
-                  }).toList(),
+                SizedBox(
+                  height: 122,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: HyperfocusTheme.values.length,
+                    separatorBuilder: (_, __) => const SizedBox(width: 10),
+                    itemBuilder: (context, index) {
+                      final theme = HyperfocusTheme.values[index];
+                      return _ThemePreviewTile(
+                        theme: theme,
+                        selected: theme == currentTheme,
+                        onTap: () => ref
+                            .read(hyperfocusThemeProvider.notifier)
+                            .setTheme(theme),
+                      );
+                    },
+                  ),
                 ),
+                const SizedBox(height: 12),
+                _SelectedThemePreview(theme: currentTheme),
                 const SizedBox(height: 18),
                 const Text(
                   'Orientação da tela da criança',
@@ -465,6 +465,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   style: TextStyle(fontSize: 12, color: AppTheme.mutedText),
                 ),
                 const SizedBox(height: 8),
+                if (cards.isNotEmpty) ...[
+                  _CardsPreviewStrip(cards: cards),
+                  const SizedBox(height: 14),
+                ],
                 ReorderableListView.builder(
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
@@ -608,6 +612,205 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 }
 
+class _CardsPreviewStrip extends StatelessWidget {
+  final List<PictogramCard> cards;
+
+  const _CardsPreviewStrip({required this.cards});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      key: const ValueKey('cards-visual-preview'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Preview da grade infantil',
+          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+        ),
+        const SizedBox(height: 8),
+        SizedBox(
+          height: 126,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: cards.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 10),
+            itemBuilder: (_, index) => _CardPreviewTile(card: cards[index]),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _CardPreviewTile extends StatelessWidget {
+  final PictogramCard card;
+
+  const _CardPreviewTile({required this.card});
+
+  @override
+  Widget build(BuildContext context) {
+    final image = card.isCustomImage
+        ? SecureMediaImage(path: card.imagePath)
+        : Image.asset(
+            card.imagePath,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => const Icon(
+              Icons.image_not_supported_outlined,
+              color: AppTheme.mutedText,
+            ),
+          );
+    return Semantics(
+      label: 'Preview do cartão ${card.label}',
+      child: Container(
+        width: 96,
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: AppTheme.surface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppTheme.cardBorder),
+        ),
+        child: Column(
+          children: [
+            Expanded(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: SizedBox(width: double.infinity, child: image),
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              card.label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ThemePreviewTile extends StatelessWidget {
+  final HyperfocusTheme theme;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _ThemePreviewTile({
+    required this.theme,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: 'Tema ${theme.displayName}',
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          width: 104,
+          padding: const EdgeInsets.all(9),
+          decoration: BoxDecoration(
+            color: theme.backgroundColor,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: selected ? theme.primaryColor : AppTheme.cardBorder,
+              width: selected ? 2.5 : 1,
+            ),
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(theme.emoji, style: const TextStyle(fontSize: 30)),
+              const SizedBox(height: 5),
+              Text(
+                theme.displayName,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: theme.primaryColor,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              if (selected) ...[
+                const SizedBox(height: 3),
+                Icon(Icons.check_circle, size: 15, color: theme.primaryColor),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SelectedThemePreview extends StatelessWidget {
+  final HyperfocusTheme theme;
+
+  const _SelectedThemePreview({required this.theme});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      key: const ValueKey('selected-theme-preview'),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: theme.backgroundColor,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: theme.primaryColor.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 54,
+            height: 54,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.82),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Text(theme.emoji, style: const TextStyle(fontSize: 29)),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Prévia em tempo real',
+                  style: TextStyle(
+                    color: theme.primaryColor,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.4,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  'Tema ${theme.displayName}',
+                  style: const TextStyle(fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 3),
+                const Text(
+                  'A criança verá esta combinação suave de cor e estímulo.',
+                  style: TextStyle(color: AppTheme.mutedText, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _OptionASectionBox extends StatelessWidget {
   final IconData icon;
   final String title;
@@ -633,6 +836,7 @@ class _OptionASectionBox extends StatelessWidget {
         side: const BorderSide(color: AppTheme.cardBorder),
       ),
       child: ExpansionTile(
+        key: ValueKey('settings-section-$title'),
         initiallyExpanded: initiallyExpanded,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
         collapsedShape: RoundedRectangleBorder(
@@ -1118,7 +1322,7 @@ class _SettingsSection extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
-          child,
+          Material(color: Colors.transparent, child: child),
         ],
       ),
     );

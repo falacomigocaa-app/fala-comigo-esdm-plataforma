@@ -160,3 +160,11 @@ Próximo marco prioritário: Fase 1.1B, refinamento visual do gate de PIN com qu
 O gate parental foi refinado sem alterar o serviço criptográfico ou a política de lockout. O primeiro acesso, a confirmação e o login agora exibem indicadores visuais dos quatro dígitos; a camada de semântica informa o progresso de preenchimento; o bloqueio temporário apresenta banner dedicado de segurança; e o rodapé de proteção quebra corretamente em telas estreitas, sem overflow. Foi criada a cobertura `test/parental_gate_screen_test.dart` para primeiro acesso e estado bloqueado.
 
 Validação: `flutter analyze` sem issues, `flutter test` com 126 testes aprovados e `flutter build web --release` concluído. O checklist em `docs/FASE_1_CHECKLIST.md` foi atualizado. Próximo marco: Fase 1.1C, preview visual de cartões e temas, seguida da validação responsiva/acessível em telas pequenas e tablet.
+
+## Fase 1.1C — Previews visuais de cartões e temas — 08/10/2026
+
+A área parental agora oferece preview visual da grade infantil, com miniaturas dos cartões, rótulo, imagem segura e fallback para asset indisponível. O seletor de temas de hiperfoco foi substituído por miniaturas horizontais com cor, emoji, estado selecionado e semântica acessível. Abaixo das miniaturas, o tema escolhido é refletido em um preview em tempo real, mantendo baixo ruído visual e contraste adequado.
+
+Também foram adicionadas chaves estáveis às seções expansíveis e Material local para preservar o feedback de toque dos ListTiles. A cobertura `test/parental_settings_preview_test.dart` valida cartão, miniaturas e troca de tema. Validação concluída: `flutter analyze` sem issues, `flutter test` com 128 testes aprovados e `flutter build web --release` concluído. O checklist foi atualizado em `docs/FASE_1_CHECKLIST.md`.
+
+Observação: o teste isolado usa Hive em diretório temporário; o teardown de fechamento foi omitido porque a versão atual do Hive/Flutter bloqueava ao encerrar providers ainda ativos. Isso não afeta a persistência de produção. Próximo marco: validar responsividade, contraste e touch targets em telas pequenas e tablet.
