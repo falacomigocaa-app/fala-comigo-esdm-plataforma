@@ -1,0 +1,206 @@
+HANDOFF PARA A PRÓXIMA IA — PROJETO FALA COMIGO
+Data: 08/10/2026
+Repositório: falacomigocaa-app/fala-comigo-esdm-plataforma
+Branch atual: main
+Commit atual: 0a43da9
+Status remoto: main local sincronizada com origin/main
+
+============================================================
+COMANDO DE RETOMADA
+============================================================
+
+Você é a próxima IA responsável pelo projeto Fala Comigo.
+Continue o desenvolvimento a partir do estado real do repositório.
+
+Antes de modificar qualquer código:
+
+1. Leia integralmente:
+   - CONTINUAR_AQUI_PRIMEIRO.md
+   - CONTINUIDADE.md, se existir
+   - docs/CONTINUIDADE_ASSISTENTE_IA.md
+   - docs/FASE_1_CHECKLIST.md
+   - este arquivo HANDOFF_PROXIMA_IA_FASE_1.txt
+
+2. Confirme o estado do Git:
+   git status --short --branch
+   git log -3 --oneline
+
+3. Não refaça funcionalidades já concluídas. Preserve:
+   - autenticação JWT e refresh token;
+   - E2EE por organização;
+   - persistência PostgreSQL;
+   - fila offline criptografada do Mobile;
+   - dashboard parental;
+   - gate de PIN e lockout;
+   - navegação funcional da Área Parental;
+   - previews visuais de cartões e temas.
+
+4. Execute as validações antes de alterar código:
+   /home/ubuntu/flutter/bin/flutter analyze
+   /home/ubuntu/flutter/bin/flutter test
+
+5. Se os testes estiverem verdes, prossiga somente com a próxima pendência descrita abaixo.
+
+============================================================
+ESTADO CONCLUÍDO
+============================================================
+
+A Fase 1.1C foi implementada e publicada no commit:
+
+0a43da9 feat(parental): add visual previews for cards and themes
+
+Alterações concluídas em:
+- lib/features/parental_area/presentation/screens/settings_screen.dart
+- test/parental_settings_preview_test.dart
+- docs/FASE_1_CHECKLIST.md
+- CONTINUAR_AQUI_PRIMEIRO.md
+- docs/CONTINUIDADE_ASSISTENTE_IA.md
+
+A tela de configurações parental agora contém:
+- faixa Preview da grade infantil;
+- miniaturas dos cartões infantis;
+- imagem segura e fallback quando o asset não está disponível;
+- rótulo dos cartões;
+- semântica acessível;
+- miniaturas visuais dos temas de hiperfoco;
+- cor e emoji por tema;
+- estado visual de seleção;
+- preview em tempo real do tema escolhido;
+- chaves estáveis nas seções expansíveis;
+- feedback Material preservado nos ListTiles.
+
+Temas atualmente exibidos:
+- Padrão
+- Dinossauros
+- Espaço
+- Carros
+- Bolhas de Sabão
+- Animais
+- Trens
+
+============================================================
+VALIDAÇÕES JÁ REALIZADAS
+============================================================
+
+- flutter analyze: aprovado, sem issues
+- flutter test: 128 testes aprovados
+- flutter build web --release: concluído com sucesso
+- git diff --check: aprovado
+- git push origin main: concluído
+- branch local e origin/main: sincronizadas
+
+O build Web mostrou somente avisos conhecidos do dry-run de WebAssembly relacionados a:
+- flutter_secure_storage_web;
+- flutter_tts.
+
+Esses avisos não impediram o build Web normal e não devem ser tratados como bloqueadores desta fase.
+
+============================================================
+PRÓXIMA FASE OBRIGATÓRIA: FASE 1.1D
+============================================================
+
+Objetivo: validar e melhorar responsividade e acessibilidade da Área Parental sem quebrar a lógica atual.
+
+Prioridade P1 — UX/estabilidade:
+
+1. Inspecionar a Área Parental em telas pequenas, especialmente:
+   - largura aproximada de 320 px;
+   - largura aproximada de 360 px;
+   - modo retrato;
+   - teclado virtual aberto, quando aplicável.
+
+2. Inspecionar em tablet ou largura ampla:
+   - evitar conteúdo excessivamente esticado;
+   - preservar hierarquia visual;
+   - garantir que previews não causem overflow horizontal indevido.
+
+3. Verificar touch targets:
+   - botões e controles com pelo menos aproximadamente 48x48 px;
+   - miniaturas de temas fáceis de tocar;
+   - ações de editar, excluir, mover e expandir fáceis de selecionar;
+   - nenhum controle importante dependente apenas de gesto de arrastar.
+
+4. Verificar acessibilidade:
+   - contraste entre texto e fundo;
+   - labels e tooltips em ícones;
+   - Semantics para miniaturas e botões;
+   - foco e leitura por leitor de tela;
+   - mensagens de erro e lockout compreensíveis;
+   - não depender somente de cor para indicar seleção ou estado.
+
+5. Verificar overflow:
+   - executar flutter test;
+   - criar ou ampliar testes de widget se necessário;
+   - procurar RenderFlex overflow, textos cortados e botões fora da tela;
+   - validar especialmente a faixa horizontal de previews e o preview de tema.
+
+6. Se forem necessárias alterações, atualizar:
+   - docs/FASE_1_CHECKLIST.md;
+   - CONTINUAR_AQUI_PRIMEIRO.md;
+   - docs/CONTINUIDADE_ASSISTENTE_IA.md.
+
+7. Após cada alteração executar:
+   /home/ubuntu/flutter/bin/dart format lib test
+   /home/ubuntu/flutter/bin/flutter analyze
+   /home/ubuntu/flutter/bin/flutter test
+   /home/ubuntu/flutter/bin/flutter build web --release
+   git diff --check
+
+8. Criar commit somente após todas as validações:
+   fix(parental): improve responsive accessibility and touch targets
+
+9. Publicar:
+   git push origin main
+
+============================================================
+REGRAS DE SEGURANÇA E ESCOPO
+============================================================
+
+- Não remover testes existentes.
+- Não desativar autenticação, E2EE, consentimento ou criptografia.
+- Não permitir que o backend descriptografe payloads E2EE.
+- Não adicionar imports de dart:io ao código Web.
+- Não alterar contratos da API sem atualizar testes e documentação.
+- Não trocar Hive criptografado por armazenamento plaintext.
+- Não apagar migrations ou dados existentes.
+- Não fazer reset destrutivo do banco.
+- Preservar a lógica funcional atual; a prioridade é UX/UI e estabilidade.
+- Antes de qualquer commit, confirmar git diff, testes e status limpo.
+
+============================================================
+PENDÊNCIAS POSTERIORES — NÃO EXECUTAR ANTES DA FASE 1.1D
+============================================================
+
+Após concluir a responsividade/acessibilidade, avaliar em sequência:
+
+P1:
+- revisar agrupamento e organização avançada dos cartões;
+- revisar estados vazios, loading e erro da Área Parental;
+- melhorar consistência visual entre área infantil e parental;
+- revisar navegação por abas em telas pequenas.
+
+P2:
+- auditoria final de contraste e acessibilidade;
+- revisar performance de imagens e listas;
+- revisar documentação e cobertura de testes;
+- avaliar melhorias adicionais no backend somente se houver requisito funcional comprovado.
+
+Não iniciar novos endpoints, refatorações amplas ou mudanças arquiteturais antes de finalizar a validação da Fase 1.1D.
+
+============================================================
+CRITÉRIO DE CONCLUSÃO PARA A PRÓXIMA IA
+============================================================
+
+A próxima IA só deve considerar a Fase 1.1D concluída quando:
+
+- não houver overflow visual conhecido em telas pequenas;
+- touch targets principais estiverem adequados;
+- controles importantes tiverem Semantics e labels;
+- contraste e estados de seleção estiverem claros;
+- flutter analyze estiver verde;
+- flutter test estiver verde;
+- flutter build web --release estiver concluído;
+- documentação estiver atualizada;
+- commit estiver criado;
+- push para origin/main estiver concluído;
+- git status indicar branch sincronizada e sem alterações pendentes.
