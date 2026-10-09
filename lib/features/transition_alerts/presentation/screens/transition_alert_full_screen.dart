@@ -3,8 +3,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/theme/hyperfocus_theme.dart';
 import '../../../../core/services/transition_alert_audio_service.dart';
+import '../../../../core/services/transition_alert_service.dart';
+import '../../../../core/theme/hyperfocus_theme.dart';
 import '../../domain/models/transition_alert.dart';
 import 'transition_checklist_screen.dart';
 
@@ -133,6 +134,26 @@ class _TransitionAlertFullScreenState
                     ),
                   ),
                   child: const Text('Vamos lá! 👉'),
+                ),
+                const SizedBox(height: 12),
+                TextButton(
+                  onPressed: () async {
+                    try {
+                      await TransitionAlertService.instance
+                          .snoozeForFiveMinutes(widget.alert);
+                      if (context.mounted) Navigator.of(context).pop();
+                    } catch (_) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Não foi possível adiar o alerta.'),
+                          ),
+                        );
+                      }
+                    }
+                  },
+                  style: TextButton.styleFrom(foregroundColor: Colors.white),
+                  child: const Text('Não me perturbe por 5 minutos'),
                 ),
               ],
             ),

@@ -35,6 +35,7 @@ class TransitionAlertEditScreen extends ConsumerStatefulWidget {
 class _TransitionAlertEditScreenState
     extends ConsumerState<TransitionAlertEditScreen> {
   late final TextEditingController _titleController;
+  late final TextEditingController _descriptionController;
   late final TextEditingController _ttsController;
   final TextEditingController _checklistInputController =
       TextEditingController();
@@ -52,6 +53,8 @@ class _TransitionAlertEditScreenState
   Future<void> Function()? _releaseActivePreview;
 
   late bool _isScheduled;
+  late bool _isActive;
+  late int _advanceMinutes;
   TimeOfDay? _scheduledTimeOfDay;
   late Set<int> _scheduledWeekdays;
   late int _countdownSeconds;
@@ -70,11 +73,15 @@ class _TransitionAlertEditScreenState
         existing?.notificationId ?? notifier.generateNotificationId();
 
     _titleController = TextEditingController(text: existing?.title ?? '');
+    _descriptionController =
+        TextEditingController(text: existing?.description ?? '');
     _audioType = existing?.audioType ?? 'tts';
     _ttsController = TextEditingController(text: existing?.ttsText ?? '');
     _recordedAudioPath = existing?.recordedAudioPath;
 
     _isScheduled = existing?.isScheduled ?? false;
+    _isActive = existing?.isActive ?? true;
+    _advanceMinutes = existing?.advanceTime ?? 0;
     _scheduledWeekdays = {...(existing?.scheduledWeekdays ?? [])};
     _countdownSeconds = existing?.countdownSeconds ?? 60;
     _checklistItems = [...(existing?.checklistItems ?? [])];
@@ -101,6 +108,7 @@ class _TransitionAlertEditScreenState
     unawaited(_player.stop().catchError((Object _) {}));
     unawaited(_player.dispose().catchError((Object _) {}));
     _titleController.dispose();
+    _descriptionController.dispose();
     _ttsController.dispose();
     _checklistInputController.dispose();
     _recorder.dispose();
@@ -213,14 +221,28 @@ class _TransitionAlertEditScreenState
     return TransitionAlert(
       id: _alertId,
       title: _titleController.text.trim(),
+      description: _descriptionController.text.trim(),
       audioType: _audioType,
       recordedAudioPath: _recordedAudioPath,
       ttsText: _ttsController.text.trim(),
+      messageText: _ttsController.text.trim(),
       countdownSeconds: _countdownSeconds,
       checklistItems: _checklistItems,
       isScheduled: _isScheduled,
+      isRecurring: _isScheduled,
+      isActive: _isActive,
+      advanceTime: _advanceMinutes,
       scheduledHour: _scheduledTimeOfDay?.hour,
       scheduledMinute: _scheduledTimeOfDay?.minute,
+      scheduledTime: _scheduledTimeOfDay == null
+          ? null
+          : DateTime(
+              1970,
+              1,
+              1,
+              _scheduledTimeOfDay!.hour,
+              _scheduledTimeOfDay!.minute,
+            ),
       scheduledWeekdays: _scheduledWeekdays.toList(),
       notificationId: _notificationId,
     );
@@ -250,6 +272,8 @@ class _TransitionAlertEditScreenState
       await TransitionAlertService.instance.scheduleRecurring(alert);
     } catch (_) {
       scheduleFailed = true;
+      alert.isActive = false;
+      await ref.read(transitionAlertsListProvider.notifier).updateAlert(alert);
     }
     if (!mounted) return;
     if (scheduleFailed) {
@@ -316,6 +340,16 @@ class _TransitionAlertEditScreenState
             controller: _titleController,
             decoration: const InputDecoration(
               hintText: 'Ex: Hora do banho',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _descriptionController,
+            maxLines: 2,
+            decoration: const InputDecoration(
+              labelText: 'Descrição (opcional)',
+              hintText: 'Explique o que acontece nesta transição.',
               border: OutlineInputBorder(),
             ),
           ),
@@ -408,6 +442,21 @@ class _TransitionAlertEditScreenState
             children: [
               const Expanded(
                 child: Text(
+                  'Alerta ativo',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+              ),
+              Switch(
+                value: _isActive,
+                activeThumbColor: AppTheme.primary,
+                onChanged: (value) => setState(() => _isActive = value),
+              ),
+            ],
+          ),
+          Row(
+            children: [
+              const Expanded(
+                child: Text(
                   'Repetir em horário fixo',
                   style: TextStyle(fontWeight: FontWeight.w700),
                 ),
@@ -430,6 +479,29 @@ class _TransitionAlertEditScreenState
                     ? 'Escolher horário'
                     : _scheduledTimeOfDay!.format(context),
               ),
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<int>(
+              initialValue: _advanceMinutes,
+              decoration: const InputDecoration(
+                labelText: 'Avisar com antecedência',
+                border: OutlineInputBorder(),
+              ),
+              items: const [0, 1, 5, 10, 15, 30]
+                  .map(
+                    (minutes) => DropdownMenuItem<int>(
+                      value: minutes,
+                      child: Text(
+                        minutes == 0
+                            ? 'No horário da atividade'
+                            : '$minutes min antes',
+                      ),
+                    ),
+                  )
+                  .toList(),
+              onChanged: (value) {
+                if (value != null) setState(() => _advanceMinutes = value);
+              },
             ),
             const SizedBox(height: 12),
             Wrap(

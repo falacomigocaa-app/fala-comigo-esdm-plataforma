@@ -24,8 +24,8 @@ class TransitionAlertAudioService {
       if (played) return;
     }
 
-    final text = alert.ttsText?.trim();
-    if (text != null && text.isNotEmpty) {
+    final text = alert.effectiveMessageText;
+    if (text.isNotEmpty) {
       try {
         await TtsService.instance.speak(text);
         return;

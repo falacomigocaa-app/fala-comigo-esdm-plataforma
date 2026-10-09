@@ -124,7 +124,8 @@ class _AlertCard extends ConsumerWidget {
   const _AlertCard({required this.alert});
 
   String _scheduleSummary() {
-    if (!alert.isScheduled || alert.scheduledWeekdays.isEmpty) {
+    if ((!alert.isScheduled && !alert.isRecurring) ||
+        alert.scheduledWeekdays.isEmpty) {
       return 'Somente disparo manual';
     }
     const labels = {
@@ -137,9 +138,14 @@ class _AlertCard extends ConsumerWidget {
       7: 'Sáb',
     };
     final days = alert.scheduledWeekdays.map((d) => labels[d] ?? '').join(', ');
-    final hour = (alert.scheduledHour ?? 0).toString().padLeft(2, '0');
-    final minute = (alert.scheduledMinute ?? 0).toString().padLeft(2, '0');
-    return '$days às $hour:$minute';
+    final hour = (alert.effectiveScheduledHour ?? 0).toString().padLeft(2, '0');
+    final minute = (alert.effectiveScheduledMinute ?? 0)
+        .toString()
+        .padLeft(2, '0');
+    final advance = alert.advanceTime == 0
+        ? ''
+        : ' (${alert.advanceTime} min antes)';
+    return '$days às $hour:$minute$advance';
   }
 
   @override
@@ -153,6 +159,7 @@ class _AlertCard extends ConsumerWidget {
         ),
         title: Text(alert.title.isEmpty ? '(sem título)' : alert.title),
         subtitle: Text(
+          '${alert.isActive ? 'Ativo' : 'Pausado'} • '
           '${alert.audioType == 'gravado' ? 'Áudio gravado' : 'Texto falado'} • '
           '${_scheduleSummary()} • ${alert.checklistItems.length} itens no checklist',
         ),
@@ -164,6 +171,38 @@ class _AlertCard extends ConsumerWidget {
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
+            Tooltip(
+              message: alert.isActive ? 'Desativar alerta' : 'Ativar alerta',
+              child: Switch(
+                value: alert.isActive,
+                onChanged: (value) async {
+                  final notifier =
+                      ref.read(transitionAlertsListProvider.notifier);
+                  alert.isActive = value;
+                  try {
+                    if (value) {
+                      await TransitionAlertService.instance.scheduleRecurring(
+                        alert,
+                      );
+                    } else {
+                      await TransitionAlertService.instance.cancelSchedule(
+                        alert,
+                      );
+                    }
+                    await notifier.updateAlert(alert);
+                  } catch (_) {
+                    alert.isActive = !value;
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Não foi possível alterar o alerta.'),
+                        ),
+                      );
+                    }
+                  }
+                },
+              ),
+            ),
             IconButton(
               icon: const Icon(
                 Icons.play_circle_outline,

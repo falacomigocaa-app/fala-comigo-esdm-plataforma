@@ -29,7 +29,8 @@ class TransitionAlertsNotifier extends StateNotifier<List<TransitionAlert>> {
         .map(
           (e) => TransitionAlert.fromMap(Map<String, dynamic>.from(e as Map)),
         )
-        .toList();
+        .toList()
+      ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
   }
 
   Future<TransitionAlert> addAlert(TransitionAlert alert) async {
@@ -39,6 +40,7 @@ class TransitionAlertsNotifier extends StateNotifier<List<TransitionAlert>> {
   }
 
   Future<void> updateAlert(TransitionAlert alert) async {
+    alert.updatedAt = DateTime.now();
     await _box.put(alert.id, alert.toMap());
     state = _loadAll(_box);
   }

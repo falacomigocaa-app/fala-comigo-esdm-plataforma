@@ -26,7 +26,12 @@ class ParentalDashboardScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final cards = ref.watch(cardsListProvider);
     final alerts = ref.watch(transitionAlertsListProvider);
-    final activeAlerts = alerts.where((alert) => alert.isScheduled).length;
+    final activeAlerts = alerts
+        .where(
+          (alert) =>
+              alert.isActive && (alert.isScheduled || alert.isRecurring),
+        )
+        .length;
 
     return ListView(
       key: const ValueKey('parental-dashboard'),
