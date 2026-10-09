@@ -28,6 +28,7 @@ class _ParentalGateScreenState extends State<ParentalGateScreen> {
   bool _loading = true;
   bool _setupMode = false;
   bool _authenticated = false;
+  bool _isBlocked = false;
   String? _error;
 
   @override
@@ -77,9 +78,11 @@ class _ParentalGateScreenState extends State<ParentalGateScreen> {
 
     final locked = await ParentalPinService.remainingLockout();
     if (locked != null) {
-      setState(
-        () => _error = 'Acesso temporariamente bloqueado. Tente mais tarde.',
-      );
+      if (!mounted) return;
+      setState(() {
+        _isBlocked = true;
+        _error = 'Acesso temporariamente bloqueado. Tente mais tarde.';
+      });
       return;
     }
     final isValid = await ParentalPinService.checkPin(_pinController.text);
@@ -88,7 +91,10 @@ class _ParentalGateScreenState extends State<ParentalGateScreen> {
       ParentalSessionService.authenticate();
       _openDestination();
     } else {
-      setState(() => _error = 'PIN incorreto. Tente novamente.');
+      setState(() {
+        _isBlocked = false;
+        _error = 'PIN incorreto. Tente novamente.';
+      });
       _pinController.clear();
     }
   }
@@ -137,7 +143,39 @@ class _ParentalGateScreenState extends State<ParentalGateScreen> {
           borderSide: const BorderSide(color: AppTheme.primary, width: 2),
         ),
       ),
+      onChanged: (_) => setState(() {}),
       onSubmitted: (_) => _submit(),
+    );
+  }
+
+  Widget _pinIndicators(
+    TextEditingController controller, {
+    required String label,
+  }) {
+    return Semantics(
+      label: '$label: ${controller.text.length} de 4 dígitos preenchidos',
+      liveRegion: true,
+      child: Row(
+        key: ValueKey('pin-indicators-$label'),
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: List.generate(4, (index) {
+          final filled = index < controller.text.length;
+          return AnimatedContainer(
+            duration: const Duration(milliseconds: 160),
+            width: filled ? 16 : 13,
+            height: filled ? 16 : 13,
+            margin: const EdgeInsets.symmetric(horizontal: 7),
+            decoration: BoxDecoration(
+              color: filled ? AppTheme.primary : Colors.transparent,
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: filled ? AppTheme.primary : AppTheme.cardBorder,
+                width: 2,
+              ),
+            ),
+          );
+        }),
+      ),
     );
   }
 
@@ -217,12 +255,49 @@ class _ParentalGateScreenState extends State<ParentalGateScreen> {
                           ),
                         ),
                         const SizedBox(height: 22),
+                        if (_isBlocked) ...[
+                          Container(
+                            key: const ValueKey('pin-blocked-banner'),
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFFF4E5),
+                              borderRadius: BorderRadius.circular(12),
+                              border:
+                                  Border.all(color: const Color(0xFFF2C27B)),
+                            ),
+                            child: const Row(
+                              children: [
+                                Icon(Icons.lock_clock_outlined,
+                                    color: Color(0xFF9A6700)),
+                                SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    'Acesso bloqueado por segurança. Aguarde antes de tentar novamente.',
+                                    style: TextStyle(
+                                        color: Color(0xFF7A4F00), height: 1.3),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+                        ],
+                        _pinIndicators(
+                          _pinController,
+                          label: _setupMode ? 'Novo PIN' : 'PIN do responsável',
+                        ),
+                        const SizedBox(height: 10),
                         _pinField(
                           _setupMode ? 'Novo PIN' : 'PIN do responsável',
                           _pinController,
                         ),
                         if (_setupMode) ...[
                           const SizedBox(height: 12),
+                          _pinIndicators(
+                            _confirmController,
+                            label: 'Confirmar PIN',
+                          ),
+                          const SizedBox(height: 10),
                           _pinField('Confirmar PIN', _confirmController),
                         ],
                         if (_error != null) ...[
@@ -279,8 +354,9 @@ class _ParentalGateScreenState extends State<ParentalGateScreen> {
                           ),
                         ),
                         const SizedBox(height: 14),
-                        const Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
+                        const Wrap(
+                          alignment: WrapAlignment.center,
+                          crossAxisAlignment: WrapCrossAlignment.center,
                           children: [
                             Icon(
                               Icons.shield_outlined,

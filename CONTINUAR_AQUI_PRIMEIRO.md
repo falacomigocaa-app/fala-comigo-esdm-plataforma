@@ -154,3 +154,9 @@ A primeira prioridade de UX/UI foi implementada sem alterar stores ou contratos 
 Foi adicionado `test/parental_dashboard_screen_test.dart`, cobrindo o dashboard e a navegação entre as quatro abas. Validação concluída: `dart format` passou, `flutter analyze` sem issues, `flutter test` com 124 testes aprovados e `flutter build web --release` concluído. O checklist oficial foi atualizado em `docs/FASE_1_CHECKLIST.md`.
 
 Próximo marco prioritário: Fase 1.1B, refinamento visual do gate de PIN com quatro indicadores de dígitos, estados de primeiro acesso/login/erro/bloqueado e acessibilidade.
+
+## Fase 1.1B — Gate de PIN visual — 08/10/2026
+
+O gate parental foi refinado sem alterar o serviço criptográfico ou a política de lockout. O primeiro acesso, a confirmação e o login agora exibem indicadores visuais dos quatro dígitos; a camada de semântica informa o progresso de preenchimento; o bloqueio temporário apresenta banner dedicado de segurança; e o rodapé de proteção quebra corretamente em telas estreitas, sem overflow. Foi criada a cobertura `test/parental_gate_screen_test.dart` para primeiro acesso e estado bloqueado.
+
+Validação: `flutter analyze` sem issues, `flutter test` com 126 testes aprovados e `flutter build web --release` concluído. O checklist em `docs/FASE_1_CHECKLIST.md` foi atualizado. Próximo marco: Fase 1.1C, preview visual de cartões e temas, seguida da validação responsiva/acessível em telas pequenas e tablet.
