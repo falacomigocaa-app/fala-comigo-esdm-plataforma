@@ -194,3 +194,9 @@ A branch `feat/transition-alerts-reliability` avançou com a fila cifrada `trans
 O `portal-api` ganhou a migration `006_transition_alerts.sql`, os endpoints `GET/POST/DELETE /v1/subjects/{subjectId}/transition-alerts`, escopo `routine.write`, persistência memory/PostgreSQL, validação de payload e controle de versão. Caminhos locais de áudio, URLs locais e metadados da fila não são enviados ao servidor. O backend não descriptografa nem inventa mídia remota.
 
 Validação desta etapa: `flutter analyze --no-fatal-infos --no-fatal-warnings` sem issues; `flutter test` com 135 testes aprovados; `flutter build web --release` aprovado com apenas avisos conhecidos do dry-run Wasm em dependências externas; `portal-api npm test` com 40 aprovados e 1 teste PostgreSQL condicional pulado. Próximos gates: validar migration/endpoints com PostgreSQL no CI, adicionar cobertura Flutter específica da fila, e testar reconciliação em dispositivo real com app fechado/background e permissões de notificação. A branch permanece em PR #2, empilhada sobre a responsividade parental.
+
+
+## Prioridade 1 — testes da fila offline-first de alertas — 09/10/2026
+Foi adicionada a suíte `test/transition_alert_sync_service_test.dart`, usando Hive cifrado e armazenamento seguro sintético isolados. Ela cobre: operação mantida offline, fila preservada e solicitação de login em 401, conflito 409 sem sobrescrita silenciosa e remoção de caminho/URL de áudio e metadados internos antes do POST remoto. Nenhuma credencial ou dado real é usado.
+
+Validação desta fase: teste isolado passou com 4 casos; a suíte Flutter completa e os gates remotos devem ser executados antes de considerar este incremento publicado. Próximo gate funcional continua sendo validação física Android/iOS de app fechado, background, reboot, DND, bateria, permissões, som e vibração.
