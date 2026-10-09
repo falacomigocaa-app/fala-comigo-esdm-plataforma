@@ -169,3 +169,12 @@ Validação concluída: 126 testes Flutter aprovados, `flutter analyze` sem issu
 A Fase 1.1C foi concluída. A SettingsScreen apresenta a faixa `Preview da grade infantil`, com miniaturas de cartões e fallback seguro de imagem. Os temas de hiperfoco agora usam miniaturas horizontais com cor, emoji, seleção acessível e preview em tempo real do tema escolhido.
 
 Foram adicionadas chaves estáveis nas seções expansíveis e Material local nos conteúdos com ListTile. A cobertura está em `test/parental_settings_preview_test.dart`. Resultado: 128 testes Flutter aprovados, `flutter analyze` sem issues e `flutter build web --release` concluído. O próximo ponto de retomada é a validação de responsividade, contraste e touch targets em telas pequenas e tablet.
+
+
+## Fase 1.1D — Responsividade e acessibilidade parental — 09/10/2026
+
+A branch `feat/parental-responsive-accessibility` (commit `25464cf`) fecha a implementação automatizada da responsividade parental: dashboard adaptativo em largura compacta, métricas empilhadas em celular, ações rápidas com mais altura, seletor de orientação empilhado abaixo de 360 dp e alvos mínimos de 48 dp nos controles principais. O teste `test/parental_responsive_accessibility_test.dart` cobre 320x640, 320x460 com insets de teclado, 1024x768, navegação, semântica das opções e ausência de exceções de layout.
+
+Evidência local: Flutter 3.38.0/Dart 3.10.0, formatter limpo, analyzer sem issues, 132 testes Flutter aprovados e build Web release concluído. Evidência remota: workflows Flutter (`37879819678`) e PostgreSQL (`37879819723`) verdes. O build Web registrou apenas os avisos conhecidos do dry-run Wasm de dependências externas, sem falha do alvo JavaScript.
+
+Pendente: matriz manual em aparelhos Android/iOS, contraste percebido e escala de texto ampliada, rotação, leitor de tela e touch targets físicos. Não marcar a Fase 1 completa antes desse gate.
