@@ -171,7 +171,8 @@ class _ParentalLocationScreenState extends State<ParentalLocationScreen> {
   final LocationService _locationService = LocationService();
   LocationConsent _consent = LocationConsent.unknown;
   Position? _position;
-  bool _loading = true;
+  // Renderiza o estado seguro desativado enquanto o plugin nativo responde.
+  bool _loading = false;
   bool _requesting = false;
   String? _error;
   int? _batteryLevel;

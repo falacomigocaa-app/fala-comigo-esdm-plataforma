@@ -281,7 +281,7 @@ export function createStore({ pool = createPostgresPool() } = {}) {
       if (pool) {
         const result = await pool.query("update consents set status='revoked', revoked_at=$3 where id=$1 and subject_id=$2 and status='active' returning id, subject_id as \"subjectId\", organization_id as \"organizationId\", status, revoked_at as \"revokedAt\"", [consentId, subjectId, now.toISOString()]);
         await pool.query("update access_grants set status='revoked' where consent_id=$1", [consentId]);
-        return result.rows[0] ?? null;
+        if (result.rows[0]) return result.rows[0];
       }
       const consent = store.consents.find((item) => item.id === consentId && item.subjectId === subjectId);
       if (!consent) return null;
@@ -535,10 +535,21 @@ export function createStore({ pool = createPostgresPool() } = {}) {
         `, [tokenHash, now.toISOString()]);
         const record = result.rows[0];
         if (!record) throw new AuthorizationError('REFRESH_TOKEN_INVALID', 401);
+        let scopes;
+        try {
+          scopes = Array.isArray(record.scopes)
+            ? record.scopes
+            : JSON.parse(record.scopes ?? '[]');
+        } catch (_) {
+          throw new AuthorizationError('REFRESH_TOKEN_INVALID', 401);
+        }
+        if (!Array.isArray(scopes)) {
+          throw new AuthorizationError('REFRESH_TOKEN_INVALID', 401);
+        }
         return {
           userId: record.user_id,
           organizationId: record.organization_id,
-          scopes: Array.isArray(record.scopes) ? record.scopes : JSON.parse(record.scopes)
+          scopes
         };
       }
       const record = store.refreshTokens.get(tokenHash);
