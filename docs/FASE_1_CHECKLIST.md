@@ -108,3 +108,12 @@
 - `[~]` Continua pendente a validação manual em Android/iOS reais, incluindo contraste percebido, escala de texto ampliada, rotação, leitor de tela e matriz de touch targets em dispositivos físicos.
 
 **Próximo gate:** executar a matriz manual de dispositivos e, depois, decidir se o agrupamento avançado de cartões e miniaturas de categorias ainda agrega valor antes de avançar para P1/P2 do backlog full-stack.
+
+
+## Prioridade 1 — Alertas de transição — núcleo local endurecido em 09/10/2026
+
+O commit `e5b40de` amplia `TransitionAlert` com descrição, mensagem, antecedência, recorrência, ativação, dias, som, volume, vibração, URL de áudio e timestamps, preservando leitura de mapas Hive legados. A área parental agora permite editar descrição/antecedência, ativar ou pausar alertas, visualizar o estado e adiar uma ocorrência por cinco minutos.
+
+O agendamento usa `flutter_local_notifications` com `timezone`, alarmes exatos, canais por alerta, som/vibração configuráveis, payload para abrir a tela de transição e receivers Android de boot já presentes no manifesto. A antecedência é aplicada antes do horário da atividade e o cálculo semanal foi extraído para teste determinístico. Foi escolhida a agenda nativa do plugin para a entrega exata mesmo com o app fechado; `workmanager` ainda não foi adicionado porque a reconciliação em background exige validação específica de isolate, Hive cifrado e ciclo de vida Android/iOS.
+
+Validação local: `flutter analyze` sem issues, `flutter test` com 135 testes aprovados e `flutter build web --release` concluído. `flutter build apk --debug` não pôde iniciar nesta sandbox por ausência do Android SDK. Ainda faltam sincronização de alertas com backend, validação em Android/iOS reais, testes de app fechado/background, DND, bateria baixa, reinicialização, permissão negada e confirmação de áudio/vibração por aparelho.

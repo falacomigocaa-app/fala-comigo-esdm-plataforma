@@ -177,3 +177,12 @@ A branch `feat/parental-responsive-accessibility` implementou layout adaptativo 
 Validação local com Flutter 3.38.0/Dart 3.10.0: formatter sem alterações, `flutter analyze --no-fatal-infos --no-fatal-warnings` sem issues, `flutter test` com 132 testes aprovados e `flutter build web --release` concluído. O commit `25464cf` também passou nos workflows [Flutter quality checks](https://github.com/falacomigocaa-app/fala-comigo-esdm-plataforma/actions/runs/37879819678) e [Backend PostgreSQL integration](https://github.com/falacomigocaa-app/fala-comigo-esdm-plataforma/actions/runs/37879819723).
 
 A validação manual em aparelhos Android/iOS, leitor de tela, contraste percebido, escala de texto ampliada e rotação continua pendente; a Fase 1 não deve ser declarada totalmente concluída por causa desse gate físico.
+
+
+## Prioridade 1 — Alertas de transição — 09/10/2026
+
+Na branch `feat/transition-alerts-reliability`, o commit `e5b40de` endurece o núcleo local dos alertas: modelo Hive compatível com dados legados e campos de produto, edição de descrição/antecedência/estado, ativação/pausa individual, cálculo semanal com timezone, som/vibração por alerta e adiamento de cinco minutos. A tela de transição abre pelo payload da notificação e o áudio usa `messageText` com fallback para `ttsText`.
+
+A solução atual usa `flutter_local_notifications` com `AndroidScheduleMode.alarmClock`, `timezone`, permissões/receivers Android e resiliência a Web sem notificações nativas. Validação local: analyzer sem issues, 135 testes Flutter aprovados e Web release concluído. O APK debug não pôde ser construído nesta sandbox porque não há Android SDK.
+
+Ainda não declarar a Prioridade 1 completa: faltam sincronização de alertas com backend, uma política de reconciliação em background (avaliar WorkManager sem duplicar alarmes nativos), e validação física com app fechado, background, reinicialização, DND, bateria baixa, permissões, som e vibração. O próximo passo seguro é pushar a branch, aguardar CI Flutter/PostgreSQL/Pages e então preparar o roteiro de teste em Android real.

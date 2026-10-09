@@ -178,3 +178,12 @@ A branch `feat/parental-responsive-accessibility` (commit `25464cf`) fecha a imp
 Evidência local: Flutter 3.38.0/Dart 3.10.0, formatter limpo, analyzer sem issues, 132 testes Flutter aprovados e build Web release concluído. Evidência remota: workflows Flutter (`37879819678`) e PostgreSQL (`37879819723`) verdes. O build Web registrou apenas os avisos conhecidos do dry-run Wasm de dependências externas, sem falha do alvo JavaScript.
 
 Pendente: matriz manual em aparelhos Android/iOS, contraste percebido e escala de texto ampliada, rotação, leitor de tela e touch targets físicos. Não marcar a Fase 1 completa antes desse gate.
+
+
+## Prioridade 1 — Alertas de transição — núcleo local — 09/10/2026
+
+A branch `feat/transition-alerts-reliability` contém o commit `e5b40de`. O contrato de `TransitionAlert` foi expandido com compatibilidade Hive legada; o editor passou a suportar descrição, antecedência e estado ativo; a lista permite pausar/reativar; e a tela em tela cheia oferece “Não me perturbe por 5 minutos”. O serviço aplica `timezone`, antecedência semanal, canais por alerta, som/vibração e payload de abertura.
+
+Evidência: `flutter analyze --no-fatal-infos --no-fatal-warnings` sem issues, `flutter test` com 135 testes aprovados e `flutter build web --release` aprovado. `flutter build apk --debug` foi bloqueado somente pela ausência do Android SDK nesta sandbox. A solução deliberadamente usa alarmes nativos do `flutter_local_notifications` e receivers de boot; não afirmar que WorkManager ou sincronização remota já estejam implementados.
+
+Pendências obrigatórias antes de chamar P1 de concluída: sincronização offline-first dos alertas com portal-api, reconciliação em background sem duplicidade, testes físicos de app fechado/background/reboot/DND/bateria/permissões e confirmação de áudio/vibração em Android/iOS. Também manter a regra de que a comunicação básica continua local e não depende de conta ou plano.
