@@ -117,3 +117,12 @@ O commit `e5b40de` amplia `TransitionAlert` com descrição, mensagem, antecedê
 O agendamento usa `flutter_local_notifications` com `timezone`, alarmes exatos, canais por alerta, som/vibração configuráveis, payload para abrir a tela de transição e receivers Android de boot já presentes no manifesto. A antecedência é aplicada antes do horário da atividade e o cálculo semanal foi extraído para teste determinístico. Foi escolhida a agenda nativa do plugin para a entrega exata mesmo com o app fechado; `workmanager` ainda não foi adicionado porque a reconciliação em background exige validação específica de isolate, Hive cifrado e ciclo de vida Android/iOS.
 
 Validação local: `flutter analyze` sem issues, `flutter test` com 135 testes aprovados e `flutter build web --release` concluído. `flutter build apk --debug` não pôde iniciar nesta sandbox por ausência do Android SDK. Ainda faltam sincronização de alertas com backend, validação em Android/iOS reais, testes de app fechado/background, DND, bateria baixa, reinicialização, permissão negada e confirmação de áudio/vibração por aparelho.
+
+## Prioridade 1 — sincronização e reconciliação de alertas — validada em 09/10/2026
+
+- `[x]` Fila local cifrada com upsert/exclusão, retry por conectividade, idempotência, 401 preservado e conflito 409 explícito.
+- `[x]` API com migration 006, isolamento por sujeito/organização, controle de versão e testes de memória/PostgreSQL.
+- `[x]` Cobertura Flutter determinística para offline, 401, 409 e sanitização de mídia local; suíte completa com 139 testes.
+- `[x]` Monitor reativo de conectividade e retry periódico, sem adicionar worker nativo nem duplicar alarmes locais.
+- `[x]` CI remoto Flutter e PostgreSQL verde nos commits `b1bbd07` e `fec37e5`.
+- `[~]` Validação física ainda pendente. O roteiro está em [`docs/ROTEIRO_VALIDACAO_FISICA_ALERTAS.md`](ROTEIRO_VALIDACAO_FISICA_ALERTAS.md) e cobre Android, iOS, background, reboot, DND, bateria, permissões, acessibilidade, áudio e vibração.

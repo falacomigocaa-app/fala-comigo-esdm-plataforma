@@ -206,3 +206,9 @@ Validação desta fase: teste isolado passou com 4 casos; a suíte Flutter compl
 O `TransitionAlertSyncService` agora possui `start()`/`dispose()`, listener de `connectivity_plus` e retry periódico de um minuto. Ao recuperar conectividade, a fila é processada sem criar WorkManager/isolate nem duplicar os alarmes nativos de notificação. O bootstrap inicia o monitor; o login central dispara uma tentativa imediata após salvar os tokens. O lock `_isSyncing` mantém uma única reconciliação concorrente.
 
 Validação: formatter sem alterações, `flutter analyze` sem issues, `flutter test` com 139 testes aprovados e `flutter build web --release` concluído. Os avisos do dry-run Wasm continuam limitados a dependências externas (`flutter_secure_storage_web`, `flutter_tts`). Próximo gate: CI remoto deste commit e, depois, validação física Android/iOS do comportamento em background, reboot, DND, bateria e permissões.
+
+
+## Próxima prioridade — gate físico de alertas e acessibilidade — preparado em 09/10/2026
+Os gates automatizados do monitor reativo passaram nos workflows Flutter `37914547248` e PostgreSQL `37914547126`. Como esta sandbox não possui Android SDK nem aparelhos Android/iOS, a execução física não foi simulada nem declarada como concluída. Foi criado [`docs/ROTEIRO_VALIDACAO_FISICA_ALERTAS.md`](docs/ROTEIRO_VALIDACAO_FISICA_ALERTAS.md) com matriz A-01–A-12 para notificações, background, reboot, DND, bateria, permissões, áudio, vibração e wipe, além de U-01–U-07 para layout, escala, leitor de tela, contraste e rotação.
+
+A auditoria estática confirmou as permissões Android de notificações, alarme exato, tela cheia, boot e vibração; no iOS, as descrições de câmera/microfone/fotos existem e as capacidades de notificação precisam ser confirmadas no aparelho. Próximo passo por prioridade: executar o roteiro em Android/iOS reais; não avançar para publicação ampla, cobrança ou dados reais antes desse gate.
