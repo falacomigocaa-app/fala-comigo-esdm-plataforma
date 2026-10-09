@@ -227,3 +227,9 @@ Evidência: 5 testes específicos, 140 testes Flutter completos, analyzer e buil
 A cobertura de sincronização agora verifica que `syncPending(subjectId: subject-a)` envia apenas operações e pull para `subject-a`, preservando intacta a operação pendente de `subject-b`. Isso protege o limite entre sujeitos mesmo quando a fila local contém comandos de mais de um sujeito.
 
 Evidência: 6 testes específicos, 141 testes Flutter completos, analyzer e build Web release aprovados. Nenhum dado real foi usado.
+
+
+## Retenção em falha de transporte — 09/10/2026
+A cobertura da fila passou a verificar HTTP 503 seguido de recuperação e exceção de transporte. Em ambos os casos a operação permanece disponível para retry; no cenário 503, uma segunda sincronização após a recuperação conclui e remove a operação. O contrato local-first não depende de o portal estar online.
+
+Evidência: 8 testes específicos, 143 testes Flutter completos, analyzer e build Web release aprovados. Nenhum dado real foi usado.

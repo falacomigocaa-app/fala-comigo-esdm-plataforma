@@ -230,3 +230,9 @@ Validação: 5 testes específicos aprovados; suíte Flutter completa com 140 te
 Adicionado teste determinístico que enfileira operações para `subject-a` e `subject-b`, executa `syncPending(subjectId: subject-a)` e confirma que somente as URLs de `subject-a` são chamadas, enquanto a operação de `subject-b` permanece na fila. A implementação já filtrava por sujeito; esta cobertura torna o limite de autorização verificável contra regressões.
 
 Validação: 6 testes específicos aprovados; suíte Flutter completa com 141 testes; formatter e analyzer limpos; build Web release aprovado. Nenhuma informação real foi usada.
+
+
+## Prioridade 1 — retenção em falha transitória — 09/10/2026
+Adicionados cenários determinísticos para HTTP 503 e exceção de transporte. A operação permanece na fila quando o portal está temporariamente indisponível e é reenviada com sucesso quando o transporte se recupera. Nenhuma falha transitória remove silenciosamente uma operação local.
+
+Validação: 8 testes específicos aprovados; suíte Flutter completa com 143 testes; formatter e analyzer limpos; build Web release aprovado. Nenhum dado real foi usado.

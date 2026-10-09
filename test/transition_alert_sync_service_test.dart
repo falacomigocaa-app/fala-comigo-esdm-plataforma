@@ -245,4 +245,58 @@ void main() {
     expect(queueBox.length, 1);
     expect((queueBox.values.single as Map)['subjectId'], 'subject-b');
   });
+
+  test('preserva a operação em erro transitório e tenta novamente depois',
+      () async {
+    await AuthTokenService.saveToken('synthetic-access-token');
+    TransitionAlertSyncService.connectivityOverride = () async => false;
+    await TransitionAlertSyncService.enqueueUpsert(
+      alert(),
+      subjectId: 'subject-synthetic',
+    );
+
+    TransitionAlertSyncService.connectivityOverride = () async => true;
+    var available = false;
+    TransitionAlertSyncService.requestOverride =
+        (method, uri, headers, body) async {
+      if (!available) {
+        return http.Response('{"error":"temporarily unavailable"}', 503);
+      }
+      return method == 'POST'
+          ? http.Response('{}', 201)
+          : http.Response('{"alerts":[]}', 200);
+    };
+
+    final failed = await TransitionAlertSyncService.syncPending(
+      subjectId: 'subject-synthetic',
+    );
+    expect(failed, TransitionAlertSyncOutcome.failed);
+    expect(queueBox.length, 1);
+
+    available = true;
+    final recovered = await TransitionAlertSyncService.syncPending(
+      subjectId: 'subject-synthetic',
+    );
+    expect(recovered, TransitionAlertSyncOutcome.synced);
+    expect(queueBox, isEmpty);
+  });
+
+  test('preserva a operação quando o transporte lança uma exceção', () async {
+    await AuthTokenService.saveToken('synthetic-access-token');
+    TransitionAlertSyncService.connectivityOverride = () async => false;
+    await TransitionAlertSyncService.enqueueUpsert(
+      alert(),
+      subjectId: 'subject-synthetic',
+    );
+    TransitionAlertSyncService.connectivityOverride = () async => true;
+    TransitionAlertSyncService.requestOverride =
+        (method, uri, headers, body) async => throw StateError('timeout');
+
+    final outcome = await TransitionAlertSyncService.syncPending(
+      subjectId: 'subject-synthetic',
+    );
+
+    expect(outcome, TransitionAlertSyncOutcome.failed);
+    expect(queueBox.length, 1);
+  });
 }
