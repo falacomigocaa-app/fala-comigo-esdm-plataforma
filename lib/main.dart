@@ -88,6 +88,7 @@ Future<void> _bootstrap() async {
 
   _configureAlertHandler();
   SyncQueueService.start();
+  TransitionAlertSyncService.start();
   unawaited(TransitionAlertSyncService.syncPending());
 }
 

@@ -43,7 +43,29 @@ class TransitionAlertSyncService {
     Map<String, String> headers,
     String? body,
   )? requestOverride;
+  static StreamSubscription<List<ConnectivityResult>>?
+      _connectivitySubscription;
+  static Timer? _fallbackTimer;
   static bool _isSyncing = false;
+
+  static void start() {
+    _connectivitySubscription ??= _connectivity.onConnectivityChanged.listen(
+      (results) {
+        if (_hasNetwork(results)) unawaited(syncPending());
+      },
+    );
+    _fallbackTimer ??= Timer.periodic(
+      const Duration(minutes: 1),
+      (_) => unawaited(syncPending()),
+    );
+  }
+
+  static Future<void> dispose() async {
+    await _connectivitySubscription?.cancel();
+    _connectivitySubscription = null;
+    _fallbackTimer?.cancel();
+    _fallbackTimer = null;
+  }
 
   static Future<Box<dynamic>> _box() =>
       SecureBoxService.openSecureBox<dynamic>(transitionAlertSyncBoxName);
@@ -281,9 +303,12 @@ class TransitionAlertSyncService {
     if (override != null) return override();
     try {
       final results = await _connectivity.checkConnectivity();
-      return results.any((result) => result != ConnectivityResult.none);
+      return _hasNetwork(results);
     } catch (_) {
       return false;
     }
   }
+
+  static bool _hasNetwork(List<ConnectivityResult> results) =>
+      results.any((result) => result != ConnectivityResult.none);
 }

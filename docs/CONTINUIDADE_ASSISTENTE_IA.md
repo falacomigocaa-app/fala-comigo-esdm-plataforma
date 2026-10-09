@@ -199,3 +199,9 @@ Evidências: Flutter 3.38.0 — formatter limpo, analyzer sem issues, 135 testes
 
 ## P1 — cobertura determinística da fila de alertas — 09/10/2026
 A suíte `test/transition_alert_sync_service_test.dart` foi adicionada com Hive cifrado e MethodChannel de secure storage sintéticos. Os quatro cenários aprovados são: offline mantém operação na fila; HTTP 401 preserva a operação e dispara reautenticação; HTTP 409 marca o alerta local como `conflict` e remove somente a tentativa da fila; POST bem-sucedido não transmite `recordedAudioPath`, `audioUrl`, `syncState` ou outros metadados internos e executa pull posterior. Teste isolado: **4 aprovados**. Próximo passo: suíte Flutter completa, CI remoto e validação física Android/iOS; não usar dados reais.
+
+
+## P1 — reconciliação reativa sem duplicar alarmes — 09/10/2026
+A fila de alertas ganhou monitor de conectividade (`connectivity_plus`) e retry periódico de um minuto, seguindo o padrão já validado da fila de coletas. `start()` é idempotente, `dispose()` cancela listener/timer, e `_isSyncing` impede reconciliações concorrentes. O bootstrap inicia o monitor e o login dispara `syncPending()` depois de persistir a sessão. Não foi adicionado WorkManager neste ponto: a agenda nativa de `flutter_local_notifications` continua responsável pelos alarmes e um worker adicional exigiria validação específica de isolate, Hive cifrado e deduplicação.
+
+Evidência local: formatter limpo, analyzer sem issues, **139 testes Flutter aprovados** e build Web release aprovado. Persistem apenas avisos conhecidos do dry-run Wasm em dependências externas. Próximo gate: CI remoto do commit e validação física em Android/iOS; nenhum dado real deve ser usado.

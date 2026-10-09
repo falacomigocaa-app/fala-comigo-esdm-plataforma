@@ -200,3 +200,9 @@ Validação desta etapa: `flutter analyze --no-fatal-infos --no-fatal-warnings` 
 Foi adicionada a suíte `test/transition_alert_sync_service_test.dart`, usando Hive cifrado e armazenamento seguro sintético isolados. Ela cobre: operação mantida offline, fila preservada e solicitação de login em 401, conflito 409 sem sobrescrita silenciosa e remoção de caminho/URL de áudio e metadados internos antes do POST remoto. Nenhuma credencial ou dado real é usado.
 
 Validação desta fase: teste isolado passou com 4 casos; a suíte Flutter completa e os gates remotos devem ser executados antes de considerar este incremento publicado. Próximo gate funcional continua sendo validação física Android/iOS de app fechado, background, reboot, DND, bateria, permissões, som e vibração.
+
+
+## Prioridade 1 — reconciliação reativa de alertas — 09/10/2026
+O `TransitionAlertSyncService` agora possui `start()`/`dispose()`, listener de `connectivity_plus` e retry periódico de um minuto. Ao recuperar conectividade, a fila é processada sem criar WorkManager/isolate nem duplicar os alarmes nativos de notificação. O bootstrap inicia o monitor; o login central dispara uma tentativa imediata após salvar os tokens. O lock `_isSyncing` mantém uma única reconciliação concorrente.
+
+Validação: formatter sem alterações, `flutter analyze` sem issues, `flutter test` com 139 testes aprovados e `flutter build web --release` concluído. Os avisos do dry-run Wasm continuam limitados a dependências externas (`flutter_secure_storage_web`, `flutter_tts`). Próximo gate: CI remoto deste commit e, depois, validação física Android/iOS do comportamento em background, reboot, DND, bateria e permissões.
