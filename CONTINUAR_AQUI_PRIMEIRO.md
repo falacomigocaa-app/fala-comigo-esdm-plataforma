@@ -212,3 +212,9 @@ Validação: formatter sem alterações, `flutter analyze` sem issues, `flutter 
 Os gates automatizados do monitor reativo passaram nos workflows Flutter `37914547248` e PostgreSQL `37914547126`. Como esta sandbox não possui Android SDK nem aparelhos Android/iOS, a execução física não foi simulada nem declarada como concluída. Foi criado [`docs/ROTEIRO_VALIDACAO_FISICA_ALERTAS.md`](docs/ROTEIRO_VALIDACAO_FISICA_ALERTAS.md) com matriz A-01–A-12 para notificações, background, reboot, DND, bateria, permissões, áudio, vibração e wipe, além de U-01–U-07 para layout, escala, leitor de tela, contraste e rotação.
 
 A auditoria estática confirmou as permissões Android de notificações, alarme exato, tela cheia, boot e vibração; no iOS, as descrições de câmera/microfone/fotos existem e as capacidades de notificação precisam ser confirmadas no aparelho. Próximo passo por prioridade: executar o roteiro em Android/iOS reais; não avançar para publicação ampla, cobrança ou dados reais antes desse gate.
+
+
+## Prioridade 1 — estado local após sincronização — 09/10/2026
+Corrigido um caso de reconciliação: após um upsert remoto bem-sucedido, o alerta local agora passa explicitamente de `pending` para `synced` e limpa `syncError` antes de remover a operação da fila. Sem essa transição, o pull seguinte podia encontrar um alerta ainda `pending` e ignorá-lo indefinidamente. A correção é idempotente e não altera o comportamento de exclusões ou conflitos.
+
+Validação: 4 testes específicos aprovados; formatter limpo; analyzer sem issues; suíte Flutter completa com 139 testes; build Web release concluído. Próximo bloqueio continua sendo a validação física em aparelhos reais.

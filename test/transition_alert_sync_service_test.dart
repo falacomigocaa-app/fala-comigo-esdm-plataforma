@@ -145,6 +145,8 @@ void main() {
 
   test('remove mídia local do payload antes do POST remoto', () async {
     await AuthTokenService.saveToken('synthetic-access-token');
+    final local = alert()..syncState = 'pending';
+    await alertsBox.put(local.id, local.toMap());
     final requests = <Map<String, dynamic>>[];
     TransitionAlertSyncService.requestOverride =
         (method, uri, headers, body) async {
@@ -167,8 +169,13 @@ void main() {
     final post =
         jsonDecode(requests.first['body'] as String) as Map<String, dynamic>;
     final remoteAlert = post['alert'] as Map<String, dynamic>;
+    final stored = TransitionAlert.fromMap(
+      Map<String, dynamic>.from(alertsBox.get(local.id) as Map),
+    );
     expect(outcome, TransitionAlertSyncOutcome.synced);
     expect(queueBox, isEmpty);
+    expect(stored.syncState, 'synced');
+    expect(stored.syncError, isNull);
     expect(remoteAlert.containsKey('recordedAudioPath'), isFalse);
     expect(remoteAlert.containsKey('audioUrl'), isFalse);
     expect(remoteAlert.containsKey('syncState'), isFalse);

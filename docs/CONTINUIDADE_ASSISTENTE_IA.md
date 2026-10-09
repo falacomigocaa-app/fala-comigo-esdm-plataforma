@@ -209,3 +209,9 @@ Evidência local: formatter limpo, analyzer sem issues, **139 testes Flutter apr
 
 ## Gate físico de alertas preparado — 09/10/2026
 Após a reconciliação reativa, os workflows remotos Flutter `37914547248` e PostgreSQL `37914547126` passaram no commit `fec37e5`. A próxima prioridade é física, não mais automatizável nesta sandbox: foi criado `docs/ROTEIRO_VALIDACAO_FISICA_ALERTAS.md` com cenários sintéticos de notificações permitidas/negadas, alarme exato, background, app encerrado, reboot, DND, bateria, áudio, vibração, wipe e acessibilidade em escala, TalkBack/VoiceOver, contraste e rotação. A matriz não foi executada por ausência de aparelhos e Android SDK; isso permanece explicitamente pendente. Nenhum dado real deve ser usado.
+
+
+## Correção de reconciliação local — 09/10/2026
+O serviço `TransitionAlertSyncService` agora chama `_markSynced` quando um upsert remoto retorna sucesso. O registro local é atualizado para `syncState=synced` e `syncError=null` antes da remoção da operação da fila, impedindo que `_mergeRemote` continue ignorando um alerta sincronizado como se ainda estivesse pendente. O teste de sanitização também verifica esse estado.
+
+Evidência: 4 testes específicos, 139 testes Flutter completos, analyzer e build Web release aprovados. Avisos do dry-run Wasm permanecem somente em dependências externas. Nenhum dado real foi usado.

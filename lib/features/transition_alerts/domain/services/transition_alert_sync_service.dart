@@ -129,6 +129,7 @@ class TransitionAlertSyncService {
       for (final item in entries) {
         final result = await _send(item, token);
         if (result == TransitionAlertSyncOutcome.synced) {
+          await _markSynced(item);
           await box.delete(item['operationId']);
           continue;
         }
@@ -295,6 +296,20 @@ class TransitionAlertSyncService {
     final alert = TransitionAlert.fromMap(Map<String, dynamic>.from(raw));
     alert.syncState = 'conflict';
     alert.syncError = 'VERSION_CONFLICT';
+    await box.put(alert.id, alert.toMap());
+  }
+
+  static Future<void> _markSynced(Map<String, dynamic> item) async {
+    if (item['operation'] != 'upsert') return;
+    final alertId = item['alertId'];
+    if (alertId is! String) return;
+    final box =
+        await SecureBoxService.openSecureBox<dynamic>(transitionAlertsBoxName);
+    final raw = box.get(alertId);
+    if (raw is! Map) return;
+    final alert = TransitionAlert.fromMap(Map<String, dynamic>.from(raw));
+    alert.syncState = 'synced';
+    alert.syncError = null;
     await box.put(alert.id, alert.toMap());
   }
 
