@@ -34,12 +34,16 @@ class TransitionAlertsNotifier extends StateNotifier<List<TransitionAlert>> {
   }
 
   Future<TransitionAlert> addAlert(TransitionAlert alert) async {
+    alert.syncState = 'pending';
+    alert.syncError = null;
     await _box.put(alert.id, alert.toMap());
     state = _loadAll(_box);
     return alert;
   }
 
   Future<void> updateAlert(TransitionAlert alert) async {
+    alert.syncState = 'pending';
+    alert.syncError = null;
     alert.updatedAt = DateTime.now();
     await _box.put(alert.id, alert.toMap());
     state = _loadAll(_box);

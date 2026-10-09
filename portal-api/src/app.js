@@ -108,6 +108,46 @@ function requireEncryptedCollectionEnvelope(body, organizationId) {
   };
 }
 
+function requireTransitionAlertPayload(body) {
+  const raw = body?.alert ?? body;
+  if (!raw || typeof raw !== 'object' || typeof raw.id !== 'string' || raw.id.length < 1 || raw.id.length > 120) {
+    throw new AuthorizationError('INVALID_ALERT', 400);
+  }
+  const text = (value, max) => typeof value === 'string' ? value.slice(0, max) : '';
+  const list = (value, maxItems, maxLength) => Array.isArray(value)
+    ? value.filter((item) => typeof item === 'string').slice(0, maxItems).map((item) => item.slice(0, maxLength))
+    : [];
+  const integer = (value, fallback, min, max) => Number.isInteger(value) && value >= min && value <= max ? value : fallback;
+  const updatedAt = body?.updatedAt ?? raw.updatedAt;
+  const updatedDate = new Date(updatedAt);
+  if (Number.isNaN(updatedDate.getTime())) throw new AuthorizationError('INVALID_ALERT', 400);
+  return {
+    alertId: raw.id,
+    clientUpdatedAt: updatedDate.toISOString(),
+    payload: {
+      id: raw.id,
+      title: text(raw.title, 160),
+      description: text(raw.description, 500),
+      audioType: raw.audioType === 'gravado' ? 'gravado' : 'tts',
+      messageText: text(raw.messageText ?? raw.ttsText, 500),
+      countdownSeconds: integer(raw.countdownSeconds, 30, 0, 3600),
+      checklistItems: list(raw.checklistItems, 30, 200),
+      isScheduled: raw.isScheduled === true,
+      isRecurring: raw.isRecurring === true,
+      isActive: raw.isActive !== false,
+      advanceTime: integer(raw.advanceTime, 0, 0, 1440),
+      scheduledHour: integer(raw.scheduledHour, null, 0, 23),
+      scheduledMinute: integer(raw.scheduledMinute, null, 0, 59),
+      scheduledWeekdays: Array.isArray(raw.scheduledWeekdays)
+        ? raw.scheduledWeekdays.filter((item) => Number.isInteger(item) && item >= 1 && item <= 7).slice(0, 7)
+        : [],
+      notificationId: integer(raw.notificationId, 0, 0, 2147483647),
+      createdAt: raw.createdAt,
+      updatedAt: raw.updatedAt
+    }
+  };
+}
+
 export function createApp({ store = createStore(), now = () => new Date('2026-09-25T12:00:00.000Z') } = {}) {
   async function handle({ method, url, headers = {}, body = null }) {
     const path = parsePath(url);
@@ -269,6 +309,48 @@ export function createApp({ store = createStore(), now = () => new Date('2026-09
           }));
           sendAudit(store, context, 'school_collection.create', 'allowed');
           return response(201, { collection: result });
+        }
+      }
+
+      if (path[1] === 'subjects' && path[2] && path[3] === 'transition-alerts') {
+        const subjectId = path[2];
+        const { subject, grant } = subjectWithScope(
+          store,
+          subjectId,
+          context.user.id,
+          method === 'GET' ? 'routine.read' : 'routine.write',
+          clock,
+        );
+        context.organizationId = grant?.organizationId ?? context.user.organizationId;
+
+        if (method === 'GET' && path[4] === undefined) {
+          const alerts = await store.getTransitionAlertsBySubject(subject.id, context.organizationId);
+          sendAudit(store, context, 'transition_alert.read', 'allowed');
+          return response(200, { alerts });
+        }
+
+        if (method === 'POST' && path[4] === undefined) {
+          const normalized = requireTransitionAlertPayload(body);
+          const result = await idempotentAsync(store, requestId, () => store.upsertTransitionAlert({
+            alertId: normalized.alertId,
+            subjectId: subject.id,
+            organizationId: context.organizationId,
+            payload: normalized.payload,
+            clientUpdatedAt: normalized.clientUpdatedAt,
+            createdByUserId: context.user.id
+          }));
+          sendAudit(store, context, 'transition_alert.write', 'allowed');
+          return response(201, { alert: result });
+        }
+
+        if (method === 'DELETE' && path[4]) {
+          await store.deleteTransitionAlert({
+            alertId: path[4],
+            subjectId: subject.id,
+            organizationId: context.organizationId
+          });
+          sendAudit(store, context, 'transition_alert.delete', 'allowed');
+          return response(200, { deleted: true, alertId: path[4] });
         }
       }
 

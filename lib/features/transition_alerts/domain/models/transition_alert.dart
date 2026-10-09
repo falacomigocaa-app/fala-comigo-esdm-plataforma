@@ -28,6 +28,9 @@ class TransitionAlert {
   final DateTime createdAt;
   DateTime updatedAt;
   int notificationId;
+  String syncState;
+  String? syncError;
+  int? remoteVersion;
 
   TransitionAlert({
     required this.id,
@@ -54,6 +57,9 @@ class TransitionAlert {
     DateTime? createdAt,
     DateTime? updatedAt,
     required this.notificationId,
+    this.syncState = 'local',
+    this.syncError,
+    this.remoteVersion,
   })  : isRecurring = isRecurring ?? isScheduled,
         checklistItems = checklistItems ?? [],
         scheduledWeekdays = scheduledWeekdays ?? [],
@@ -101,6 +107,9 @@ class TransitionAlert {
       'createdAt': createdAt.millisecondsSinceEpoch,
       'updatedAt': updatedAt.millisecondsSinceEpoch,
       'notificationId': notificationId,
+      'syncState': syncState,
+      'syncError': syncError,
+      'remoteVersion': remoteVersion,
     };
   }
 
@@ -146,6 +155,9 @@ class TransitionAlert {
       createdAt: _asDateTime(map['createdAt']) ?? DateTime.now(),
       updatedAt: _asDateTime(map['updatedAt']) ?? DateTime.now(),
       notificationId: _asInt(map['notificationId']) ?? 0,
+      syncState: map['syncState'] as String? ?? 'local',
+      syncError: map['syncError'] as String?,
+      remoteVersion: _asInt(map['remoteVersion']),
     );
   }
 }

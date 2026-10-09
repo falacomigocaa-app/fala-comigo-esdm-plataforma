@@ -186,3 +186,11 @@ Na branch `feat/transition-alerts-reliability`, o commit `e5b40de` endurece o n�
 A solução atual usa `flutter_local_notifications` com `AndroidScheduleMode.alarmClock`, `timezone`, permissões/receivers Android e resiliência a Web sem notificações nativas. Validação local: analyzer sem issues, 135 testes Flutter aprovados e Web release concluído. O APK debug não pôde ser construído nesta sandbox porque não há Android SDK.
 
 Ainda não declarar a Prioridade 1 completa: faltam sincronização de alertas com backend, uma política de reconciliação em background (avaliar WorkManager sem duplicar alarmes nativos), e validação física com app fechado, background, reinicialização, DND, bateria baixa, permissões, som e vibração. O próximo passo seguro é pushar a branch, aguardar CI Flutter/PostgreSQL/Pages e então preparar o roteiro de teste em Android real.
+
+
+## Prioridade 1 — sincronização offline-first de alertas — 09/10/2026
+A branch `feat/transition-alerts-reliability` avançou com a fila cifrada `transition_alerts_sync_queue` e o `TransitionAlertSyncService`. Alertas locais continuam funcionando sem conta ou rede; alterações e exclusões são enfileiradas, operações usam `x-request-id`, 401 preserva a fila e solicita autenticação, e 409 marca `syncState=conflict` sem sobrescrever silenciosamente. O bootstrap inicia a reconciliação em background e o wipe remove a fila.
+
+O `portal-api` ganhou a migration `006_transition_alerts.sql`, os endpoints `GET/POST/DELETE /v1/subjects/{subjectId}/transition-alerts`, escopo `routine.write`, persistência memory/PostgreSQL, validação de payload e controle de versão. Caminhos locais de áudio, URLs locais e metadados da fila não são enviados ao servidor. O backend não descriptografa nem inventa mídia remota.
+
+Validação desta etapa: `flutter analyze --no-fatal-infos --no-fatal-warnings` sem issues; `flutter test` com 135 testes aprovados; `flutter build web --release` aprovado com apenas avisos conhecidos do dry-run Wasm em dependências externas; `portal-api npm test` com 40 aprovados e 1 teste PostgreSQL condicional pulado. Próximos gates: validar migration/endpoints com PostgreSQL no CI, adicionar cobertura Flutter específica da fila, e testar reconciliação em dispositivo real com app fechado/background e permissões de notificação. A branch permanece em PR #2, empilhada sobre a responsividade parental.

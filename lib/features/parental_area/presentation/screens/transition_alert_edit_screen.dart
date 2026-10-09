@@ -11,6 +11,7 @@ import '../../../../core/services/transition_alert_service.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../transition_alerts/data/providers/transition_alerts_provider.dart';
 import '../../../transition_alerts/domain/models/transition_alert.dart';
+import '../../../transition_alerts/domain/services/transition_alert_sync_service.dart';
 
 const Map<int, String> _weekdayLabels = {
   1: 'D',
@@ -275,6 +276,7 @@ class _TransitionAlertEditScreenState
       alert.isActive = false;
       await ref.read(transitionAlertsListProvider.notifier).updateAlert(alert);
     }
+    unawaited(TransitionAlertSyncService.enqueueUpsert(alert));
     if (!mounted) return;
     if (scheduleFailed) {
       ScaffoldMessenger.of(context).showSnackBar(

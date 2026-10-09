@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -5,6 +7,7 @@ import '../../../../core/services/transition_alert_service.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../transition_alerts/data/providers/transition_alerts_provider.dart';
 import '../../../transition_alerts/domain/models/transition_alert.dart';
+import '../../../transition_alerts/domain/services/transition_alert_sync_service.dart';
 import 'transition_alert_edit_screen.dart';
 
 /// Lista os Alertas de Transição de Atividade cadastrados, permite
@@ -188,6 +191,7 @@ class _AlertCard extends ConsumerWidget {
                       );
                     }
                     await notifier.updateAlert(alert);
+                    unawaited(TransitionAlertSyncService.enqueueUpsert(alert));
                   } catch (_) {
                     alert.isActive = !value;
                     if (context.mounted) {
@@ -235,6 +239,7 @@ class _AlertCard extends ConsumerWidget {
               tooltip: 'Excluir',
               onPressed: () async {
                 await TransitionAlertService.instance.cancelSchedule(alert);
+                unawaited(TransitionAlertSyncService.enqueueDelete(alert.id));
                 await ref
                     .read(transitionAlertsListProvider.notifier)
                     .removeAlert(alert.id);

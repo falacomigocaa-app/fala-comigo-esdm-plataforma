@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -29,6 +31,7 @@ import 'features/onboarding/presentation/screens/splash_screen.dart';
 import 'features/parental_area/presentation/screens/parental_gate_screen.dart';
 import 'features/transition_alerts/data/providers/transition_alerts_provider.dart';
 import 'features/transition_alerts/domain/models/transition_alert.dart';
+import 'features/transition_alerts/domain/services/transition_alert_sync_service.dart';
 import 'features/transition_alerts/presentation/screens/transition_alert_full_screen.dart';
 
 final navigatorKey = GlobalKey<NavigatorState>();
@@ -75,6 +78,7 @@ Future<void> _bootstrap() async {
     // A preferência visual não pode impedir o primeiro uso.
   }
   await SecureBoxService.openSecureBox(transitionAlertsBoxName);
+  await SecureBoxService.openSecureBox<dynamic>(transitionAlertSyncBoxName);
 
   if (box.isEmpty) {
     for (final card in SeedCards.defaultCards()) {
@@ -84,6 +88,7 @@ Future<void> _bootstrap() async {
 
   _configureAlertHandler();
   SyncQueueService.start();
+  unawaited(TransitionAlertSyncService.syncPending());
 }
 
 void _configureAlertHandler() {

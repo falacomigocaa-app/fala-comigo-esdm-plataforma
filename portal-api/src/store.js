@@ -45,10 +45,10 @@ const baseOrganizations = [
 ];
 
 const roleScopes = {
-  owner: ['organization.read', 'organization.key.read', 'membership.read', 'access.invite', 'access.read', 'access.revoke', 'benefit.read', 'audit.read', 'esdm_goal.read', 'esdm_goal.write', 'routine.read', 'school_collection.read', 'school_collection.write'],
-  org_admin: ['organization.read', 'organization.key.read', 'membership.read', 'access.invite', 'access.read', 'benefit.read', 'esdm_goal.read', 'esdm_goal.write', 'routine.read', 'school_collection.read', 'school_collection.write'],
+  owner: ['organization.read', 'organization.key.read', 'membership.read', 'access.invite', 'access.read', 'access.revoke', 'benefit.read', 'audit.read', 'esdm_goal.read', 'esdm_goal.write', 'routine.read', 'routine.write', 'school_collection.read', 'school_collection.write'],
+  org_admin: ['organization.read', 'organization.key.read', 'membership.read', 'access.invite', 'access.read', 'benefit.read', 'esdm_goal.read', 'esdm_goal.write', 'routine.read', 'routine.write', 'school_collection.read', 'school_collection.write'],
   professional: ['organization.read', 'access.read', 'esdm_goal.read', 'esdm_goal.write'],
-  teacher: ['organization.read', 'access.read', 'routine.read', 'school_collection.read', 'school_collection.write'],
+  teacher: ['organization.read', 'access.read', 'routine.read', 'routine.write', 'school_collection.read', 'school_collection.write'],
   caregiver: ['organization.read', 'access.read'],
   outsider: []
 };
@@ -114,6 +114,18 @@ function mapCollection(row) {
   };
 }
 
+function mapTransitionAlert(row) {
+  const payload = row.payload && typeof row.payload === 'object' ? row.payload : {};
+  return {
+    ...payload,
+    id: row.alert_id,
+    subjectId: row.subject_id,
+    organizationId: row.organization_id,
+    remoteUpdatedAt: row.updated_at,
+    remoteVersion: row.updated_at ? new Date(row.updated_at).getTime() : null
+  };
+}
+
 function createPostgresPool() {
   if (!process.env.DATABASE_URL) return null;
 
@@ -144,6 +156,7 @@ export function createStore({ pool = createPostgresPool() } = {}) {
     benefits: structuredClone(baseBenefits),
     goals: [],
     collections: [],
+    transitionAlerts: [],
     refreshTokens: new Map(),
     organizationKeys: new Map(),
     auditEvents: [],
@@ -250,6 +263,87 @@ export function createStore({ pool = createPostgresPool() } = {}) {
         return result.rows.map(mapCollection);
       }
       return store.collections.filter((collection) => collection.subjectId === subjectId).sort((a, b) => new Date(b.dataRegistro) - new Date(a.dataRegistro));
+    },
+
+    async upsertTransitionAlert({ alertId, subjectId, organizationId, payload, clientUpdatedAt, createdByUserId }) {
+      const clientDate = new Date(clientUpdatedAt);
+      if (Number.isNaN(clientDate.getTime())) throw new AuthorizationError('INVALID_ALERT', 400);
+      if (pool) {
+        const result = await pool.query(`
+          insert into transition_alerts
+            (alert_id, subject_id, organization_id, payload, client_updated_at, created_by_user_id)
+          values ($1,$2,$3,$4::jsonb,$5,$6)
+          on conflict (subject_id, alert_id) do update set
+            organization_id = excluded.organization_id,
+            payload = excluded.payload,
+            client_updated_at = excluded.client_updated_at,
+            updated_at = now()
+          where transition_alerts.client_updated_at <= excluded.client_updated_at
+          returning *
+        `, [alertId, subjectId, organizationId, JSON.stringify(payload), clientDate.toISOString(), createdByUserId]);
+        if (result.rows[0]) return mapTransitionAlert(result.rows[0]);
+        throw new AuthorizationError('VERSION_CONFLICT', 409);
+      }
+
+      const existing = store.transitionAlerts.find(
+        (item) => item.alertId === alertId && item.subjectId === subjectId,
+      );
+      if (existing && new Date(existing.clientUpdatedAt) > clientDate) {
+        throw new AuthorizationError('VERSION_CONFLICT', 409);
+      }
+      const record = {
+        alertId,
+        subjectId,
+        organizationId,
+        payload: structuredClone(payload),
+        clientUpdatedAt: clientDate.toISOString(),
+        createdByUserId,
+        createdAt: existing?.createdAt ?? new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      if (existing) Object.assign(existing, record);
+      else store.transitionAlerts.push(record);
+      return mapTransitionAlert({
+        ...record,
+        alert_id: alertId,
+        subject_id: subjectId,
+        organization_id: organizationId,
+        updated_at: record.updatedAt
+      });
+    },
+
+    async getTransitionAlertsBySubject(subjectId, organizationId) {
+      if (pool) {
+        const result = await pool.query(`
+          select * from transition_alerts
+           where subject_id = $1 and organization_id = $2
+           order by client_updated_at desc
+        `, [subjectId, organizationId]);
+        return result.rows.map(mapTransitionAlert);
+      }
+      return store.transitionAlerts
+        .filter((item) => item.subjectId === subjectId && item.organizationId === organizationId)
+        .sort((left, right) => new Date(right.clientUpdatedAt) - new Date(left.clientUpdatedAt))
+        .map((item) => mapTransitionAlert({
+          ...item,
+          alert_id: item.alertId,
+          subject_id: item.subjectId,
+          organization_id: item.organizationId,
+          updated_at: item.updatedAt
+        }));
+    },
+
+    async deleteTransitionAlert({ alertId, subjectId, organizationId }) {
+      if (pool) {
+        await pool.query(
+          'delete from transition_alerts where alert_id = $1 and subject_id = $2 and organization_id = $3',
+          [alertId, subjectId, organizationId],
+        );
+        return;
+      }
+      store.transitionAlerts = store.transitionAlerts.filter(
+        (item) => !(item.alertId === alertId && item.subjectId === subjectId && item.organizationId === organizationId),
+      );
     },
 
     async authenticateCredentials({ email, password }, now = new Date()) {
