@@ -139,12 +139,10 @@ class _AlertCard extends ConsumerWidget {
     };
     final days = alert.scheduledWeekdays.map((d) => labels[d] ?? '').join(', ');
     final hour = (alert.effectiveScheduledHour ?? 0).toString().padLeft(2, '0');
-    final minute = (alert.effectiveScheduledMinute ?? 0)
-        .toString()
-        .padLeft(2, '0');
-    final advance = alert.advanceTime == 0
-        ? ''
-        : ' (${alert.advanceTime} min antes)';
+    final minute =
+        (alert.effectiveScheduledMinute ?? 0).toString().padLeft(2, '0');
+    final advance =
+        alert.advanceTime == 0 ? '' : ' (${alert.advanceTime} min antes)';
     return '$days às $hour:$minute$advance';
   }
 

@@ -28,8 +28,7 @@ class ParentalDashboardScreen extends ConsumerWidget {
     final alerts = ref.watch(transitionAlertsListProvider);
     final activeAlerts = alerts
         .where(
-          (alert) =>
-              alert.isActive && (alert.isScheduled || alert.isRecurring),
+          (alert) => alert.isActive && (alert.isScheduled || alert.isRecurring),
         )
         .length;
 
