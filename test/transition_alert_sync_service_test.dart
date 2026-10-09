@@ -206,4 +206,43 @@ void main() {
     expect(remoteAlert.containsKey('syncState'), isFalse);
     expect(requests.map((item) => item['method']), ['POST', 'GET']);
   });
+
+  test('sincroniza somente o sujeito solicitado e preserva os demais',
+      () async {
+    TransitionAlertSyncService.connectivityOverride = () async => false;
+    await TransitionAlertSyncService.enqueueUpsert(
+      alert(),
+      subjectId: 'subject-a',
+    );
+    await TransitionAlertSyncService.enqueueUpsert(
+      alert(),
+      subjectId: 'subject-b',
+    );
+
+    await AuthTokenService.saveToken('synthetic-access-token');
+    final requests = <Map<String, dynamic>>[];
+    TransitionAlertSyncService.connectivityOverride = () async => true;
+    TransitionAlertSyncService.requestOverride =
+        (method, uri, headers, body) async {
+      requests.add({'method': method, 'uri': uri});
+      return method == 'POST'
+          ? http.Response('{}', 201)
+          : http.Response('{"alerts":[]}', 200);
+    };
+
+    final outcome = await TransitionAlertSyncService.syncPending(
+      subjectId: 'subject-a',
+    );
+
+    expect(outcome, TransitionAlertSyncOutcome.synced);
+    expect(requests, hasLength(2));
+    expect(
+      requests.every(
+        (request) => (request['uri'] as Uri).path.contains('/subject-a/'),
+      ),
+      isTrue,
+    );
+    expect(queueBox.length, 1);
+    expect((queueBox.values.single as Map)['subjectId'], 'subject-b');
+  });
 }

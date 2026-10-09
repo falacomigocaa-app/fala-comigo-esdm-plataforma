@@ -221,3 +221,9 @@ Evidência: 4 testes específicos, 139 testes Flutter completos, analyzer e buil
 `enqueueUpsert` e `enqueueDelete` agora removem operações anteriores do mesmo sujeito e alerta antes de gravar o comando novo. O teste cobre a sequência offline upsert → delete → upsert e confirma que sempre resta apenas a intenção mais recente. Isso evita que exclusões e reedições locais carreguem comandos antigos concorrentes para a sincronização remota.
 
 Evidência: 5 testes específicos, 140 testes Flutter completos, analyzer e build Web release aprovados. Nenhum dado real foi usado.
+
+
+## Isolamento da fila por sujeito — 09/10/2026
+A cobertura de sincronização agora verifica que `syncPending(subjectId: subject-a)` envia apenas operações e pull para `subject-a`, preservando intacta a operação pendente de `subject-b`. Isso protege o limite entre sujeitos mesmo quando a fila local contém comandos de mais de um sujeito.
+
+Evidência: 6 testes específicos, 141 testes Flutter completos, analyzer e build Web release aprovados. Nenhum dado real foi usado.

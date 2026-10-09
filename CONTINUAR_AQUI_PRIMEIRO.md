@@ -224,3 +224,9 @@ Validação: 4 testes específicos aprovados; formatter limpo; analyzer sem issu
 A fila offline agora remove operações pendentes anteriores do mesmo `subjectId` + `alertId` antes de enfileirar um novo upsert ou delete. Assim, uma exclusão supera uma edição antiga e uma recriação supera uma exclusão antiga, sem comandos concorrentes desnecessários. A operação final continua idempotente e o comportamento local-first é preservado.
 
 Validação: 5 testes específicos aprovados; suíte Flutter completa com 140 testes; formatter e analyzer limpos; build Web release aprovado. O próximo bloqueio segue sendo o roteiro físico em Android/iOS reais.
+
+
+## Prioridade 1 — isolamento da fila por sujeito — 09/10/2026
+Adicionado teste determinístico que enfileira operações para `subject-a` e `subject-b`, executa `syncPending(subjectId: subject-a)` e confirma que somente as URLs de `subject-a` são chamadas, enquanto a operação de `subject-b` permanece na fila. A implementação já filtrava por sujeito; esta cobertura torna o limite de autorização verificável contra regressões.
+
+Validação: 6 testes específicos aprovados; suíte Flutter completa com 141 testes; formatter e analyzer limpos; build Web release aprovado. Nenhuma informação real foi usada.
