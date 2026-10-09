@@ -13,6 +13,7 @@ import {
   organizationKeyToBase64
 } from './services/organization-key.service.js';
 import { AuthorizationError } from './authorization.js';
+import { BillingError, hashBillingPayload } from './services/billing.service.js';
 
 const { Pool } = pg;
 
@@ -45,7 +46,7 @@ const baseOrganizations = [
 ];
 
 const roleScopes = {
-  owner: ['organization.read', 'organization.key.read', 'membership.read', 'access.invite', 'access.read', 'access.revoke', 'benefit.read', 'audit.read', 'esdm_goal.read', 'esdm_goal.write', 'routine.read', 'routine.write', 'school_collection.read', 'school_collection.write'],
+  owner: ['organization.read', 'organization.key.read', 'organization.key.rotate', 'membership.read', 'access.invite', 'access.read', 'access.revoke', 'benefit.read', 'audit.read', 'esdm_goal.read', 'esdm_goal.write', 'routine.read', 'routine.write', 'school_collection.read', 'school_collection.write'],
   org_admin: ['organization.read', 'organization.key.read', 'membership.read', 'access.invite', 'access.read', 'benefit.read', 'esdm_goal.read', 'esdm_goal.write', 'routine.read', 'routine.write', 'school_collection.read', 'school_collection.write'],
   professional: ['organization.read', 'access.read', 'esdm_goal.read', 'esdm_goal.write'],
   teacher: ['organization.read', 'access.read', 'routine.read', 'routine.write', 'school_collection.read', 'school_collection.write'],
@@ -126,6 +127,8 @@ function mapTransitionAlert(row) {
   };
 }
 
+function mapLocationUpdate(row) { return { id: row.id, subjectId: row.subject_id ?? row.subjectId, organizationId: row.organization_id ?? row.organizationId, encryptedData: row.encrypted_data ?? row.encryptedData, iv: row.iv, clientRecordedAt: row.client_recorded_at ?? row.clientRecordedAt, createdAt: row.created_at ?? row.createdAt }; }
+
 function createPostgresPool() {
   if (!process.env.DATABASE_URL) return null;
 
@@ -157,57 +160,157 @@ export function createStore({ pool = createPostgresPool() } = {}) {
     goals: [],
     collections: [],
     transitionAlerts: [],
+    locationUpdates: [],
     refreshTokens: new Map(),
     organizationKeys: new Map(),
+    organizationKeyVersions: new Map(),
+    subscriptions: new Map(),
+    checkouts: new Map(),
+    billingEvents: new Map(),
     auditEvents: [],
     idempotency: new Map(),
     pool,
     storageMode: pool ? 'postgres' : 'memory-test-only',
 
-    async getOrganizationKey(organizationId) {
+    async getOrganizationKey(organizationId, requestedVersion = null) {
       let encryptedValue;
+      let keyVersion;
       if (pool) {
-        const result = await pool.query(`
-          select organization_id, key_encrypted
-            from organization_keys
-           where organization_id = $1
-        `, [organizationId]);
+        const result = requestedVersion == null
+          ? await pool.query('select organization_id, key_encrypted, key_version from organization_keys where organization_id = $1', [organizationId])
+          : await pool.query('select organization_id, key_encrypted, key_version from organization_key_versions where organization_id = $1 and key_version = $2 and retired_at is null', [organizationId, requestedVersion]);
         encryptedValue = result.rows[0]?.key_encrypted;
+        keyVersion = result.rows[0]?.key_version;
+      } else if (requestedVersion == null) {
+        const current = store.organizationKeys.get(organizationId);
+        encryptedValue = current?.keyEncrypted;
+        keyVersion = current?.keyVersion;
       } else {
-        encryptedValue = store.organizationKeys.get(organizationId)?.keyEncrypted;
+        const version = store.organizationKeyVersions.get(organizationId)?.get(requestedVersion);
+        encryptedValue = version?.keyEncrypted;
+        keyVersion = version?.keyVersion;
       }
       if (!encryptedValue) return null;
-      return {
-        organizationId,
-        organizationKey: organizationKeyToBase64(decryptOrganizationKey(encryptedValue, { organizationId }))
-      };
+      return { organizationId, keyVersion, organizationKey: organizationKeyToBase64(decryptOrganizationKey(encryptedValue, { organizationId })) };
     },
 
     async provisionOrganizationKey({ organizationId, createdByUserId, now = new Date() }) {
+      let nextVersion = 1;
+      if (pool) {
+        const current = await pool.query('select key_version from organization_keys where organization_id = $1', [organizationId]);
+        nextVersion = (current.rows[0]?.key_version ?? 0) + 1;
+      } else nextVersion = (store.organizationKeys.get(organizationId)?.keyVersion ?? 0) + 1;
       const keyEncrypted = encryptOrganizationKey(generateOrganizationKey(), { organizationId, now });
       if (pool) {
-        await pool.query(`
-          insert into organization_keys (organization_id, key_encrypted, key_version, created_by_user_id, rotated_by_user_id, created_at, rotated_at)
-          values ($1, $2, 1, $3, $3, $4, $4)
-          on conflict (organization_id) do update set
-            key_encrypted = excluded.key_encrypted,
-            key_version = organization_keys.key_version + 1,
-            rotated_by_user_id = excluded.rotated_by_user_id,
-            rotated_at = excluded.rotated_at
-        `, [organizationId, keyEncrypted, createdByUserId, now.toISOString()]);
+        const client = await pool.connect();
+        try {
+          await client.query('begin');
+          await client.query(`insert into organization_keys (organization_id, key_encrypted, key_version, created_by_user_id, rotated_by_user_id, created_at, rotated_at) values ($1,$2,$3,$4,$4,$5,$5) on conflict (organization_id) do update set key_encrypted=excluded.key_encrypted, key_version=excluded.key_version, rotated_by_user_id=excluded.rotated_by_user_id, rotated_at=excluded.rotated_at`, [organizationId, keyEncrypted, nextVersion, createdByUserId, now.toISOString()]);
+          await client.query(`insert into organization_key_versions (organization_id, key_version, key_encrypted, created_by_user_id, created_at) values ($1,$2,$3,$4,$5)`, [organizationId, nextVersion, keyEncrypted, createdByUserId, now.toISOString()]);
+          await client.query('commit');
+        } catch (error) { await client.query('rollback'); throw error; } finally { client.release(); }
       } else {
-        store.organizationKeys.set(organizationId, {
-          keyEncrypted,
-          keyVersion: (store.organizationKeys.get(organizationId)?.keyVersion ?? 0) + 1,
-          createdByUserId,
-          rotatedByUserId: createdByUserId,
-          createdAt: now.toISOString(),
-          rotatedAt: now.toISOString()
-        });
+        store.organizationKeys.set(organizationId, { keyEncrypted, keyVersion: nextVersion, createdByUserId, rotatedByUserId: createdByUserId, createdAt: now.toISOString(), rotatedAt: now.toISOString() });
+        const versions = store.organizationKeyVersions.get(organizationId) ?? new Map();
+        versions.set(nextVersion, { keyEncrypted, keyVersion: nextVersion });
+        store.organizationKeyVersions.set(organizationId, versions);
       }
       return store.getOrganizationKey(organizationId);
     },
 
+    async getSubscription(organizationId) {
+      if (pool) {
+        const result = await pool.query(`select id, organization_id as "organizationId", plan_id as "planId", status, provider, provider_subscription_id as "providerSubscriptionId", current_period_start as "currentPeriodStart", current_period_end as "currentPeriodEnd", cancel_at_period_end as "cancelAtPeriodEnd", created_at as "createdAt" from subscriptions where organization_id = $1 order by updated_at desc limit 1`, [organizationId]);
+        return result.rows[0] ?? null;
+      }
+      return store.subscriptions.get(organizationId) ?? null;
+    },
+
+    async createPendingSubscription(checkout, now = new Date()) {
+      const existing = await store.getSubscription(checkout.organizationId);
+      if (existing && ['pending_payment', 'active', 'grace'].includes(existing.status)) throw new BillingError('SUBSCRIPTION_ALREADY_ACTIVE', 409);
+      const subscription = { id: `sub_${checkout.id.slice('checkout_'.length)}`, organizationId: checkout.organizationId, planId: checkout.planId, status: 'pending_payment', provider: 'sandbox', providerSubscriptionId: null, currentPeriodStart: null, currentPeriodEnd: null, cancelAtPeriodEnd: false, createdByUserId: checkout.userId, createdAt: now.toISOString(), updatedAt: now.toISOString() };
+      if (pool) await pool.query(`insert into subscriptions (id, organization_id, plan_id, status, provider, created_by_user_id, created_at, updated_at) values ($1,$2,$3,$4,$5,$6,$7,$7)`, [subscription.id, subscription.organizationId, subscription.planId, subscription.status, subscription.provider, subscription.createdByUserId, now.toISOString()]);
+      else store.subscriptions.set(subscription.organizationId, subscription);
+      store.checkouts.set(checkout.id, checkout);
+      return subscription;
+    },
+
+    async processBillingEvent(event, now = new Date()) {
+      const payloadHash = hashBillingPayload(event);
+      if (pool) {
+        const existing = await pool.query('select id, status from billing_events where id = $1', [event.id]);
+        if (existing.rows[0]) return { duplicate: true, status: existing.rows[0].status };
+        await pool.query("insert into billing_events (id, provider, event_type, payload_hash, status) values ($1,'sandbox',$2,$3,'received')", [event.id, event.type, payloadHash]);
+      } else if (store.billingEvents.has(event.id)) return { duplicate: true, status: store.billingEvents.get(event.id).status };
+      else store.billingEvents.set(event.id, { id: event.id, status: 'received', payloadHash });
+      const organizationId = event.data?.organizationId;
+      const subscription = organizationId ? await store.getSubscription(organizationId) : null;
+      if (!subscription) return { duplicate: false, status: 'ignored' };
+      const nextStatus = event.type === 'checkout.completed' || event.type === 'subscription.activated' ? 'active' : event.type === 'subscription.canceled' ? 'canceled' : null;
+      if (!nextStatus) return { duplicate: false, status: 'ignored' };
+      const periodEnd = event.data?.currentPeriodEnd ?? new Date(now.getTime() + 30 * 86400000).toISOString();
+      if (pool) {
+        await pool.query(`update subscriptions set status=$2, provider_subscription_id=coalesce($3, provider_subscription_id), current_period_start=$4, current_period_end=$5, updated_at=$6 where organization_id=$1`, [organizationId, nextStatus, event.data?.providerSubscriptionId ?? null, now.toISOString(), periodEnd, now.toISOString()]);
+        await pool.query("update billing_events set status='processed', processed_at=$2 where id=$1", [event.id, now.toISOString()]);
+      } else { Object.assign(subscription, { status: nextStatus, providerSubscriptionId: event.data?.providerSubscriptionId ?? subscription.providerSubscriptionId, currentPeriodStart: now.toISOString(), currentPeriodEnd: periodEnd, updatedAt: now.toISOString() }); store.billingEvents.get(event.id).status = 'processed'; }
+      return { duplicate: false, status: 'processed', subscription: await store.getSubscription(organizationId) };
+    },
+
+    async saveLocationUpdate({ id, subjectId, organizationId, encryptedData, iv, clientRecordedAt, createdByUserId }) {
+      if (pool) {
+        const result = await pool.query(`insert into location_updates (id, subject_id, organization_id, encrypted_data, iv, client_recorded_at, created_by_user_id) values ($1,$2,$3,$4,$5,$6,$7) on conflict (id) do update set encrypted_data=excluded.encrypted_data, iv=excluded.iv returning *`, [id, subjectId, organizationId, encryptedData, iv, clientRecordedAt, createdByUserId]);
+        return mapLocationUpdate(result.rows[0]);
+      }
+      const record = { id, subjectId, organizationId, encryptedData, iv, clientRecordedAt, createdByUserId, createdAt: new Date().toISOString() };
+      const index = store.locationUpdates.findIndex((item) => item.id === id);
+      if (index >= 0) store.locationUpdates[index] = record; else store.locationUpdates.push(record);
+      return record;
+    },
+    async getLatestLocationUpdate(subjectId, organizationId) {
+      if (pool) { const result = await pool.query('select * from location_updates where subject_id=$1 and organization_id=$2 order by client_recorded_at desc limit 1', [subjectId, organizationId]); return result.rows[0] ? mapLocationUpdate(result.rows[0]) : null; }
+      const latest = store.locationUpdates.filter((item) => item.subjectId === subjectId && item.organizationId === organizationId).sort((a,b) => new Date(b.clientRecordedAt) - new Date(a.clientRecordedAt))[0];
+      return latest ?? null;
+    },
+    async revokeLocationUpdates(subjectId, organizationId) {
+      if (pool) { await pool.query('delete from location_updates where subject_id=$1 and organization_id=$2', [subjectId, organizationId]); return; }
+      store.locationUpdates = store.locationUpdates.filter((item) => !(item.subjectId === subjectId && item.organizationId === organizationId));
+    },
+
+    async revokeConsent({ subjectId, consentId, now = new Date() }) {
+      if (pool) {
+        const result = await pool.query("update consents set status='revoked', revoked_at=$3 where id=$1 and subject_id=$2 and status='active' returning id, subject_id as \"subjectId\", organization_id as \"organizationId\", status, revoked_at as \"revokedAt\"", [consentId, subjectId, now.toISOString()]);
+        await pool.query("update access_grants set status='revoked' where consent_id=$1", [consentId]);
+        return result.rows[0] ?? null;
+      }
+      const consent = store.consents.find((item) => item.id === consentId && item.subjectId === subjectId);
+      if (!consent) return null;
+      consent.status = 'revoked';
+      consent.revokedAt = now.toISOString();
+      for (const grant of store.grants.filter((item) => item.consentId === consentId)) grant.status = 'revoked';
+      return consent;
+    },
+    async deleteSubjectData(subjectId) {
+      if (pool) {
+        for (const table of ['location_updates', 'transition_alerts', 'school_collections', 'esdm_goals']) await pool.query(`delete from ${table} where subject_id=$1`, [subjectId]);
+        await pool.query("update access_grants set status='revoked' where subject_id=$1", [subjectId]);
+        await pool.query("update consents set status='revoked', revoked_at=now() where subject_id=$1 and status='active'", [subjectId]);
+        return;
+      }
+      store.locationUpdates = store.locationUpdates.filter((item) => item.subjectId !== subjectId);
+      store.transitionAlerts = store.transitionAlerts.filter((item) => item.subjectId !== subjectId);
+      store.collections = store.collections.filter((item) => item.subjectId !== subjectId);
+      store.goals = store.goals.filter((item) => item.subjectId !== subjectId);
+      for (const grant of store.grants.filter((item) => item.subjectId === subjectId)) grant.status = 'revoked';
+      for (const consent of store.consents.filter((item) => item.subjectId === subjectId && item.status === 'active')) { consent.status = 'revoked'; consent.revokedAt = new Date().toISOString(); }
+    },
+    async getSubjectDataSummary(subjectId) {
+      if (pool) {
+        const result = await pool.query(`select (select count(*) from esdm_goals where subject_id=$1) as goals, (select count(*) from school_collections where subject_id=$1) as collections, (select count(*) from transition_alerts where subject_id=$1) as transition_alerts, (select count(*) from location_updates where subject_id=$1) as location_updates, (select count(*) from consents where subject_id=$1) as consents`, [subjectId]);
+        return Object.fromEntries(Object.entries(result.rows[0]).map(([key, value]) => [key, Number(value)]));
+      }
+      return { goals: store.goals.filter((item) => item.subjectId === subjectId).length, collections: store.collections.filter((item) => item.subjectId === subjectId).length, transition_alerts: store.transitionAlerts.filter((item) => item.subjectId === subjectId).length, location_updates: store.locationUpdates.filter((item) => item.subjectId === subjectId).length, consents: store.consents.filter((item) => item.subjectId === subjectId).length };
+    },
     async saveGoal({ subjectId, codigoTecnicoDenver, status = 'Em Progresso', passoAtualAba = 1, createdByUserId }) {
       const translation = esdmTranslations[codigoTecnicoDenver];
       if (!translation) throw new Error('INVALID_ESDM_CODE');

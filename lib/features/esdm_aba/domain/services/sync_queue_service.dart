@@ -171,7 +171,7 @@ class SyncQueueService {
     );
   }
 
-  static Future<void> _send(SyncItem item) async {
+  static Future<void> _send(SyncItem item, {bool allowRefresh = true}) async {
     final grant = await ConcessaoAcessoStore.findActive(escolaPerfilAlvo);
     if (grant == null) {
       _notifyConsentBlocked();
@@ -217,6 +217,15 @@ class SyncQueueService {
             .timeout(const Duration(seconds: 15));
 
     if (response.statusCode == 401) {
+      if (allowRefresh && AuthTokenService.autoRefreshEnabled) {
+        final refreshed = await AuthTokenService.refreshSession(
+          apiBaseUrl: syncApiBaseUrl,
+        );
+        if (refreshed) {
+          await _send(item, allowRefresh: false);
+          return;
+        }
+      }
       throw AuthTokenExpiredException(response.statusCode, response.body);
     }
     if (response.statusCode != 200 && response.statusCode != 201) {

@@ -7,11 +7,13 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:path_provider/path_provider.dart';
 
 import 'core/services/media_storage_service.dart';
+import 'core/services/auth_token_service.dart';
 import 'core/services/transition_alert_service.dart';
 import 'core/services/app_orientation_service.dart';
 import 'core/services/secure_box_service.dart';
 import 'core/services/parental_session_service.dart';
 import 'core/services/tts_service.dart';
+import 'core/services/location_sync_service.dart';
 import 'core/theme/app_theme.dart';
 import 'features/aac_grid/data/providers/cards_provider.dart';
 import 'features/aac_grid/data/providers/seed_cards.dart';
@@ -42,6 +44,7 @@ Future<void> main() async {
 }
 
 Future<void> _bootstrap() async {
+  AuthTokenService.autoRefreshEnabled = true;
   if (!kIsWeb) {
     final documentsDirectory = await getApplicationDocumentsDirectory();
     SecureBoxService.configureHiveDirectory(documentsDirectory.path);
@@ -79,6 +82,7 @@ Future<void> _bootstrap() async {
   }
   await SecureBoxService.openSecureBox(transitionAlertsBoxName);
   await SecureBoxService.openSecureBox<dynamic>(transitionAlertSyncBoxName);
+  await SecureBoxService.openSecureBox<dynamic>(locationSyncBoxName);
 
   if (box.isEmpty) {
     for (final card in SeedCards.defaultCards()) {

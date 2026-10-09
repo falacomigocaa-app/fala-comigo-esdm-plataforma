@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:battery_plus/battery_plus.dart';
+import 'package:geolocator/geolocator.dart';
 
+import '../../../../core/services/location_service.dart';
+import '../../../../core/services/location_sync_service.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../aac_grid/data/providers/cards_provider.dart';
 import '../../../aac_grid/presentation/screens/visual_routine_screen.dart';
@@ -154,13 +158,93 @@ class ParentalTrackingScreen extends StatelessWidget {
   }
 }
 
-class ParentalLocationScreen extends StatelessWidget {
-  final VoidCallback onConnect;
+class ParentalLocationScreen extends StatefulWidget {
+  final VoidCallback? onConnect;
 
   const ParentalLocationScreen({super.key, required this.onConnect});
 
   @override
+  State<ParentalLocationScreen> createState() => _ParentalLocationScreenState();
+}
+
+class _ParentalLocationScreenState extends State<ParentalLocationScreen> {
+  final LocationService _locationService = LocationService();
+  LocationConsent _consent = LocationConsent.unknown;
+  Position? _position;
+  bool _loading = true;
+  bool _requesting = false;
+  String? _error;
+  int? _batteryLevel;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadConsent();
+    _loadBattery();
+  }
+
+  Future<void> _loadBattery() async {
+    final level = await Battery().batteryLevel;
+    if (mounted) setState(() => _batteryLevel = level);
+  }
+
+  Future<void> _loadConsent() async {
+    final consent = await _locationService.readConsent();
+    if (mounted) setState(() { _consent = consent; _loading = false; });
+  }
+
+  Future<void> _enableLocation() async {
+    final accepted = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Autorizar localização?'),
+        content: const Text(
+          'O Fala Comigo usará o GPS somente quando você solicitar uma atualização. A localização não será enviada automaticamente para clínicas ou para a web. Você pode revogar este consentimento a qualquer momento.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Agora não')),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Concordo')),
+        ],
+      ),
+    );
+    if (accepted != true) return;
+
+    await _locationService.grantConsent();
+    if (!mounted) return;
+    setState(() { _consent = LocationConsent.granted; _error = null; });
+    await _refreshLocation();
+  }
+
+  Future<void> _revokeLocation() async {
+    await _locationService.revokeConsent();
+    await LocationSyncService.revoke();
+    if (!mounted) return;
+    setState(() { _consent = LocationConsent.denied; _position = null; _error = null; });
+  }
+
+  Future<void> _refreshLocation() async {
+    if (_consent != LocationConsent.granted || _requesting) return;
+    setState(() { _requesting = true; _error = null; });
+    try {
+      final position = await _locationService.readCurrentPosition();
+      await LocationSyncService.enqueuePosition(
+        latitude: position.latitude,
+        longitude: position.longitude,
+        accuracy: position.accuracy,
+        recordedAt: position.timestamp,
+      );
+      if (mounted) setState(() => _position = position);
+    } on LocationException catch (error) {
+      if (mounted) setState(() => _error = error.userMessage);
+    } finally {
+      if (mounted) setState(() => _requesting = false);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    if (_loading) return const Center(child: CircularProgressIndicator());
+
     return ListView(
       key: const ValueKey('parental-location'),
       padding: const EdgeInsets.fromLTRB(16, 18, 16, 28),
@@ -181,28 +265,67 @@ class ParentalLocationScreen extends StatelessWidget {
           ),
           child: Column(
             children: [
-              const Icon(
-                Icons.location_disabled_outlined,
+              Icon(
+                _consent == LocationConsent.granted
+                    ? Icons.location_on_outlined
+                    : Icons.location_disabled_outlined,
                 size: 48,
                 color: AppTheme.primary,
               ),
               const SizedBox(height: 12),
-              const Text(
-                'Nenhuma localização compartilhada',
+              Text(
+                _consent == LocationConsent.granted
+                    ? 'Localização protegida, sob demanda'
+                    : 'Localização desativada',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
               ),
               const SizedBox(height: 8),
-              const Text(
-                'O mapa em tempo real ainda não está conectado. Nenhuma localização é inventada ou enviada sem configuração segura.',
+              Text(
+                _position == null
+                    ? 'Nenhuma posição foi registrada neste aparelho. O mapa só aparece depois de uma leitura GPS autorizada.'
+                    : 'Última leitura disponível. As coordenadas exatas não são exibidas nesta tela.',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: AppTheme.mutedText, height: 1.4),
+                style: const TextStyle(color: AppTheme.mutedText, height: 1.4),
               ),
               const SizedBox(height: 16),
-              FilledButton.icon(
-                onPressed: onConnect,
-                icon: const Icon(Icons.shield_outlined),
-                label: const Text('Ver requisitos de segurança'),
+              if (_error != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Text(_error!, textAlign: TextAlign.center, style: const TextStyle(color: Colors.redAccent)),
+                ),
+              if (_consent != LocationConsent.granted)
+                FilledButton.icon(
+                  onPressed: _enableLocation,
+                  icon: const Icon(Icons.shield_outlined),
+                  label: const Text('Configurar consentimento'),
+                )
+              else ...[
+                FilledButton.icon(
+                  onPressed: _requesting ? null : _refreshLocation,
+                  icon: _requesting ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.my_location_outlined),
+                  label: Text(_requesting ? 'Consultando GPS…' : 'Atualizar localização'),
+                ),
+                const SizedBox(height: 8),
+                TextButton.icon(
+                  onPressed: _revokeLocation,
+                  icon: const Icon(Icons.location_off_outlined),
+                  label: const Text('Revogar e apagar estado local'),
+                ),
+              ],
+              const SizedBox(height: 14),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.battery_std_outlined, size: 18, color: AppTheme.mutedText),
+                  const SizedBox(width: 6),
+                  Text(
+                    _batteryLevel == null
+                        ? 'Bateria: indisponível'
+                        : 'Bateria do aparelho: $_batteryLevel%',
+                    style: const TextStyle(color: AppTheme.mutedText, fontSize: 13),
+                  ),
+                ],
               ),
             ],
           ),

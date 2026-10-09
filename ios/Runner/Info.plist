@@ -30,6 +30,8 @@
 	<string>O Fala Comigo usa o microfone durante a gravação de vídeos e de áudios de alertas de transição iniciados pelo responsável.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>O Fala Comigo acessa uma foto somente quando o responsável escolhe uma imagem da biblioteca para criar um cartão personalizado.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>O Fala Comigo usa a localização somente quando o responsável autoriza e solicita uma atualização para acompanhar a criança.</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>UIApplicationSceneManifest</key>

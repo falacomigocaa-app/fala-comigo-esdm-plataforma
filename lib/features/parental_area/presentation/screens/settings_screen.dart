@@ -591,7 +591,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       builder: (context) => AlertDialog(
         title: const Text('Localização segura'),
         content: const Text(
-          'O mapa em tempo real será conectado ao painel web autenticado somente depois de configurar consentimento, permissão de localização no aparelho da criança e sincronização segura. Até lá, nenhum local é inventado ou enviado.',
+          'A localização agora é configurada na aba Localização. O consentimento é separado da permissão do sistema, a leitura é sob demanda e a revogação apaga o estado local. Nenhum local é enviado automaticamente.',
         ),
         actions: [
           TextButton(

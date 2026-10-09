@@ -23,6 +23,7 @@ class GoalSyncService {
 
   static Future<GoalSyncResult> syncActiveGoals({
     required String subjectId,
+    bool allowRefresh = true,
   }) async {
     if (!await _isOnline()) return GoalSyncResult.offline;
     final token = await AuthTokenService.readToken();
@@ -43,6 +44,14 @@ class GoalSyncService {
         },
       ).timeout(const Duration(seconds: 15));
       if (response.statusCode == 401) {
+        if (allowRefresh && AuthTokenService.autoRefreshEnabled) {
+          final refreshed = await AuthTokenService.refreshSession(
+            apiBaseUrl: goalSyncApiBaseUrl,
+          );
+          if (refreshed) {
+            return syncActiveGoals(subjectId: subjectId, allowRefresh: false);
+          }
+        }
         AuthTokenService.requireAuthentication();
         return GoalSyncResult.unauthorized;
       }

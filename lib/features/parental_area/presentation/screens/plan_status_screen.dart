@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/plans/plan_access_controller.dart';
+import '../../../../core/plans/billing_service.dart';
 import '../../../../core/plans/plan_access_provider.dart';
 import '../../../../core/plans/plan_catalog.dart';
 import '../../../../core/plans/plan_models.dart';
@@ -21,6 +24,26 @@ class _PlanStatusScreenState extends ConsumerState<PlanStatusScreen> {
   void initState() {
     super.initState();
     ref.read(planAccessProvider.notifier).hydrate();
+    unawaited(ref.read(planAccessProvider.notifier).hydrateRemote());
+  }
+
+  Future<void> _startSandboxCheckout(Plan plan) async {
+    try {
+      final result = await BillingService.createSandboxCheckout(plan.id);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Checkout de teste criado (${result.checkoutId}). Nenhuma cobrança foi realizada.',
+          ),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Checkout indisponível: $error')),
+      );
+    }
   }
 
   @override
@@ -81,8 +104,13 @@ class _PlanStatusScreenState extends ConsumerState<PlanStatusScreen> {
           ),
           const SizedBox(height: 8),
           ...PlanCatalog.publicPlans.map(
-            (plan) =>
-                _PlanCard(plan: plan, selected: plan.id == access.plan.id),
+            (plan) => _PlanCard(
+              plan: plan,
+              selected: plan.id == access.plan.id,
+              onCheckout: plan.pricePending
+                  ? () => _startSandboxCheckout(plan)
+                  : null,
+            ),
           ),
           if (license == null)
             const Padding(
@@ -234,8 +262,13 @@ class _FeatureTile extends StatelessWidget {
 class _PlanCard extends StatelessWidget {
   final Plan plan;
   final bool selected;
+  final VoidCallback? onCheckout;
 
-  const _PlanCard({required this.plan, required this.selected});
+  const _PlanCard({
+    required this.plan,
+    required this.selected,
+    this.onCheckout,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -273,9 +306,23 @@ class _PlanCard extends StatelessWidget {
             ),
           ],
         ),
-        subtitle: Padding(
-          padding: const EdgeInsets.only(top: 4),
-          child: Text(plan.description),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(plan.description),
+            ),
+            if (onCheckout != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 10),
+                child: OutlinedButton.icon(
+                  onPressed: onCheckout,
+                  icon: const Icon(Icons.science_outlined),
+                  label: const Text('Testar checkout sandbox'),
+                ),
+              ),
+          ],
         ),
       ),
     );

@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'billing_service.dart';
 import 'plan_access_controller.dart';
 import 'plan_license_store.dart';
 import 'plan_models.dart';
@@ -22,6 +23,15 @@ class PlanAccessNotifier extends StateNotifier<PlanAccessController> {
   Future<void> activateLicense(PlanLicense license) async {
     await PlanLicenseStore.save(license);
     state = PlanAccessController.fromLicense(license);
+  }
+
+  Future<void> hydrateRemote() async {
+    try {
+      final license = await BillingService.fetchSubscription();
+      if (license != null) await activateLicense(license);
+    } catch (_) {
+      // A cobrança indisponível não bloqueia o plano Essencial offline.
+    }
   }
 
   Future<void> returnToEssential() async {

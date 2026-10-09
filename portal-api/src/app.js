@@ -1,6 +1,7 @@
 import { AuthorizationError, audit, requireScope, stableError } from './authorization.js';
 import { authenticateRequest } from './middlewares/auth.middleware.js';
 import { issueAccessToken } from './services/auth.service.js';
+import { BillingError, createSandboxCheckout, publicPlans, verifySandboxWebhook } from './services/billing.service.js';
 import { createStore, esdmTranslations } from './store.js';
 
 const jsonHeaders = { 'content-type': 'application/json; charset=utf-8' };
@@ -108,6 +109,25 @@ function requireEncryptedCollectionEnvelope(body, organizationId) {
   };
 }
 
+function requireEncryptedLocationEnvelope(body, organizationId) {
+  if (body?.organizationId !== organizationId) {
+    throw new AuthorizationError('ORGANIZATION_MISMATCH');
+  }
+  if (!isBase64(body?.encryptedData) || decodedByteLength(body.encryptedData) <= 16 ||
+      !isBase64(body?.iv) || decodedByteLength(body.iv) < 12 || decodedByteLength(body.iv) > 32) {
+    throw new AuthorizationError('INVALID_E2EE_ENVELOPE', 400);
+  }
+  const recordedAt = new Date(body?.clientRecordedAt);
+  if (Number.isNaN(recordedAt.getTime())) {
+    throw new AuthorizationError('INVALID_LOCATION', 400);
+  }
+  const id = typeof body?.id === 'string' ? body.id.trim() : '';
+  if (id.length < 1 || id.length > 120) {
+    throw new AuthorizationError('INVALID_LOCATION', 400);
+  }
+  return { id, organizationId, encryptedData: body.encryptedData, iv: body.iv, clientRecordedAt: recordedAt.toISOString() };
+}
+
 function requireTransitionAlertPayload(body) {
   const raw = body?.alert ?? body;
   if (!raw || typeof raw !== 'object' || typeof raw.id !== 'string' || raw.id.length < 1 || raw.id.length > 120) {
@@ -160,10 +180,11 @@ export function createApp({ store = createStore(), now = () => new Date('2026-09
         const claims = await store.authenticateCredentials(body ?? {}, clock);
         const accessToken = issueAccessToken(claims);
         const refreshToken = await store.createRefreshToken(claims, clock);
-        const organizationKey = process.env.MASTER_CRYPTO_KEY
+        const canReadOrganizationKey = claims.scopes.includes('organization.key.read');
+        const organizationKey = process.env.MASTER_CRYPTO_KEY && canReadOrganizationKey
           ? await store.getOrganizationKey(claims.organizationId)
           : null;
-        if (process.env.MASTER_CRYPTO_KEY && !organizationKey) {
+        if (process.env.MASTER_CRYPTO_KEY && canReadOrganizationKey && !organizationKey) {
           throw new AuthorizationError('ORGANIZATION_KEY_UNAVAILABLE', 503);
         }
         return response(200, {
@@ -178,17 +199,38 @@ export function createApp({ store = createStore(), now = () => new Date('2026-09
         });
       }
 
+      if (method === 'GET' && path[0] === 'v1' && path[1] === 'plans') {
+        return response(200, { plans: publicPlans(), billingMode: 'sandbox' });
+      }
+
+      if (method === 'POST' && path[0] === 'v1' && path[1] === 'billing' && path[2] === 'webhooks' && path[3] === 'sandbox') {
+        verifySandboxWebhook(body, headers['x-billing-signature']);
+        if (!body || typeof body.id !== 'string' || typeof body.type !== 'string') {
+          throw new BillingError('INVALID_WEBHOOK', 400);
+        }
+        const result = await store.processBillingEvent(body, clock);
+        return response(result.duplicate ? 200 : 202, result);
+      }
+
       if (method === 'POST' && path[0] === 'v1' && path[1] === 'auth' && path[2] === 'refresh') {
         const claims = await store.rotateRefreshToken(body?.refreshToken, clock);
         const user = store.users.find((candidate) => candidate.id === claims.userId && candidate.status === 'active');
         if (!user) throw new AuthorizationError('REFRESH_TOKEN_INVALID', 401);
         const accessToken = issueAccessToken(claims);
         const refreshToken = await store.createRefreshToken(claims, clock);
+        const canReadOrganizationKey = claims.scopes.includes('organization.key.read');
+        const organizationKey = process.env.MASTER_CRYPTO_KEY && canReadOrganizationKey
+          ? await store.getOrganizationKey(claims.organizationId)
+          : null;
+        if (process.env.MASTER_CRYPTO_KEY && canReadOrganizationKey && !organizationKey) {
+          throw new AuthorizationError('ORGANIZATION_KEY_UNAVAILABLE', 503);
+        }
         return response(200, {
           accessToken,
           refreshToken,
           expiresIn: 15 * 60,
-          refreshExpiresIn: 7 * 24 * 60 * 60
+          refreshExpiresIn: 7 * 24 * 60 * 60,
+          ...(organizationKey ?? {})
         });
       }
 
@@ -201,13 +243,46 @@ export function createApp({ store = createStore(), now = () => new Date('2026-09
       context.organizationId = context.user.organizationId;
       if (path[0] !== 'v1') return response(404, { error: 'NOT_FOUND' });
 
+      if (method === 'GET' && path[1] === 'billing' && path[2] === 'subscription') {
+        const subscription = await store.getSubscription(context.organizationId);
+        return response(200, { subscription });
+      }
+
+      if (method === 'POST' && path[1] === 'billing' && path[2] === 'checkout') {
+        const checkout = createSandboxCheckout({
+          organizationId: context.organizationId,
+          userId: context.user.id,
+          planId: body?.planId,
+          now: clock
+        });
+        const subscription = await store.createPendingSubscription(checkout, clock);
+        sendAudit(store, context, 'billing.checkout.create', 'allowed');
+        return response(201, { checkout, subscription });
+      }
+
       if (method === 'GET' && path[1] === 'organizations' && path[3] === 'keys') {
         context.organizationId = path[2];
         requireScope(store, context.user.id, context.organizationId, 'organization.key.read', clock);
-        const organizationKey = await store.getOrganizationKey(context.organizationId);
+        const requestedVersion = new URL(url, 'http://localhost').searchParams.get('version');
+        const organizationKey = await store.getOrganizationKey(
+          context.organizationId,
+          requestedVersion == null ? null : Number(requestedVersion),
+        );
         if (!organizationKey) throw new AuthorizationError('ORGANIZATION_KEY_UNAVAILABLE', 404);
         sendAudit(store, context, 'organization.key.read', 'allowed');
         return response(200, organizationKey);
+      }
+
+      if (method === 'POST' && path[1] === 'organizations' && path[3] === 'keys' && path[4] === 'rotate') {
+        context.organizationId = path[2];
+        requireScope(store, context.user.id, context.organizationId, 'organization.key.rotate', clock);
+        const organizationKey = await store.provisionOrganizationKey({
+          organizationId: context.organizationId,
+          createdByUserId: context.user.id,
+          now: clock,
+        });
+        sendAudit(store, context, 'organization.key.rotate', 'allowed');
+        return response(201, organizationKey);
       }
 
       if (method === 'GET' && path[1] === 'organizations' && path[3] === undefined && path[2]) {
@@ -238,13 +313,50 @@ export function createApp({ store = createStore(), now = () => new Date('2026-09
         return response(200, { subjects });
       }
 
+      if (path[1] === 'subjects' && path[2] && path[3] === 'consents') {
+        const subject = subjectForOwner(store, path[2], context.user.id);
+        if (method === 'GET' && path[4] === undefined) {
+          return response(200, {
+            consents: store.consents
+              .filter((consent) => consent.subjectId === subject.id)
+              .map(({ id, organizationId, recipientUserId, purpose, scopes, noticeVersion, status, validUntil, createdAt, revokedAt }) => ({ id, organizationId, recipientUserId, purpose, scopes, noticeVersion, status, validUntil, createdAt, revokedAt }))
+          });
+        }
+        if (method === 'POST' && path[4] && path[5] === 'revoke') {
+          const consent = await store.revokeConsent({ subjectId: subject.id, consentId: path[4], now: clock });
+          if (!consent) throw new AuthorizationError('CONSENT_NOT_FOUND', 404);
+          sendAudit(store, context, 'consent.revoke', 'allowed');
+          return response(200, { consent });
+        }
+      }
+
+      if (path[1] === 'subjects' && path[2] && path[3] === 'privacy') {
+        const subject = subjectForOwner(store, path[2], context.user.id);
+        if (method === 'GET' && path[4] === 'export') {
+          const summary = await store.getSubjectDataSummary(subject.id);
+          return response(200, {
+            subject: { id: subject.id, status: subject.status },
+            categories: summary,
+            encryptedContent: true,
+            note: 'Exportação de metadados; envelopes E2EE não são descriptografados pelo portal.'
+          });
+        }
+        if (method === 'DELETE' && path[4] === 'data') {
+          await store.deleteSubjectData(subject.id);
+          sendAudit(store, context, 'subject.data.delete', 'allowed');
+          return response(200, { deleted: true, subjectId: subject.id });
+        }
+      }
+
       if (method === 'POST' && path[1] === 'subjects' && path[2] && path[3] === 'consents') {
         const subject = subjectForOwner(store, path[2], context.user.id);
         const organizationId = body?.organizationId;
         const organization = store.organizations.find((item) => item.id === organizationId && item.status === 'active');
         if (!organization) throw new AuthorizationError('RELATIONSHIP_REQUIRED');
-        const scopes = Array.isArray(body?.scopes) ? [...new Set(body.scopes)] : [];
-        if (scopes.length === 0 || !body?.purpose || !body?.recipientUserId) throw new AuthorizationError('INVALID_CONSENT', 400);
+        const recipient = store.users.find((item) => item.id === body?.recipientUserId && item.status === 'active');
+        const allowedScopes = new Set(['communication_profile.read', 'tasks.read', 'esdm_goal.read', 'esdm_goal.write', 'routine.read', 'routine.write', 'school_collection.read', 'school_collection.write', 'location.read', 'location.write']);
+        const scopes = Array.isArray(body?.scopes) ? [...new Set(body.scopes)].filter((scope) => allowedScopes.has(scope)) : [];
+        if (scopes.length === 0 || !body?.purpose || !body?.recipientUserId || !recipient) throw new AuthorizationError('INVALID_CONSENT', 400);
         const validUntil = body.validUntil ?? '2099-01-01T00:00:00.000Z';
         if (new Date(validUntil) <= clock) throw new AuthorizationError('EXPIRED');
         const consent = {
@@ -351,6 +463,39 @@ export function createApp({ store = createStore(), now = () => new Date('2026-09
           });
           sendAudit(store, context, 'transition_alert.delete', 'allowed');
           return response(200, { deleted: true, alertId: path[4] });
+        }
+      }
+
+      if (path[1] === 'subjects' && path[2] && path[3] === 'location-updates') {
+        const subjectId = path[2];
+        const { subject, grant } = subjectWithScope(
+          store,
+          subjectId,
+          context.user.id,
+          method === 'GET' ? 'location.read' : 'location.write',
+          clock,
+        );
+        context.organizationId = grant?.organizationId ?? context.user.organizationId;
+
+        if (method === 'GET' && path[4] === undefined) {
+          const latest = await store.getLatestLocationUpdate(subject.id, context.organizationId);
+          sendAudit(store, context, 'location.read', 'allowed');
+          return response(200, { location: latest });
+        }
+        if (method === 'POST' && path[4] === undefined) {
+          const envelope = requireEncryptedLocationEnvelope(body, context.organizationId);
+          const result = await idempotentAsync(store, requestId, () => store.saveLocationUpdate({
+            ...envelope,
+            subjectId: subject.id,
+            createdByUserId: context.user.id
+          }));
+          sendAudit(store, context, 'location.write', 'allowed');
+          return response(201, { location: result });
+        }
+        if (method === 'DELETE' && path[4] === 'all') {
+          await store.revokeLocationUpdates(subject.id, context.organizationId);
+          sendAudit(store, context, 'location.revoke', 'allowed');
+          return response(200, { revoked: true });
         }
       }
 
@@ -470,7 +615,7 @@ export function createApp({ store = createStore(), now = () => new Date('2026-09
 
       return response(404, { error: 'NOT_FOUND' });
     } catch (rawError) {
-      const error = stableError(rawError);
+      const error = rawError instanceof BillingError ? rawError : stableError(rawError);
       if (context.user) sendAudit(store, context, 'request.denied', 'denied', error);
       if (error.code === 'TOKEN_EXPIRED') {
         return response(401, { error: 'TOKEN_EXPIRED', code: 'TOKEN_EXPIRED', renewalRequired: true });

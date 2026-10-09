@@ -127,7 +127,7 @@ class TransitionAlertSyncService {
   }) async {
     if (_isSyncing) return TransitionAlertSyncOutcome.queued;
     if (!await _isOnline()) return TransitionAlertSyncOutcome.offline;
-    final token = await AuthTokenService.readToken();
+    var token = await AuthTokenService.readToken();
     if (token == null || token.isEmpty) {
       AuthTokenService.requireAuthentication();
       return TransitionAlertSyncOutcome.unauthorized;
@@ -158,6 +158,7 @@ class TransitionAlertSyncService {
         if (result != TransitionAlertSyncOutcome.conflict) break;
       }
       if (outcome == TransitionAlertSyncOutcome.synced) {
+        token = await AuthTokenService.readToken() ?? token;
         final pulled = await _pull(subjectId, token);
         if (pulled != TransitionAlertSyncOutcome.synced) outcome = pulled;
       }
@@ -170,7 +171,7 @@ class TransitionAlertSyncService {
   static Future<TransitionAlertSyncOutcome> _send(
     Map<String, dynamic> item,
     String token,
-  ) async {
+  {bool allowRefresh = true}) async {
     final subjectId = item['subjectId'] as String?;
     final alertId = item['alertId'] as String?;
     if (subjectId == null || alertId == null) {
@@ -219,6 +220,17 @@ class TransitionAlertSyncService {
                   .post(uri, headers: headers, body: body)
                   .timeout(const Duration(seconds: 15));
       if (response.statusCode == 401) {
+        if (allowRefresh && AuthTokenService.autoRefreshEnabled) {
+          final refreshed = await AuthTokenService.refreshSession(
+            apiBaseUrl: transitionAlertSyncApiBaseUrl,
+          );
+          if (refreshed) {
+            final refreshedToken = await AuthTokenService.readToken();
+            if (refreshedToken != null && refreshedToken.isNotEmpty) {
+              return _send(item, refreshedToken, allowRefresh: false);
+            }
+          }
+        }
         AuthTokenService.requireAuthentication();
         return TransitionAlertSyncOutcome.unauthorized;
       }
