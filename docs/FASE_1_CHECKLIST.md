@@ -20,9 +20,9 @@
 
 ## Fase 1.1 — Área parental / UX/UI
 
-- `[ ]` Dashboard inicial separado da lista de configurações. Atualmente a entrada continua sendo `SettingsScreen`, com uma lista longa de seções.
+- `[x]` Dashboard inicial separado da lista de configurações. `ParentalDashboardScreen` agora é a aba inicial e concentra resumo, métricas e ações rápidas.
 - `[~]` Hierarquia visual: já existem `OptionASectionBox`, cards, cores por funcionalidade e paleta profissional; ainda falta uma hierarquia consistente por prioridade alta/média/baixa em toda a área.
-- `[ ]` BottomNavigationBar funcional. O componente existe em `settings_screen.dart`, mas `currentIndex` está fixo em `0` e `onTap` é um no-op.
+- `[x]` BottomNavigationBar funcional. As quatro abas agora alternam entre Início, Acompanhamento, Localização e Configurações.
 - `[~]` Gate de PIN: primeiro acesso, login, erro e lockout já possuem textos e feedback; ainda faltam representação visual dos quatro dígitos e uma diferenciação visual completa do estado bloqueado.
 - `[~]` Cartões: há fluxo de criação/edição; preview/thumbnail, agrupamento por categoria e drag-and-drop ainda precisam ser confirmados ou implementados.
 - `[ ]` Temas de hiperfoco em miniaturas: atualmente são `ChoiceChip` com emoji/nome; falta mini-preview visual e preview em tempo real.
@@ -63,10 +63,16 @@
 
 ## Próximo ponto exato de retomada
 
-1. Implementar a **Fase 1.1A: dashboard parental + navegação funcional**, sem alterar stores ou contratos clínicos.
-2. Criar testes de widget para: dashboard visível, contadores de cartões/alertas, ações rápidas e quatro destinos da navegação.
-3. Depois implementar a **Fase 1.1B: gate de PIN visual**, com quatro indicadores de dígitos, estados primeiro acesso/login/erro/bloqueado e acessibilidade.
-4. Em seguida abordar cartões, temas e responsividade em commits separados.
-5. Rodar `dart format`, `flutter analyze`, `flutter test` e o build Web antes de cada publicação.
+1. Implementar a **Fase 1.1B: gate de PIN visual**, com quatro indicadores de dígitos, estados primeiro acesso/login/erro/bloqueado e acessibilidade.
+2. Em seguida abordar cartões, temas e responsividade em commits separados.
+3. Rodar `dart format`, `flutter analyze`, `flutter test` e o build Web antes de cada publicação.
+
+## Fase 1.1A — Dashboard e navegação — concluída em 08/10/2026
+
+- `[x]` Criado `ParentalDashboardScreen` com boas-vindas, métricas reais de cartões e alertas agendados, ações rápidas e cartões de prioridade.
+- `[x]` Criadas superfícies de Acompanhamento e Localização, reutilizando os fluxos existentes e mantendo a localização explicitamente desativada até consentimento/permissões.
+- `[x]` Tornado o `BottomNavigationBar` funcional, com estado de aba e destino de Configurações preservado.
+- `[x]` Adicionados testes de widget em `test/parental_dashboard_screen_test.dart` para dashboard e quatro abas.
+- `[x]` Validação concluída: `flutter analyze` sem issues, `flutter test` com 124 testes aprovados, `flutter build web --release` concluído.
 
 > Não declarar a Fase 1 como concluída até que os itens `[ ]` da Fase 1.1 sejam implementados e validados. A última validação conhecida do app foi de 122 testes Flutter aprovados; a página pública e o app Web responderam HTTP 200 após o commit `6a45495`.

@@ -146,3 +146,11 @@ A auditoria pós-publicação encontrou dois workflows usando o mesmo ambiente P
 O documento `Comandofinalfalacomigo1.1.pdf` foi confrontado com o estado real da branch. A Fase 1.1 de UX/UI parental ainda não está concluída: a área já tem paleta profissional, cards/seções, feedback básico no PIN e várias funcionalidades parentais, mas continua entrando em uma `SettingsScreen` longa; o `BottomNavigationBar` ainda usa `currentIndex: 0` e `onTap: (_) {}`; não há dashboard inicial separado; os temas ainda são `ChoiceChip` e faltam miniaturas/preview em tempo real. O gate já diferencia primeiro acesso/login/erro e lockout textualmente, mas falta a representação visual dos quatro dígitos e o estado bloqueado refinado.
 
 Foi criado o checklist versionado em `docs/FASE_1_CHECKLIST.md`, com `[x]` concluído, `[~]` parcial, `[ ]` pendente e `[?]` não validado. O próximo ponto exato é a Fase 1.1A: implementar dashboard parental e navegação funcional, com testes de widget, sem alterar stores ou contratos clínicos. A Fase 1.1B será o refinamento visual do gate de PIN. Não declarar a Fase 1 como concluída antes de validar os itens pendentes do checklist.
+
+## Fase 1.1A — Dashboard parental e navegação funcional — 08/10/2026
+
+A primeira prioridade de UX/UI foi implementada sem alterar stores ou contratos clínicos. Foi criado `ParentalDashboardScreen` com boas-vindas, métricas reais de cartões e alertas agendados, ações rápidas e cartões de prioridade. `ParentalTrackingScreen` concentra tendências, rotina e relatórios; `ParentalLocationScreen` mantém a localização explicitamente desativada até consentimento e permissões. A `SettingsScreen` passou a manter quatro abas funcionais no `BottomNavigationBar`: Início, Acompanhamento, Localização e Configurações.
+
+Foi adicionado `test/parental_dashboard_screen_test.dart`, cobrindo o dashboard e a navegação entre as quatro abas. Validação concluída: `dart format` passou, `flutter analyze` sem issues, `flutter test` com 124 testes aprovados e `flutter build web --release` concluído. O checklist oficial foi atualizado em `docs/FASE_1_CHECKLIST.md`.
+
+Próximo marco prioritário: Fase 1.1B, refinamento visual do gate de PIN com quatro indicadores de dígitos, estados de primeiro acesso/login/erro/bloqueado e acessibilidade.

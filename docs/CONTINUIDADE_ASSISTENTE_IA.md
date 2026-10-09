@@ -149,3 +149,11 @@ Havia dois deploys concorrentes no mesmo Pages: o workflow estático publicava `
 O PDF `Comandofinalfalacomigo1.1.pdf` foi comparado ao código atual. O backend, E2EE, CI, autenticação e hardening de sessão estão validados, mas a Fase 1.1 visual parental ainda é parcial. A `SettingsScreen` permanece longa; o dashboard inicial separado ainda não existe; o `BottomNavigationBar` está presente, porém inativo (`onTap` no-op); o PIN tem feedback textual, mas ainda não possui indicadores visuais de quatro dígitos; temas continuam em chips e os previews de cartões/temas ainda não foram concluídos.
 
 O checklist operacional está em `docs/FASE_1_CHECKLIST.md`. Próxima parada: Fase 1.1A — dashboard inicial, contadores/ações rápidas e navegação funcional, com testes de widget e sem reescrever a lógica clínica. Depois seguirá a Fase 1.1B — gate de PIN refinado. A classificação usa `[x]` concluído, `[~]` parcial, `[ ]` pendente e `[?]` não validado.
+
+## Fase 1.1A — Dashboard parental e navegação funcional — 08/10/2026
+
+A prioridade de UX/UI foi concluída. `ParentalDashboardScreen` agora é a entrada da área parental e apresenta resumo, métricas de cartões/alertas, ações rápidas e prioridades. Também foram criadas as superfícies `ParentalTrackingScreen` e `ParentalLocationScreen`; a última não inventa localização e mantém o compartilhamento bloqueado até consentimento e permissões. `SettingsScreen` agora alterna funcionalmente as abas Início, Acompanhamento, Localização e Configurações.
+
+Cobertura adicionada em `test/parental_dashboard_screen_test.dart`. Resultado: 124 testes Flutter aprovados, `flutter analyze` sem issues e `flutter build web --release` concluído. O checklist detalhado está em `docs/FASE_1_CHECKLIST.md`.
+
+Próximo ponto de retomada: Fase 1.1B — gate de PIN visual, com indicadores dos quatro dígitos, estados de primeiro acesso/login/erro/bloqueado e validação de acessibilidade.

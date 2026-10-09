@@ -6,6 +6,7 @@ import '../../../../core/theme/hyperfocus_theme.dart';
 import '../../../../core/services/app_orientation_service.dart';
 import '../../../../core/services/data_wipe_service.dart';
 import '../../../aac_grid/data/providers/cards_provider.dart';
+import '../../../aac_grid/domain/models/pictogram_card.dart';
 import 'add_card_screen.dart';
 import 'behavior_log_screen.dart';
 
@@ -23,6 +24,7 @@ import 'privacy_settings_screen.dart';
 import 'progress_report_screen.dart';
 import 'transition_alerts_list_screen.dart';
 import 'weekly_trends_screen.dart';
+import 'parental_dashboard_screen.dart';
 import '../../../transition_alerts/data/providers/transition_alerts_provider.dart';
 import '../../../aac_grid/presentation/screens/visual_routine_screen.dart';
 
@@ -44,6 +46,8 @@ class SettingsScreen extends ConsumerStatefulWidget {
 }
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
+  int _selectedTab = 0;
+
   Future<void> _deleteAllLocalData() async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -138,7 +142,52 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           const SizedBox(width: 8),
         ],
       ),
-      body: ListView(
+      body: switch (_selectedTab) {
+        0 => ParentalDashboardScreen(
+            onOpenTracking: () => setState(() => _selectedTab = 1),
+            onOpenLocation: () => setState(() => _selectedTab = 2),
+          ),
+        1 => const ParentalTrackingScreen(),
+        2 => ParentalLocationScreen(onConnect: _showLocationRoadmap),
+        _ => _buildSettingsBody(cards, scale, tapBehavior, currentTheme),
+      },
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _selectedTab,
+        type: BottomNavigationBarType.fixed,
+        selectedItemColor: AppTheme.primary,
+        unselectedItemColor: AppTheme.mutedText,
+        onTap: (index) => setState(() => _selectedTab = index),
+        items: const [
+          BottomNavigationBarItem(
+            icon: Icon(Icons.home_outlined),
+            activeIcon: Icon(Icons.home),
+            label: 'Início',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.track_changes_outlined),
+            label: 'Acompanhamento',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.location_on_outlined),
+            label: 'Localização',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.settings_outlined),
+            label: 'Configurações',
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSettingsBody(
+    List<PictogramCard> cards,
+    double scale,
+    CardTapBehavior tapBehavior,
+    HyperfocusTheme currentTheme,
+  ) =>
+      ListView(
+        key: const ValueKey('parental-settings'),
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
         children: [
           const _SettingsHero(),
@@ -177,7 +226,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     try {
                       await ref.read(buttonScaleProvider.notifier).persist();
                     } catch (_) {
-                      if (!context.mounted) return;
+                      if (!mounted) return;
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
                           content: Text(
@@ -538,35 +587,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
           const SizedBox(height: 24),
         ],
-      ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: 0,
-        type: BottomNavigationBarType.fixed,
-        selectedItemColor: AppTheme.primary,
-        unselectedItemColor: AppTheme.mutedText,
-        onTap: (_) {},
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home_outlined),
-            activeIcon: Icon(Icons.home),
-            label: 'Início',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.track_changes_outlined),
-            label: 'Acompanhamento',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.location_on_outlined),
-            label: 'Localização',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.settings_outlined),
-            label: 'Configurações',
-          ),
-        ],
-      ),
-    );
-  }
+      );
 
   void _showLocationRoadmap() {
     showDialog<void>(
