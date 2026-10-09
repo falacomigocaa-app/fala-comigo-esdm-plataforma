@@ -34,27 +34,7 @@ class ParentalDashboardScreen extends ConsumerWidget {
       children: [
         _DashboardWelcome(onOpenLocation: onOpenLocation),
         const SizedBox(height: 16),
-        Row(
-          children: [
-            Expanded(
-              child: _DashboardMetric(
-                icon: Icons.grid_view_rounded,
-                label: 'Cartões',
-                value: '${cards.length}',
-                color: AppTheme.primary,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _DashboardMetric(
-                icon: Icons.alarm_on_outlined,
-                label: 'Alertas ativos',
-                value: '$activeAlerts',
-                color: const Color(0xFFB45309),
-              ),
-            ),
-          ],
-        ),
+        _DashboardMetricsRow(cards: cards.length, activeAlerts: activeAlerts),
         const SizedBox(height: 18),
         const _DashboardSectionTitle(
           eyebrow: 'ACESSO RÁPIDO',
@@ -62,18 +42,19 @@ class ParentalDashboardScreen extends ConsumerWidget {
         ),
         const SizedBox(height: 10),
         _QuickActionGrid(
-          onNewCard: () => Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const AddCardScreen()),
-          ),
-          onRegister: () => Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const BehaviorLogScreen()),
-          ),
+          onNewCard: () => Navigator.of(
+            context,
+          ).push(MaterialPageRoute(builder: (_) => const AddCardScreen())),
+          onRegister: () => Navigator.of(
+            context,
+          ).push(MaterialPageRoute(builder: (_) => const BehaviorLogScreen())),
           onReport: () => Navigator.of(context).push(
             MaterialPageRoute(builder: (_) => const ProgressReportScreen()),
           ),
           onAlerts: () => Navigator.of(context).push(
             MaterialPageRoute(
-                builder: (_) => const TransitionAlertsListScreen()),
+              builder: (_) => const TransitionAlertsListScreen(),
+            ),
           ),
         ),
         const SizedBox(height: 18),
@@ -129,9 +110,9 @@ class ParentalTrackingScreen extends StatelessWidget {
           color: AppTheme.primary,
           title: 'Tendências semanais',
           subtitle: 'Observar padrões nos registros ABC',
-          onTap: () => Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const WeeklyTrendsScreen()),
-          ),
+          onTap: () => Navigator.of(
+            context,
+          ).push(MaterialPageRoute(builder: (_) => const WeeklyTrendsScreen())),
         ),
         _TrackingAction(
           icon: Icons.view_timeline_outlined,
@@ -140,7 +121,8 @@ class ParentalTrackingScreen extends StatelessWidget {
           subtitle: 'Organizar os próximos passos da criança',
           onTap: () => Navigator.of(context).push(
             MaterialPageRoute(
-                builder: (_) => const VisualRoutineScreen(readOnly: false)),
+              builder: (_) => const VisualRoutineScreen(readOnly: false),
+            ),
           ),
         ),
         _TrackingAction(
@@ -148,9 +130,9 @@ class ParentalTrackingScreen extends StatelessWidget {
           color: const Color(0xFFBE123C),
           title: 'Relatórios em PDF',
           subtitle: 'Exportar um resumo para a rede de cuidado',
-          onTap: () => Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const DataExportScreen()),
-          ),
+          onTap: () => Navigator.of(
+            context,
+          ).push(MaterialPageRoute(builder: (_) => const DataExportScreen())),
         ),
         _TrackingAction(
           icon: Icons.alarm_on_outlined,
@@ -159,7 +141,8 @@ class ParentalTrackingScreen extends StatelessWidget {
           subtitle: 'Preparar mudanças com previsibilidade',
           onTap: () => Navigator.of(context).push(
             MaterialPageRoute(
-                builder: (_) => const TransitionAlertsListScreen()),
+              builder: (_) => const TransitionAlertsListScreen(),
+            ),
           ),
         ),
       ],
@@ -194,8 +177,11 @@ class ParentalLocationScreen extends StatelessWidget {
           ),
           child: Column(
             children: [
-              const Icon(Icons.location_disabled_outlined,
-                  size: 48, color: AppTheme.primary),
+              const Icon(
+                Icons.location_disabled_outlined,
+                size: 48,
+                color: AppTheme.primary,
+              ),
               const SizedBox(height: 12),
               const Text(
                 'Nenhuma localização compartilhada',
@@ -235,50 +221,140 @@ class _DashboardWelcome extends StatelessWidget {
         gradient: const LinearGradient(
           colors: [
             AppTheme.professionalBackground,
-            AppTheme.professionalSurface
+            AppTheme.professionalSurface,
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(24),
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Icon(Icons.wb_sunny_outlined,
-              color: AppTheme.professionalAccent, size: 30),
-          const SizedBox(width: 14),
-          const Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('PAINEL DE CUIDADO',
-                    style: TextStyle(
-                        color: AppTheme.professionalAccent,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 1.1)),
-                SizedBox(height: 6),
-                Text('Tudo pronto para acompanhar a criança?',
-                    style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 20,
-                        fontWeight: FontWeight.w800,
-                        height: 1.15)),
-                SizedBox(height: 7),
-                Text(
-                    'Registre momentos importantes e mantenha a rotina previsível.',
-                    style: TextStyle(color: Colors.white70, height: 1.35)),
-              ],
-            ),
-          ),
-          IconButton(
+      child: LayoutBuilder(
+        builder: (_, constraints) {
+          final action = IconButton(
             tooltip: 'Segurança e localização',
             onPressed: onOpenLocation,
+            constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
             icon: const Icon(Icons.chevron_right_rounded, color: Colors.white),
-          ),
-        ],
+          );
+          if (constraints.maxWidth < 360) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.wb_sunny_outlined,
+                      color: AppTheme.professionalAccent,
+                      size: 30,
+                    ),
+                    const Spacer(),
+                    action,
+                  ],
+                ),
+                const SizedBox(height: 10),
+                const _DashboardWelcomeCopy(),
+              ],
+            );
+          }
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(
+                Icons.wb_sunny_outlined,
+                color: AppTheme.professionalAccent,
+                size: 30,
+              ),
+              const SizedBox(width: 14),
+              const Expanded(child: _DashboardWelcomeCopy()),
+              action,
+            ],
+          );
+        },
       ),
+    );
+  }
+}
+
+class _DashboardWelcomeCopy extends StatelessWidget {
+  const _DashboardWelcomeCopy();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'PAINEL DE CUIDADO',
+          style: TextStyle(
+            color: AppTheme.professionalAccent,
+            fontSize: 10,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 1.1,
+          ),
+        ),
+        SizedBox(height: 6),
+        Text(
+          'Tudo pronto para acompanhar a criança?',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 20,
+            fontWeight: FontWeight.w800,
+            height: 1.15,
+          ),
+        ),
+        SizedBox(height: 7),
+        Text(
+          'Registre momentos importantes e mantenha a rotina previsível.',
+          style: TextStyle(color: Colors.white70, height: 1.35),
+        ),
+      ],
+    );
+  }
+}
+
+class _DashboardMetricsRow extends StatelessWidget {
+  final int cards;
+  final int activeAlerts;
+
+  const _DashboardMetricsRow({required this.cards, required this.activeAlerts});
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (_, constraints) {
+        final metrics = [
+          _DashboardMetric(
+            icon: Icons.grid_view_rounded,
+            label: 'Cartões',
+            value: '$cards',
+            color: AppTheme.primary,
+          ),
+          _DashboardMetric(
+            icon: Icons.alarm_on_outlined,
+            label: 'Alertas ativos',
+            value: '$activeAlerts',
+            color: const Color(0xFFB45309),
+          ),
+        ];
+        if (constraints.maxWidth < 360) {
+          return Column(
+            children: [
+              for (var index = 0; index < metrics.length; index++) ...[
+                SizedBox(width: double.infinity, child: metrics[index]),
+                if (index < metrics.length - 1) const SizedBox(height: 10),
+              ],
+            ],
+          );
+        }
+        return Row(
+          children: [
+            for (var index = 0; index < metrics.length; index++) ...[
+              Expanded(child: metrics[index]),
+              if (index < metrics.length - 1) const SizedBox(width: 10),
+            ],
+          ],
+        );
+      },
     );
   }
 }
@@ -289,35 +365,47 @@ class _DashboardMetric extends StatelessWidget {
   final String value;
   final Color color;
 
-  const _DashboardMetric(
-      {required this.icon,
-      required this.label,
-      required this.value,
-      required this.color});
+  const _DashboardMetric({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.color,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(15),
       decoration: BoxDecoration(
-          color: AppTheme.surface,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: AppTheme.cardBorder)),
+        color: AppTheme.surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppTheme.cardBorder),
+      ),
       child: Row(
         children: [
           Icon(icon, color: color, size: 25),
           const SizedBox(width: 10),
           Expanded(
-              child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                Text(value,
-                    style: const TextStyle(
-                        fontSize: 22, fontWeight: FontWeight.w800)),
-                Text(label,
-                    style: const TextStyle(
-                        color: AppTheme.mutedText, fontSize: 12))
-              ])),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                Text(
+                  label,
+                  style: const TextStyle(
+                    color: AppTheme.mutedText,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -329,30 +417,44 @@ class _DashboardSectionTitle extends StatelessWidget {
   final String title;
   final String? description;
 
-  const _DashboardSectionTitle(
-      {required this.eyebrow, required this.title, this.description});
+  const _DashboardSectionTitle({
+    required this.eyebrow,
+    required this.title,
+    this.description,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text(eyebrow,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          eyebrow,
           style: const TextStyle(
-              color: AppTheme.primary,
-              fontSize: 10,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 1.05)),
-      const SizedBox(height: 4),
-      Text(title,
+            color: AppTheme.primary,
+            fontSize: 10,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 1.05,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          title,
           style: const TextStyle(
-              fontSize: 21,
-              fontWeight: FontWeight.w800,
-              color: AppTheme.textDark)),
-      if (description != null) ...[
-        const SizedBox(height: 5),
-        Text(description!,
-            style: const TextStyle(color: AppTheme.mutedText, height: 1.35))
+            fontSize: 21,
+            fontWeight: FontWeight.w800,
+            color: AppTheme.textDark,
+          ),
+        ),
+        if (description != null) ...[
+          const SizedBox(height: 5),
+          Text(
+            description!,
+            style: const TextStyle(color: AppTheme.mutedText, height: 1.35),
+          ),
+        ],
       ],
-    ]);
+    );
   }
 }
 
@@ -362,11 +464,12 @@ class _QuickActionGrid extends StatelessWidget {
   final VoidCallback onReport;
   final VoidCallback onAlerts;
 
-  const _QuickActionGrid(
-      {required this.onNewCard,
-      required this.onRegister,
-      required this.onReport,
-      required this.onAlerts});
+  const _QuickActionGrid({
+    required this.onNewCard,
+    required this.onRegister,
+    required this.onReport,
+    required this.onAlerts,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -376,30 +479,35 @@ class _QuickActionGrid extends StatelessWidget {
         Icons.fact_check_outlined,
         'Novo registro',
         onRegister,
-        const Color(0xFF15803D)
+        const Color(0xFF15803D),
       ),
       (
         Icons.picture_as_pdf_outlined,
         'Relatório',
         onReport,
-        const Color(0xFFBE123C)
+        const Color(0xFFBE123C),
       ),
       (Icons.alarm_on_outlined, 'Alertas', onAlerts, const Color(0xFFB45309)),
     ];
-    return GridView.count(
-      crossAxisCount: 2,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      crossAxisSpacing: 10,
-      mainAxisSpacing: 10,
-      childAspectRatio: 2.7,
-      children: actions
-          .map((action) => _QuickAction(
-              icon: action.$1,
-              label: action.$2,
-              onTap: action.$3,
-              color: action.$4))
-          .toList(),
+    return LayoutBuilder(
+      builder: (_, constraints) => GridView.count(
+        crossAxisCount: 2,
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        crossAxisSpacing: 10,
+        mainAxisSpacing: 10,
+        childAspectRatio: constraints.maxWidth < 360 ? 2.15 : 2.7,
+        children: actions
+            .map(
+              (action) => _QuickAction(
+                icon: action.$1,
+                label: action.$2,
+                onTap: action.$3,
+                color: action.$4,
+              ),
+            )
+            .toList(),
+      ),
     );
   }
 }
@@ -410,25 +518,29 @@ class _QuickAction extends StatelessWidget {
   final VoidCallback onTap;
   final Color color;
 
-  const _QuickAction(
-      {required this.icon,
-      required this.label,
-      required this.onTap,
-      required this.color});
+  const _QuickAction({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    required this.color,
+  });
 
   @override
   Widget build(BuildContext context) {
     return OutlinedButton.icon(
-        onPressed: onTap,
-        icon: Icon(icon, color: color, size: 20),
-        label: Text(label,
-            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
-        style: OutlinedButton.styleFrom(
-            alignment: Alignment.centerLeft,
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            side: BorderSide(color: color.withValues(alpha: 0.25)),
-            shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(15))));
+      onPressed: onTap,
+      icon: Icon(icon, color: color, size: 20),
+      label: Text(
+        label,
+        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+      ),
+      style: OutlinedButton.styleFrom(
+        alignment: Alignment.centerLeft,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        side: BorderSide(color: color.withValues(alpha: 0.25)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+      ),
+    );
   }
 }
 
@@ -440,42 +552,56 @@ class _DashboardPriorityCard extends StatelessWidget {
   final String actionLabel;
   final VoidCallback onTap;
 
-  const _DashboardPriorityCard(
-      {required this.icon,
-      required this.color,
-      required this.title,
-      required this.description,
-      required this.actionLabel,
-      required this.onTap});
+  const _DashboardPriorityCard({
+    required this.icon,
+    required this.color,
+    required this.title,
+    required this.description,
+    required this.actionLabel,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.07),
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: color.withValues(alpha: 0.2))),
-        child: Row(children: [
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
+      ),
+      child: Row(
+        children: [
           Icon(icon, color: color, size: 28),
           const SizedBox(width: 12),
           Expanded(
-              child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                Text(title,
-                    style: const TextStyle(fontWeight: FontWeight.w800)),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(fontWeight: FontWeight.w800),
+                ),
                 const SizedBox(height: 4),
-                Text(description,
-                    style: const TextStyle(
-                        color: AppTheme.mutedText, fontSize: 12, height: 1.3)),
+                Text(
+                  description,
+                  style: const TextStyle(
+                    color: AppTheme.mutedText,
+                    fontSize: 12,
+                    height: 1.3,
+                  ),
+                ),
                 const SizedBox(height: 8),
                 Align(
-                    alignment: Alignment.centerLeft,
-                    child:
-                        TextButton(onPressed: onTap, child: Text(actionLabel)))
-              ]))
-        ]));
+                  alignment: Alignment.centerLeft,
+                  child: TextButton(onPressed: onTap, child: Text(actionLabel)),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -485,28 +611,41 @@ class _DashboardOverviewCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-            color: AppTheme.surface,
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: AppTheme.cardBorder)),
-        child: const Column(children: [
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppTheme.surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppTheme.cardBorder),
+      ),
+      child: const Column(
+        children: [
           ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading:
-                  Icon(Icons.check_circle_outline, color: AppTheme.accentGreen),
-              title: Text('Área parental protegida',
-                  style: TextStyle(fontWeight: FontWeight.w700)),
-              subtitle: Text('Sessão local autenticada neste aparelho.')),
+            contentPadding: EdgeInsets.zero,
+            leading: Icon(
+              Icons.check_circle_outline,
+              color: AppTheme.accentGreen,
+            ),
+            title: Text(
+              'Área parental protegida',
+              style: TextStyle(fontWeight: FontWeight.w700),
+            ),
+            subtitle: Text('Sessão local autenticada neste aparelho.'),
+          ),
           Divider(height: 4),
           ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: Icon(Icons.insights_outlined, color: AppTheme.primary),
-              title: Text('Acompanhamento disponível',
-                  style: TextStyle(fontWeight: FontWeight.w700)),
-              subtitle: Text(
-                  'Registros, rotina e relatórios ficam acessíveis pelas ações rápidas.'))
-        ]));
+            contentPadding: EdgeInsets.zero,
+            leading: Icon(Icons.insights_outlined, color: AppTheme.primary),
+            title: Text(
+              'Acompanhamento disponível',
+              style: TextStyle(fontWeight: FontWeight.w700),
+            ),
+            subtitle: Text(
+              'Registros, rotina e relatórios ficam acessíveis pelas ações rápidas.',
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -517,29 +656,31 @@ class _TrackingAction extends StatelessWidget {
   final String subtitle;
   final VoidCallback onTap;
 
-  const _TrackingAction(
-      {required this.icon,
-      required this.color,
-      required this.title,
-      required this.subtitle,
-      required this.onTap});
+  const _TrackingAction({
+    required this.icon,
+    required this.color,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Card(
-        margin: const EdgeInsets.only(bottom: 10),
-        elevation: 0,
-        shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
-            side: const BorderSide(color: AppTheme.cardBorder)),
-        child: ListTile(
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
-            leading: Icon(icon, color: color, size: 28),
-            title: Text(title,
-                style: const TextStyle(fontWeight: FontWeight.w800)),
-            subtitle: Text(subtitle),
-            trailing: const Icon(Icons.chevron_right_rounded),
-            onTap: onTap));
+      margin: const EdgeInsets.only(bottom: 10),
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(18),
+        side: const BorderSide(color: AppTheme.cardBorder),
+      ),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
+        leading: Icon(icon, color: color, size: 28),
+        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
+        subtitle: Text(subtitle),
+        trailing: const Icon(Icons.chevron_right_rounded),
+        onTap: onTap,
+      ),
+    );
   }
 }

@@ -135,6 +135,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         actions: [
           IconButton.filledTonal(
             tooltip: 'Novo cartão',
+            constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
             onPressed: () => Navigator.of(
               context,
             ).push(MaterialPageRoute(builder: (_) => const AddCardScreen())),
@@ -324,20 +325,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   style: TextStyle(fontSize: 13, color: AppTheme.mutedText),
                 ),
                 const SizedBox(height: 8),
-                SegmentedButton<ChildOrientation>(
-                  segments: ChildOrientation.values
-                      .map(
-                        (orientation) => ButtonSegment<ChildOrientation>(
-                          value: orientation,
-                          icon: Text(childOrientationIcon(orientation)),
-                          label: Text(childOrientationLabel(orientation)),
-                        ),
-                      )
-                      .toList(),
-                  selected: {ref.watch(childOrientationProvider)},
-                  onSelectionChanged: (selection) => ref
+                _ChildOrientationSelector(
+                  selected: ref.watch(childOrientationProvider),
+                  onChanged: (orientation) => ref
                       .read(childOrientationProvider.notifier)
-                      .setOrientation(selection.first),
+                      .setOrientation(orientation),
                 ),
               ],
             ),
@@ -607,6 +599,79 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             child: const Text('Entendi'),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ChildOrientationSelector extends StatelessWidget {
+  final ChildOrientation selected;
+  final ValueChanged<ChildOrientation> onChanged;
+
+  const _ChildOrientationSelector({
+    required this.selected,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (_, constraints) {
+        const options = ChildOrientation.values;
+        if (constraints.maxWidth < 360) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (var index = 0; index < options.length; index++) ...[
+                _buildCompactOption(options[index]),
+                if (index < options.length - 1) const SizedBox(height: 8),
+              ],
+            ],
+          );
+        }
+
+        return SegmentedButton<ChildOrientation>(
+          segments: options
+              .map(
+                (orientation) => ButtonSegment<ChildOrientation>(
+                  value: orientation,
+                  icon: Text(childOrientationIcon(orientation)),
+                  label: Text(childOrientationLabel(orientation)),
+                ),
+              )
+              .toList(),
+          selected: {selected},
+          onSelectionChanged: (selection) {
+            if (selection.isNotEmpty) onChanged(selection.first);
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildCompactOption(ChildOrientation orientation) {
+    final isSelected = orientation == selected;
+    final label = childOrientationLabel(orientation);
+    final icon = Text(childOrientationIcon(orientation));
+    final button = isSelected
+        ? FilledButton.icon(
+            onPressed: () => onChanged(orientation),
+            icon: icon,
+            label: Text(label),
+          )
+        : OutlinedButton.icon(
+            onPressed: () => onChanged(orientation),
+            icon: icon,
+            label: Text(label),
+          );
+
+    return Semantics(
+      button: true,
+      selected: isSelected,
+      label: 'Orientação $label',
+      child: SizedBox(
+        width: double.infinity,
+        child: button,
       ),
     );
   }
