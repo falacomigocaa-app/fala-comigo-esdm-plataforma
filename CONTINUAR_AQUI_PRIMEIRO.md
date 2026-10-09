@@ -140,3 +140,9 @@ O workflow PostgreSQL do commit do P1 revelou uma corrida determinística entre 
 ## Correção de sobrescrita do GitHub Pages — 08/10/2026
 
 A auditoria pós-publicação encontrou dois workflows usando o mesmo ambiente Pages. `static.yml` publicava o repositório inteiro e sobrescrevia o artefato oficial, causando 404 na raiz e em `/app/`. O workflow duplicado foi removido; `site-pages.yml` permanece como única fonte de deploy, preparando `site/` na raiz e o Flutter Web em `/app/`, e agora reage explicitamente à remoção do workflow antigo. Será validado no próximo deploy.
+
+## Auditoria da Fase 1 do comando de produção — 08/10/2026
+
+O documento `Comandofinalfalacomigo1.1.pdf` foi confrontado com o estado real da branch. A Fase 1.1 de UX/UI parental ainda não está concluída: a área já tem paleta profissional, cards/seções, feedback básico no PIN e várias funcionalidades parentais, mas continua entrando em uma `SettingsScreen` longa; o `BottomNavigationBar` ainda usa `currentIndex: 0` e `onTap: (_) {}`; não há dashboard inicial separado; os temas ainda são `ChoiceChip` e faltam miniaturas/preview em tempo real. O gate já diferencia primeiro acesso/login/erro e lockout textualmente, mas falta a representação visual dos quatro dígitos e o estado bloqueado refinado.
+
+Foi criado o checklist versionado em `docs/FASE_1_CHECKLIST.md`, com `[x]` concluído, `[~]` parcial, `[ ]` pendente e `[?]` não validado. O próximo ponto exato é a Fase 1.1A: implementar dashboard parental e navegação funcional, com testes de widget, sem alterar stores ou contratos clínicos. A Fase 1.1B será o refinamento visual do gate de PIN. Não declarar a Fase 1 como concluída antes de validar os itens pendentes do checklist.

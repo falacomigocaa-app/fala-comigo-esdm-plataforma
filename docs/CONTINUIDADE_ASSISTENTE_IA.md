@@ -143,3 +143,9 @@ O CI identificou uma corrida somente no modo PostgreSQL entre o teste de login e
 ## Correção de sobrescrita do GitHub Pages — 08/10/2026
 
 Havia dois deploys concorrentes no mesmo Pages: o workflow estático publicava `.` e podia sobrescrever o payload correto. `static.yml` foi removido e `site-pages.yml` ficou como workflow único, com o artefato combinado do site institucional e do app Web. A alteração será confirmada pelo novo deploy.
+
+## Auditoria da Fase 1 do comando de produção — 08/10/2026
+
+O PDF `Comandofinalfalacomigo1.1.pdf` foi comparado ao código atual. O backend, E2EE, CI, autenticação e hardening de sessão estão validados, mas a Fase 1.1 visual parental ainda é parcial. A `SettingsScreen` permanece longa; o dashboard inicial separado ainda não existe; o `BottomNavigationBar` está presente, porém inativo (`onTap` no-op); o PIN tem feedback textual, mas ainda não possui indicadores visuais de quatro dígitos; temas continuam em chips e os previews de cartões/temas ainda não foram concluídos.
+
+O checklist operacional está em `docs/FASE_1_CHECKLIST.md`. Próxima parada: Fase 1.1A — dashboard inicial, contadores/ações rápidas e navegação funcional, com testes de widget e sem reescrever a lógica clínica. Depois seguirá a Fase 1.1B — gate de PIN refinado. A classificação usa `[x]` concluído, `[~]` parcial, `[ ]` pendente e `[?]` não validado.
