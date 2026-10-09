@@ -19,13 +19,17 @@ class TransitionAlertAudioService {
   final AudioPlayer _player = AudioPlayer();
 
   Future<void> play(TransitionAlert alert) async {
+    // O bip é obrigatório: não depende do tipo de mensagem nem de um áudio
+    // gravado que possa ter sido removido do aparelho.
+    await _playAlarmTone();
+
     if (alert.audioType == 'gravado' && alert.recordedAudioPath != null) {
       final played = await _playRecorded(alert.recordedAudioPath!);
       if (played) return;
     }
 
-    final text = alert.ttsText?.trim();
-    if (text != null && text.isNotEmpty) {
+    final text = alert.effectiveMessageText;
+    if (text.isNotEmpty) {
       try {
         await TtsService.instance.speak(text);
         return;
@@ -38,6 +42,24 @@ class TransitionAlertAudioService {
       await SystemSound.play(SystemSoundType.alert);
     } catch (_) {
       // Algumas plataformas não expõem o canal de som do sistema.
+    }
+  }
+
+  Future<void> _playAlarmTone() async {
+    try {
+      await _player.stop();
+      final completed = _player.onPlayerComplete.first;
+      await _player.play(
+        AssetSource('sounds/transition_alarm.wav'),
+        volume: 1.0,
+      );
+      await completed;
+    } catch (_) {
+      try {
+        await SystemSound.play(SystemSoundType.alert);
+      } catch (_) {
+        // A mensagem ainda será tentada em seguida.
+      }
     }
   }
 

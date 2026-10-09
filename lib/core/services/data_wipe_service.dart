@@ -32,6 +32,7 @@ class DataWipeService {
     'shared_tasks',
     'shared_task_sync_queue',
     'sync_queue_box',
+    'transition_alerts_sync_queue',
     'esdm_goals_box',
     'communication_profile',
     'communication_plans',
@@ -85,6 +86,7 @@ class DataWipeService {
     await SecureBoxService.openSecureBox('shared_tasks');
     await SecureBoxService.openSecureBox('shared_task_sync_queue');
     await SecureBoxService.openSecureBox('sync_queue_box');
+    await SecureBoxService.openSecureBox('transition_alerts_sync_queue');
     await SecureBoxService.openSecureBox('esdm_goals_box');
     await SecureBoxService.openSecureBox('communication_profile');
     await SecureBoxService.openSecureBox('communication_plans');

@@ -178,3 +178,58 @@ A branch `feat/parental-responsive-accessibility` (commit `25464cf`) fecha a imp
 Evidência local: Flutter 3.38.0/Dart 3.10.0, formatter limpo, analyzer sem issues, 132 testes Flutter aprovados e build Web release concluído. Evidência remota: workflows Flutter (`37879819678`) e PostgreSQL (`37879819723`) verdes. O build Web registrou apenas os avisos conhecidos do dry-run Wasm de dependências externas, sem falha do alvo JavaScript.
 
 Pendente: matriz manual em aparelhos Android/iOS, contraste percebido e escala de texto ampliada, rotação, leitor de tela e touch targets físicos. Não marcar a Fase 1 completa antes desse gate.
+
+
+## Prioridade 1 — Alertas de transição — núcleo local — 09/10/2026
+
+A branch `feat/transition-alerts-reliability` contém o commit `e5b40de`. O contrato de `TransitionAlert` foi expandido com compatibilidade Hive legada; o editor passou a suportar descrição, antecedência e estado ativo; a lista permite pausar/reativar; e a tela em tela cheia oferece “Não me perturbe por 5 minutos”. O serviço aplica `timezone`, antecedência semanal, canais por alerta, som/vibração e payload de abertura.
+
+Evidência: `flutter analyze --no-fatal-infos --no-fatal-warnings` sem issues, `flutter test` com 135 testes aprovados e `flutter build web --release` aprovado. `flutter build apk --debug` foi bloqueado somente pela ausência do Android SDK nesta sandbox. A solução deliberadamente usa alarmes nativos do `flutter_local_notifications` e receivers de boot; não afirmar que WorkManager ou sincronização remota já estejam implementados.
+
+Pendências obrigatórias antes de chamar P1 de concluída: sincronização offline-first dos alertas com portal-api, reconciliação em background sem duplicidade, testes físicos de app fechado/background/reboot/DND/bateria/permissões e confirmação de áudio/vibração em Android/iOS. Também manter a regra de que a comunicação básica continua local e não depende de conta ou plano.
+
+
+## Sincronização offline-first de alertas validada localmente — 09/10/2026
+Foi implementada a ponte opcional entre alertas locais e `portal-api`. No Mobile, `TransitionAlertSyncService` usa `transition_alerts_sync_queue` cifrada, mantém o conteúdo local offline, envia upserts/exclusões idempotentes, preserva operações em 401/erro de rede e registra `syncState=conflict` em 409. O bootstrap dispara reconciliação sem bloquear o primeiro uso; `DataWipeService` inclui a fila. O payload remoto é sanitizado antes do POST: `recordedAudioPath`, `audioUrl`, `syncState`, `syncError` e `remoteVersion` ficam fora da transmissão.
+
+No backend, a migration `006_transition_alerts.sql` cria a sombra por `(subject_id, alert_id)`, com payload limitado e `client_updated_at`. Foram adicionados `GET/POST/DELETE /v1/subjects/{subjectId}/transition-alerts`, escopo `routine.write`, isolamento por organização/sujeito, idempotência e `VERSION_CONFLICT` para versões antigas. Testes server-side cobrem autorização, tenant, idempotência, conflito, remoção e ausência de caminho de áudio no retorno.
+
+Evidências: Flutter 3.38.0 — formatter limpo, analyzer sem issues, 135 testes e Web release aprovados; portal-api — 40 testes aprovados e 1 integração PostgreSQL condicionalmente pulada por indisponibilidade local. O build Web emitiu somente avisos conhecidos do dry-run Wasm de dependências externas. Próximo gate: CI PostgreSQL com a migration 006, teste Flutter específico da fila e validação física de background/reboot/DND/permissões. Nenhum dado real deve ser usado.
+
+
+## P1 — cobertura determinística da fila de alertas — 09/10/2026
+A suíte `test/transition_alert_sync_service_test.dart` foi adicionada com Hive cifrado e MethodChannel de secure storage sintéticos. Os quatro cenários aprovados são: offline mantém operação na fila; HTTP 401 preserva a operação e dispara reautenticação; HTTP 409 marca o alerta local como `conflict` e remove somente a tentativa da fila; POST bem-sucedido não transmite `recordedAudioPath`, `audioUrl`, `syncState` ou outros metadados internos e executa pull posterior. Teste isolado: **4 aprovados**. Próximo passo: suíte Flutter completa, CI remoto e validação física Android/iOS; não usar dados reais.
+
+
+## P1 — reconciliação reativa sem duplicar alarmes — 09/10/2026
+A fila de alertas ganhou monitor de conectividade (`connectivity_plus`) e retry periódico de um minuto, seguindo o padrão já validado da fila de coletas. `start()` é idempotente, `dispose()` cancela listener/timer, e `_isSyncing` impede reconciliações concorrentes. O bootstrap inicia o monitor e o login dispara `syncPending()` depois de persistir a sessão. Não foi adicionado WorkManager neste ponto: a agenda nativa de `flutter_local_notifications` continua responsável pelos alarmes e um worker adicional exigiria validação específica de isolate, Hive cifrado e deduplicação.
+
+Evidência local: formatter limpo, analyzer sem issues, **139 testes Flutter aprovados** e build Web release aprovado. Persistem apenas avisos conhecidos do dry-run Wasm em dependências externas. Próximo gate: CI remoto do commit e validação física em Android/iOS; nenhum dado real deve ser usado.
+
+
+## Gate físico de alertas preparado — 09/10/2026
+Após a reconciliação reativa, os workflows remotos Flutter `37914547248` e PostgreSQL `37914547126` passaram no commit `fec37e5`. A próxima prioridade é física, não mais automatizável nesta sandbox: foi criado `docs/ROTEIRO_VALIDACAO_FISICA_ALERTAS.md` com cenários sintéticos de notificações permitidas/negadas, alarme exato, background, app encerrado, reboot, DND, bateria, áudio, vibração, wipe e acessibilidade em escala, TalkBack/VoiceOver, contraste e rotação. A matriz não foi executada por ausência de aparelhos e Android SDK; isso permanece explicitamente pendente. Nenhum dado real deve ser usado.
+
+
+## Correção de reconciliação local — 09/10/2026
+O serviço `TransitionAlertSyncService` agora chama `_markSynced` quando um upsert remoto retorna sucesso. O registro local é atualizado para `syncState=synced` e `syncError=null` antes da remoção da operação da fila, impedindo que `_mergeRemote` continue ignorando um alerta sincronizado como se ainda estivesse pendente. O teste de sanitização também verifica esse estado.
+
+Evidência: 4 testes específicos, 139 testes Flutter completos, analyzer e build Web release aprovados. Avisos do dry-run Wasm permanecem somente em dependências externas. Nenhum dado real foi usado.
+
+
+## Compactação da fila de alertas — 09/10/2026
+`enqueueUpsert` e `enqueueDelete` agora removem operações anteriores do mesmo sujeito e alerta antes de gravar o comando novo. O teste cobre a sequência offline upsert → delete → upsert e confirma que sempre resta apenas a intenção mais recente. Isso evita que exclusões e reedições locais carreguem comandos antigos concorrentes para a sincronização remota.
+
+Evidência: 5 testes específicos, 140 testes Flutter completos, analyzer e build Web release aprovados. Nenhum dado real foi usado.
+
+
+## Isolamento da fila por sujeito — 09/10/2026
+A cobertura de sincronização agora verifica que `syncPending(subjectId: subject-a)` envia apenas operações e pull para `subject-a`, preservando intacta a operação pendente de `subject-b`. Isso protege o limite entre sujeitos mesmo quando a fila local contém comandos de mais de um sujeito.
+
+Evidência: 6 testes específicos, 141 testes Flutter completos, analyzer e build Web release aprovados. Nenhum dado real foi usado.
+
+
+## Retenção em falha de transporte — 09/10/2026
+A cobertura da fila passou a verificar HTTP 503 seguido de recuperação e exceção de transporte. Em ambos os casos a operação permanece disponível para retry; no cenário 503, uma segunda sincronização após a recuperação conclui e remove a operação. O contrato local-first não depende de o portal estar online.
+
+Evidência: 8 testes específicos, 143 testes Flutter completos, analyzer e build Web release aprovados. Nenhum dado real foi usado.

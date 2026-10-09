@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -5,11 +7,13 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:path_provider/path_provider.dart';
 
 import 'core/services/media_storage_service.dart';
+import 'core/services/auth_token_service.dart';
 import 'core/services/transition_alert_service.dart';
 import 'core/services/app_orientation_service.dart';
 import 'core/services/secure_box_service.dart';
 import 'core/services/parental_session_service.dart';
 import 'core/services/tts_service.dart';
+import 'core/services/location_sync_service.dart';
 import 'core/theme/app_theme.dart';
 import 'features/aac_grid/data/providers/cards_provider.dart';
 import 'features/aac_grid/data/providers/seed_cards.dart';
@@ -29,6 +33,7 @@ import 'features/onboarding/presentation/screens/splash_screen.dart';
 import 'features/parental_area/presentation/screens/parental_gate_screen.dart';
 import 'features/transition_alerts/data/providers/transition_alerts_provider.dart';
 import 'features/transition_alerts/domain/models/transition_alert.dart';
+import 'features/transition_alerts/domain/services/transition_alert_sync_service.dart';
 import 'features/transition_alerts/presentation/screens/transition_alert_full_screen.dart';
 
 final navigatorKey = GlobalKey<NavigatorState>();
@@ -39,6 +44,7 @@ Future<void> main() async {
 }
 
 Future<void> _bootstrap() async {
+  AuthTokenService.autoRefreshEnabled = true;
   if (!kIsWeb) {
     final documentsDirectory = await getApplicationDocumentsDirectory();
     SecureBoxService.configureHiveDirectory(documentsDirectory.path);
@@ -75,6 +81,8 @@ Future<void> _bootstrap() async {
     // A preferência visual não pode impedir o primeiro uso.
   }
   await SecureBoxService.openSecureBox(transitionAlertsBoxName);
+  await SecureBoxService.openSecureBox<dynamic>(transitionAlertSyncBoxName);
+  await SecureBoxService.openSecureBox<dynamic>(locationSyncBoxName);
 
   if (box.isEmpty) {
     for (final card in SeedCards.defaultCards()) {
@@ -84,6 +92,8 @@ Future<void> _bootstrap() async {
 
   _configureAlertHandler();
   SyncQueueService.start();
+  TransitionAlertSyncService.start();
+  unawaited(TransitionAlertSyncService.syncPending());
 }
 
 void _configureAlertHandler() {

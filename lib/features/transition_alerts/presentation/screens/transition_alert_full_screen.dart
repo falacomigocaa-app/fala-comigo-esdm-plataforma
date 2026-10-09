@@ -3,8 +3,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/theme/hyperfocus_theme.dart';
 import '../../../../core/services/transition_alert_audio_service.dart';
+import '../../../../core/services/transition_alert_service.dart';
+import '../../../../core/theme/hyperfocus_theme.dart';
 import '../../domain/models/transition_alert.dart';
 import 'transition_checklist_screen.dart';
 
@@ -26,23 +27,26 @@ class _TransitionAlertFullScreenState
     extends ConsumerState<TransitionAlertFullScreen> {
   late int _remainingSeconds;
   Timer? _timer;
+  bool _audioComplete = false;
 
   @override
   void initState() {
     super.initState();
     _remainingSeconds = widget.alert.countdownSeconds;
     _playAudio();
+  }
+
+  Future<void> _playAudio() async {
+    await TransitionAlertAudioService.instance.play(widget.alert);
+    if (!mounted) return;
+    setState(() => _audioComplete = true);
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (_remainingSeconds <= 0) {
         timer.cancel();
         return;
       }
-      setState(() => _remainingSeconds--);
+      if (mounted) setState(() => _remainingSeconds--);
     });
-  }
-
-  Future<void> _playAudio() async {
-    await TransitionAlertAudioService.instance.play(widget.alert);
   }
 
   @override
@@ -112,14 +116,16 @@ class _TransitionAlertFullScreenState
                 ),
                 const SizedBox(height: 48),
                 ElevatedButton(
-                  onPressed: () {
-                    Navigator.of(context).pushReplacement(
-                      MaterialPageRoute(
-                        builder: (_) =>
-                            TransitionChecklistScreen(alert: widget.alert),
-                      ),
-                    );
-                  },
+                  onPressed: _audioComplete
+                      ? () {
+                          Navigator.of(context).pushReplacement(
+                            MaterialPageRoute(
+                              builder: (_) => TransitionChecklistScreen(
+                                  alert: widget.alert),
+                            ),
+                          );
+                        }
+                      : null,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.white,
                     foregroundColor: color,
@@ -132,7 +138,31 @@ class _TransitionAlertFullScreenState
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                  child: const Text('Vamos lá! 👉'),
+                  child: Text(
+                      _audioComplete ? 'Vamos lá! 👉' : 'Ouça a mensagem…'),
+                ),
+                const SizedBox(height: 12),
+                TextButton(
+                  onPressed: _audioComplete
+                      ? () async {
+                          try {
+                            await TransitionAlertService.instance
+                                .snoozeForFiveMinutes(widget.alert);
+                            if (context.mounted) Navigator.of(context).pop();
+                          } catch (_) {
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content:
+                                      Text('Não foi possível adiar o alerta.'),
+                                ),
+                              );
+                            }
+                          }
+                        }
+                      : null,
+                  style: TextButton.styleFrom(foregroundColor: Colors.white),
+                  child: const Text('Não me perturbe por 5 minutos'),
                 ),
               ],
             ),

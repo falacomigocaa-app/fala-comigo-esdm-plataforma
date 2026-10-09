@@ -54,7 +54,9 @@ class ChildOrientationNotifier extends StateNotifier<ChildOrientation> {
     final box = Hive.box(_boxName);
     await box.put(_key, orientation.name);
     state = orientation;
-    await AppOrientationService.applyChildOrientation();
+    // A escolha pertence à tela principal da criança. A área parental fica
+    // livre para retrato/paisagem enquanto o responsável configura; o
+    // SettingsScreen reaplica a preferência ao sair para a comunicação.
   }
 }
 

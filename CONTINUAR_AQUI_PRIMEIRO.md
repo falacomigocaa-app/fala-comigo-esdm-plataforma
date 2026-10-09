@@ -177,3 +177,62 @@ A branch `feat/parental-responsive-accessibility` implementou layout adaptativo 
 Validação local com Flutter 3.38.0/Dart 3.10.0: formatter sem alterações, `flutter analyze --no-fatal-infos --no-fatal-warnings` sem issues, `flutter test` com 132 testes aprovados e `flutter build web --release` concluído. O commit `25464cf` também passou nos workflows [Flutter quality checks](https://github.com/falacomigocaa-app/fala-comigo-esdm-plataforma/actions/runs/37879819678) e [Backend PostgreSQL integration](https://github.com/falacomigocaa-app/fala-comigo-esdm-plataforma/actions/runs/37879819723).
 
 A validação manual em aparelhos Android/iOS, leitor de tela, contraste percebido, escala de texto ampliada e rotação continua pendente; a Fase 1 não deve ser declarada totalmente concluída por causa desse gate físico.
+
+
+## Prioridade 1 — Alertas de transição — 09/10/2026
+
+Na branch `feat/transition-alerts-reliability`, o commit `e5b40de` endurece o núcleo local dos alertas: modelo Hive compatível com dados legados e campos de produto, edição de descrição/antecedência/estado, ativação/pausa individual, cálculo semanal com timezone, som/vibração por alerta e adiamento de cinco minutos. A tela de transição abre pelo payload da notificação e o áudio usa `messageText` com fallback para `ttsText`.
+
+A solução atual usa `flutter_local_notifications` com `AndroidScheduleMode.alarmClock`, `timezone`, permissões/receivers Android e resiliência a Web sem notificações nativas. Validação local: analyzer sem issues, 135 testes Flutter aprovados e Web release concluído. O APK debug não pôde ser construído nesta sandbox porque não há Android SDK.
+
+Ainda não declarar a Prioridade 1 completa: faltam sincronização de alertas com backend, uma política de reconciliação em background (avaliar WorkManager sem duplicar alarmes nativos), e validação física com app fechado, background, reinicialização, DND, bateria baixa, permissões, som e vibração. O próximo passo seguro é pushar a branch, aguardar CI Flutter/PostgreSQL/Pages e então preparar o roteiro de teste em Android real.
+
+
+## Prioridade 1 — sincronização offline-first de alertas — 09/10/2026
+A branch `feat/transition-alerts-reliability` avançou com a fila cifrada `transition_alerts_sync_queue` e o `TransitionAlertSyncService`. Alertas locais continuam funcionando sem conta ou rede; alterações e exclusões são enfileiradas, operações usam `x-request-id`, 401 preserva a fila e solicita autenticação, e 409 marca `syncState=conflict` sem sobrescrever silenciosamente. O bootstrap inicia a reconciliação em background e o wipe remove a fila.
+
+O `portal-api` ganhou a migration `006_transition_alerts.sql`, os endpoints `GET/POST/DELETE /v1/subjects/{subjectId}/transition-alerts`, escopo `routine.write`, persistência memory/PostgreSQL, validação de payload e controle de versão. Caminhos locais de áudio, URLs locais e metadados da fila não são enviados ao servidor. O backend não descriptografa nem inventa mídia remota.
+
+Validação desta etapa: `flutter analyze --no-fatal-infos --no-fatal-warnings` sem issues; `flutter test` com 135 testes aprovados; `flutter build web --release` aprovado com apenas avisos conhecidos do dry-run Wasm em dependências externas; `portal-api npm test` com 40 aprovados e 1 teste PostgreSQL condicional pulado. Próximos gates: validar migration/endpoints com PostgreSQL no CI, adicionar cobertura Flutter específica da fila, e testar reconciliação em dispositivo real com app fechado/background e permissões de notificação. A branch permanece em PR #2, empilhada sobre a responsividade parental.
+
+
+## Prioridade 1 — testes da fila offline-first de alertas — 09/10/2026
+Foi adicionada a suíte `test/transition_alert_sync_service_test.dart`, usando Hive cifrado e armazenamento seguro sintético isolados. Ela cobre: operação mantida offline, fila preservada e solicitação de login em 401, conflito 409 sem sobrescrita silenciosa e remoção de caminho/URL de áudio e metadados internos antes do POST remoto. Nenhuma credencial ou dado real é usado.
+
+Validação desta fase: teste isolado passou com 4 casos; a suíte Flutter completa e os gates remotos devem ser executados antes de considerar este incremento publicado. Próximo gate funcional continua sendo validação física Android/iOS de app fechado, background, reboot, DND, bateria, permissões, som e vibração.
+
+
+## Prioridade 1 — reconciliação reativa de alertas — 09/10/2026
+O `TransitionAlertSyncService` agora possui `start()`/`dispose()`, listener de `connectivity_plus` e retry periódico de um minuto. Ao recuperar conectividade, a fila é processada sem criar WorkManager/isolate nem duplicar os alarmes nativos de notificação. O bootstrap inicia o monitor; o login central dispara uma tentativa imediata após salvar os tokens. O lock `_isSyncing` mantém uma única reconciliação concorrente.
+
+Validação: formatter sem alterações, `flutter analyze` sem issues, `flutter test` com 139 testes aprovados e `flutter build web --release` concluído. Os avisos do dry-run Wasm continuam limitados a dependências externas (`flutter_secure_storage_web`, `flutter_tts`). Próximo gate: CI remoto deste commit e, depois, validação física Android/iOS do comportamento em background, reboot, DND, bateria e permissões.
+
+
+## Próxima prioridade — gate físico de alertas e acessibilidade — preparado em 09/10/2026
+Os gates automatizados do monitor reativo passaram nos workflows Flutter `37914547248` e PostgreSQL `37914547126`. Como esta sandbox não possui Android SDK nem aparelhos Android/iOS, a execução física não foi simulada nem declarada como concluída. Foi criado [`docs/ROTEIRO_VALIDACAO_FISICA_ALERTAS.md`](docs/ROTEIRO_VALIDACAO_FISICA_ALERTAS.md) com matriz A-01–A-12 para notificações, background, reboot, DND, bateria, permissões, áudio, vibração e wipe, além de U-01–U-07 para layout, escala, leitor de tela, contraste e rotação.
+
+A auditoria estática confirmou as permissões Android de notificações, alarme exato, tela cheia, boot e vibração; no iOS, as descrições de câmera/microfone/fotos existem e as capacidades de notificação precisam ser confirmadas no aparelho. Próximo passo por prioridade: executar o roteiro em Android/iOS reais; não avançar para publicação ampla, cobrança ou dados reais antes desse gate.
+
+
+## Prioridade 1 — estado local após sincronização — 09/10/2026
+Corrigido um caso de reconciliação: após um upsert remoto bem-sucedido, o alerta local agora passa explicitamente de `pending` para `synced` e limpa `syncError` antes de remover a operação da fila. Sem essa transição, o pull seguinte podia encontrar um alerta ainda `pending` e ignorá-lo indefinidamente. A correção é idempotente e não altera o comportamento de exclusões ou conflitos.
+
+Validação: 4 testes específicos aprovados; formatter limpo; analyzer sem issues; suíte Flutter completa com 139 testes; build Web release concluído. Próximo bloqueio continua sendo a validação física em aparelhos reais.
+
+
+## Prioridade 1 — compactação da fila por alerta — 09/10/2026
+A fila offline agora remove operações pendentes anteriores do mesmo `subjectId` + `alertId` antes de enfileirar um novo upsert ou delete. Assim, uma exclusão supera uma edição antiga e uma recriação supera uma exclusão antiga, sem comandos concorrentes desnecessários. A operação final continua idempotente e o comportamento local-first é preservado.
+
+Validação: 5 testes específicos aprovados; suíte Flutter completa com 140 testes; formatter e analyzer limpos; build Web release aprovado. O próximo bloqueio segue sendo o roteiro físico em Android/iOS reais.
+
+
+## Prioridade 1 — isolamento da fila por sujeito — 09/10/2026
+Adicionado teste determinístico que enfileira operações para `subject-a` e `subject-b`, executa `syncPending(subjectId: subject-a)` e confirma que somente as URLs de `subject-a` são chamadas, enquanto a operação de `subject-b` permanece na fila. A implementação já filtrava por sujeito; esta cobertura torna o limite de autorização verificável contra regressões.
+
+Validação: 6 testes específicos aprovados; suíte Flutter completa com 141 testes; formatter e analyzer limpos; build Web release aprovado. Nenhuma informação real foi usada.
+
+
+## Prioridade 1 — retenção em falha transitória — 09/10/2026
+Adicionados cenários determinísticos para HTTP 503 e exceção de transporte. A operação permanece na fila quando o portal está temporariamente indisponível e é reenviada com sucesso quando o transporte se recupera. Nenhuma falha transitória remove silenciosamente uma operação local.
+
+Validação: 8 testes específicos aprovados; suíte Flutter completa com 143 testes; formatter e analyzer limpos; build Web release aprovado. Nenhum dado real foi usado.

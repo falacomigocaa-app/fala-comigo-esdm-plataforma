@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -5,6 +7,7 @@ import '../../../../core/services/transition_alert_service.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../transition_alerts/data/providers/transition_alerts_provider.dart';
 import '../../../transition_alerts/domain/models/transition_alert.dart';
+import '../../../transition_alerts/domain/services/transition_alert_sync_service.dart';
 import 'transition_alert_edit_screen.dart';
 
 /// Lista os Alertas de Transição de Atividade cadastrados, permite
@@ -124,7 +127,8 @@ class _AlertCard extends ConsumerWidget {
   const _AlertCard({required this.alert});
 
   String _scheduleSummary() {
-    if (!alert.isScheduled || alert.scheduledWeekdays.isEmpty) {
+    if ((!alert.isScheduled && !alert.isRecurring) ||
+        alert.scheduledWeekdays.isEmpty) {
       return 'Somente disparo manual';
     }
     const labels = {
@@ -137,9 +141,12 @@ class _AlertCard extends ConsumerWidget {
       7: 'Sáb',
     };
     final days = alert.scheduledWeekdays.map((d) => labels[d] ?? '').join(', ');
-    final hour = (alert.scheduledHour ?? 0).toString().padLeft(2, '0');
-    final minute = (alert.scheduledMinute ?? 0).toString().padLeft(2, '0');
-    return '$days às $hour:$minute';
+    final hour = (alert.effectiveScheduledHour ?? 0).toString().padLeft(2, '0');
+    final minute =
+        (alert.effectiveScheduledMinute ?? 0).toString().padLeft(2, '0');
+    final advance =
+        alert.advanceTime == 0 ? '' : ' (${alert.advanceTime} min antes)';
+    return '$days às $hour:$minute$advance';
   }
 
   @override
@@ -153,6 +160,7 @@ class _AlertCard extends ConsumerWidget {
         ),
         title: Text(alert.title.isEmpty ? '(sem título)' : alert.title),
         subtitle: Text(
+          '${alert.isActive ? 'Ativo' : 'Pausado'} • '
           '${alert.audioType == 'gravado' ? 'Áudio gravado' : 'Texto falado'} • '
           '${_scheduleSummary()} • ${alert.checklistItems.length} itens no checklist',
         ),
@@ -164,6 +172,43 @@ class _AlertCard extends ConsumerWidget {
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
+            Tooltip(
+              message: alert.isActive ? 'Desativar alerta' : 'Ativar alerta',
+              child: Switch(
+                value: alert.isActive,
+                onChanged: (value) async {
+                  final notifier =
+                      ref.read(transitionAlertsListProvider.notifier);
+                  alert.isActive = value;
+                  try {
+                    if (value) {
+                      await TransitionAlertService.instance
+                          .ensureSchedulingReady();
+                      await TransitionAlertService.instance.scheduleRecurring(
+                        alert,
+                      );
+                    } else {
+                      await TransitionAlertService.instance.cancelSchedule(
+                        alert,
+                      );
+                    }
+                    await notifier.updateAlert(alert);
+                    unawaited(TransitionAlertSyncService.enqueueUpsert(alert));
+                  } catch (error) {
+                    alert.isActive = !value;
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content:
+                              Text('Não foi possível alterar o alerta: $error'),
+                          duration: const Duration(seconds: 6),
+                        ),
+                      );
+                    }
+                  }
+                },
+              ),
+            ),
             IconButton(
               icon: const Icon(
                 Icons.play_circle_outline,
@@ -198,6 +243,7 @@ class _AlertCard extends ConsumerWidget {
               tooltip: 'Excluir',
               onPressed: () async {
                 await TransitionAlertService.instance.cancelSchedule(alert);
+                unawaited(TransitionAlertSyncService.enqueueDelete(alert.id));
                 await ref
                     .read(transitionAlertsListProvider.notifier)
                     .removeAlert(alert.id);

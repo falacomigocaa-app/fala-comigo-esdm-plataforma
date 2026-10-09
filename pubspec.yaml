@@ -52,6 +52,9 @@ dependencies:
   # Conectividade e transporte HTTP da fila offline do Cuidado Conectado
   connectivity_plus: ^6.1.0
   http: ^1.2.2
+  # Localização segura sob demanda e indicação de bateria na área parental
+  geolocator: ^14.0.2
+  battery_plus: ^6.2.1
 
 dev_dependencies:
   flutter_test:
@@ -66,6 +69,7 @@ flutter:
   assets:
     - assets/images/cards/
     - assets/icons/
+    - assets/sounds/transition_alarm.wav
 
   # Trava a orientação do app (definida também nativamente no Android)
   # em Paisagem para uso em tablets/celulares, conforme recomendação

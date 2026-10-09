@@ -20,7 +20,7 @@ curl -H 'Authorization: Bearer <JWT>' \
   http://127.0.0.1:8787/v1/organizations/org-demo-alpha/subjects
 ```
 
-Para ativar persistência PostgreSQL, aplique `migrations/001_initial.sql`, `migrations/002_refresh_tokens.sql` e `migrations/003_user_credentials.sql` em um banco de staging e inicie com `DATABASE_URL`:
+Para ativar persistência PostgreSQL, aplique as migrations `001_initial.sql` até `009_billing.sql` em um banco de staging e inicie com `DATABASE_URL`:
 
 ```bash
 cp .env.example .env
@@ -31,6 +31,12 @@ set +a
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f migrations/001_initial.sql
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f migrations/002_refresh_tokens.sql
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f migrations/003_user_credentials.sql
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f migrations/004_e2ee_school_collections.sql
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f migrations/005_organization_keys.sql
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f migrations/006_transition_alerts.sql
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f migrations/007_secure_locations.sql
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f migrations/008_organization_key_versions.sql
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f migrations/009_billing.sql
 npm start
 ```
 
@@ -44,6 +50,10 @@ Sem `DATABASE_URL`, metas e coletas usam `memory-test-only` somente para testes 
 POST /v1/auth/login
 GET  /v1/organizations/{organizationId}/subjects
 POST /v1/auth/refresh
+GET  /v1/plans
+GET  /v1/billing/subscription
+POST /v1/billing/checkout
+POST /v1/billing/webhooks/sandbox
 GET  /v1/subjects/{subjectId}/esdm-goals
 POST /v1/subjects/{subjectId}/esdm-goals
 GET  /v1/subjects/{subjectId}/school-collections
@@ -53,6 +63,10 @@ POST /v1/subjects/{subjectId}/school-collections
 As rotas de metas validam os códigos `CE_N1_I5`, `CE_N1_I6` e `SOC_N1_I3`, retornando `missaoPais` e `dicaPratica`. As rotas escolares validam os blocos `Lanche`, `Recreio`, `Roda de Conversa` e `Atividade Sentada`, além dos níveis `Independente`, `Ajuda Verbal`, `Ajuda Física` e `Recusa`.
 
 `POST /v1/auth/refresh` recebe `{ "refreshToken": "..." }`, grava apenas o hash SHA-256 do token e retorna um novo `accessToken` de 15 minutos e um novo `refreshToken` de sete dias. O token anterior é revogado antes da nova emissão; replay, expiração ou token desconhecido retornam `401 REFRESH_TOKEN_INVALID`.
+
+As respostas de login/refresh incluem `organizationKey` e `keyVersion` somente quando a sessão possui `organization.key.read`. O owner pode chamar `POST /v1/organizations/:organizationId/keys/rotate`; a versão anterior permanece no histórico cifrado para leitura de envelopes antigos.
+
+O módulo de pagamentos desta fase opera exclusivamente em `billingMode: sandbox`: não coleta cartão, não executa cobrança e não aceita dados financeiros. O checkout cria uma assinatura pendente; somente um webhook HMAC com `BILLING_WEBHOOK_SECRET` pode ativá-la, e replays do mesmo evento são idempotentes.
 
 `POST /v1/auth/login` recebe `{ "email": "...", "password": "..." }`, verifica `password_hash` com bcrypt e retorna o mesmo par de tokens, além de `userId`, `organizationId` e `scopes`. Credenciais inválidas têm resposta uniforme `401 INVALID_CREDENTIALS`.
 
@@ -71,6 +85,8 @@ Antes de qualquer leitura ou escrita, o backend valida membership, consentimento
 - `migrations/001_initial.sql`: schema de identidade, organização, sujeito, consentimento, autorização, metas e coletas;
 - `migrations/002_refresh_tokens.sql`: armazenamento hashado e expirável de refresh tokens;
 - `migrations/003_user_credentials.sql`: email e `password_hash` bcrypt na tabela de usuários;
+- `migrations/007_secure_locations.sql` e `migrations/008_organization_key_versions.sql`: envelopes E2EE de localização e histórico versionado de chaves;
+- `migrations/009_billing.sql`: assinaturas sandbox e eventos de webhook sem dados financeiros;
 - `test/authorization.test.js`: casos permitidos e negados;
 - `test/postgres.integration.test.js`: verificação do schema quando `PGTEST_URL` está definido.
 - `.env.example`: variáveis documentais para iniciar o servidor conectado ao PostgreSQL de staging.

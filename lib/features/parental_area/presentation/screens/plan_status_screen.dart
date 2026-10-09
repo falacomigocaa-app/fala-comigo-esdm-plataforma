@@ -1,10 +1,14 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/plans/plan_access_controller.dart';
+import '../../../../core/plans/billing_service.dart';
 import '../../../../core/plans/plan_access_provider.dart';
 import '../../../../core/plans/plan_catalog.dart';
 import '../../../../core/plans/plan_models.dart';
+import '../../../../core/services/auth_token_service.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../widgets/parental_ui.dart';
 
@@ -17,10 +21,44 @@ class PlanStatusScreen extends ConsumerStatefulWidget {
 }
 
 class _PlanStatusScreenState extends ConsumerState<PlanStatusScreen> {
+  bool _checkoutAvailable = false;
+
   @override
   void initState() {
     super.initState();
     ref.read(planAccessProvider.notifier).hydrate();
+    unawaited(ref.read(planAccessProvider.notifier).hydrateRemote());
+    unawaited(_loadCheckoutAvailability());
+  }
+
+  Future<void> _loadCheckoutAvailability() async {
+    final token = await AuthTokenService.readToken();
+    if (mounted) setState(() => _checkoutAvailable = token?.isNotEmpty == true);
+  }
+
+  Future<void> _startSandboxCheckout(Plan plan) async {
+    try {
+      final result = await BillingService.createSandboxCheckout(plan.id);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Checkout de teste criado (${result.checkoutId}). Nenhuma cobrança foi realizada.',
+          ),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      final messenger = ScaffoldMessenger.of(context);
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text('Checkout indisponível: $error'),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+    }
   }
 
   @override
@@ -81,14 +119,27 @@ class _PlanStatusScreenState extends ConsumerState<PlanStatusScreen> {
           ),
           const SizedBox(height: 8),
           ...PlanCatalog.publicPlans.map(
-            (plan) =>
-                _PlanCard(plan: plan, selected: plan.id == access.plan.id),
+            (plan) => _PlanCard(
+              plan: plan,
+              selected: plan.id == access.plan.id,
+              onCheckout: _checkoutAvailable && plan.pricePending
+                  ? () => _startSandboxCheckout(plan)
+                  : null,
+            ),
           ),
           if (license == null)
             const Padding(
               padding: EdgeInsets.only(top: 12),
               child: Text(
                 'Nenhuma assinatura ou licença remota está conectada. O plano Essencial continua funcionando neste aparelho.',
+                style: TextStyle(color: Colors.grey, fontSize: 12),
+              ),
+            ),
+          if (!_checkoutAvailable)
+            const Padding(
+              padding: EdgeInsets.only(top: 10),
+              child: Text(
+                'Planos pagos ficam ocultos até entrar com uma conta. A comunicação básica continua disponível offline.',
                 style: TextStyle(color: Colors.grey, fontSize: 12),
               ),
             ),
@@ -234,8 +285,13 @@ class _FeatureTile extends StatelessWidget {
 class _PlanCard extends StatelessWidget {
   final Plan plan;
   final bool selected;
+  final VoidCallback? onCheckout;
 
-  const _PlanCard({required this.plan, required this.selected});
+  const _PlanCard({
+    required this.plan,
+    required this.selected,
+    this.onCheckout,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -273,9 +329,23 @@ class _PlanCard extends StatelessWidget {
             ),
           ],
         ),
-        subtitle: Padding(
-          padding: const EdgeInsets.only(top: 4),
-          child: Text(plan.description),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(plan.description),
+            ),
+            if (onCheckout != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 10),
+                child: OutlinedButton.icon(
+                  onPressed: onCheckout,
+                  icon: const Icon(Icons.science_outlined),
+                  label: const Text('Testar checkout sandbox'),
+                ),
+              ),
+          ],
         ),
       ),
     );

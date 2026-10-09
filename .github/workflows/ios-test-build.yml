@@ -1,0 +1,45 @@
+name: iOS test build
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-ios-test:
+    name: Build unsigned iOS beta artifact
+    runs-on: macos-14
+    timeout-minutes: 35
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.38.0
+          cache: true
+      - name: Install dependencies
+        run: flutter pub get
+      - name: Validate formatting
+        run: dart format --output=none --set-exit-if-changed lib test
+      - name: Analyze and test
+        run: |
+          flutter analyze --no-fatal-infos --no-fatal-warnings
+          flutter test
+      - name: Build unsigned iOS app
+        run: flutter build ios --release --no-codesign
+      - name: Archive technical artifact
+        run: |
+          test -d build/ios/iphoneos/Runner.app
+          ditto -c -k --sequesterRsrc --keepParent build/ios/iphoneos/Runner.app artifact-fala-comigo-ios.zip
+          shasum -a 256 artifact-fala-comigo-ios.zip | tee ios-sha256.txt
+      - name: Publish technical artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: fala-comigo-ios-unsigned-${{ github.sha }}
+          retention-days: 14
+          if-no-files-found: error
+          path: |
+            artifact-fala-comigo-ios.zip
+            ios-sha256.txt

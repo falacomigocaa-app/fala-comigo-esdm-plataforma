@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
@@ -9,7 +11,9 @@ import '../../features/transition_alerts/domain/models/transition_alert.dart';
 /// Atividade — precisa de alta prioridade e "tela cheia" para
 /// acordar o aparelho e chamar a atenção, do mesmo jeito que um
 /// despertador ou uma ligação.
-const String _channelId = 'transition_alert_channel';
+// v2 força a recriação do canal com som de alarme em instalações antigas
+// que possam ter criado o canal anterior sem áudio.
+const String _channelId = 'transition_alert_channel_v2';
 const String _channelName = 'Alertas de Transição';
 const String _channelDescription =
     'Avisos de transição de atividade com contagem visual e checklist';
@@ -120,6 +124,18 @@ class TransitionAlertService {
     );
   }
 
+  /// Confirma que o aparelho pode executar o alerta como um despertador.
+  /// Sem essa checagem, o Android pode rejeitar `alarmClock` depois que o
+  /// alerta já foi salvo localmente, deixando um alerta ativo que nunca toca.
+  Future<void> ensureSchedulingReady() async {
+    if (kIsWeb) return;
+    await requestPermissions();
+    final status = await checkPermissionStatus();
+    if (status.contains('BLOQUEADAS') || status.contains('BLOQUEADO')) {
+      throw TransitionAlertPermissionException(status);
+    }
+  }
+
   /// Verifica o status real das permissões no Android, para
   /// diagnóstico visível na tela (em vez de falhas silenciosas).
   Future<String> checkPermissionStatus() async {
@@ -135,10 +151,15 @@ class TransitionAlertService {
         'Alarme exato: ${exactAlarmsAllowed == true ? "OK" : "BLOQUEADO"}';
   }
 
-  NotificationDetails _buildDetails() {
-    return const NotificationDetails(
+  NotificationDetails _buildDetails(TransitionAlert alert) {
+    final vibrationPattern = alert.vibrationPattern.isEmpty
+        ? null
+        : Int64List.fromList(alert.vibrationPattern);
+    final channelId = '${_channelId}_${alert.notificationId}';
+    final volume = alert.soundVolume.clamp(0.0, 1.0).toDouble();
+    return NotificationDetails(
       android: AndroidNotificationDetails(
-        _channelId,
+        channelId,
         _channelName,
         channelDescription: _channelDescription,
         importance: Importance.max,
@@ -146,13 +167,19 @@ class TransitionAlertService {
         fullScreenIntent: true,
         category: AndroidNotificationCategory.alarm,
         visibility: NotificationVisibility.private,
+        sound: const RawResourceAndroidNotificationSound('transition_alarm'),
+        audioAttributesUsage: AudioAttributesUsage.alarm,
         playSound: true,
-        enableVibration: true,
+        ongoing: true,
+        autoCancel: false,
+        enableVibration: vibrationPattern != null,
+        vibrationPattern: vibrationPattern,
       ),
       iOS: DarwinNotificationDetails(
         presentAlert: true,
         presentBadge: true,
         presentSound: true,
+        criticalSoundVolume: alert.hasSound ? volume : null,
       ),
     );
   }
@@ -180,7 +207,8 @@ class TransitionAlertService {
   }) async {
     await cancelParentReminder(notificationId);
     for (final weekday in weekdays) {
-      final scheduledDate = _nextInstanceOfWeekdayTime(weekday, hour, minute);
+      final scheduledDate =
+          nextTransitionAlertOccurrence(weekday, hour, minute);
       await _plugin.zonedSchedule(
         notificationId + weekday,
         'Lembrete do responsável',
@@ -204,8 +232,26 @@ class TransitionAlertService {
     await _plugin.show(
       alert.notificationId,
       'Lembrete do Fala Comigo',
-      'Hora de mudar de atividade!',
-      _buildDetails(),
+      alert.effectiveMessageText.isEmpty
+          ? 'Hora de mudar de atividade!'
+          : alert.effectiveMessageText,
+      _buildDetails(alert),
+      payload: '$transitionAlertPayloadPrefix${alert.id}',
+    );
+  }
+
+  /// Adia somente a ocorrência atual, preservando o alerta recorrente.
+  Future<void> snoozeForFiveMinutes(TransitionAlert alert) async {
+    final snoozeId = alert.notificationId + 100000000;
+    await _plugin.zonedSchedule(
+      snoozeId,
+      'Lembrete adiado',
+      alert.effectiveMessageText.isEmpty
+          ? 'Hora de mudar de atividade!'
+          : alert.effectiveMessageText,
+      tz.TZDateTime.now(tz.local).add(const Duration(minutes: 5)),
+      _buildDetails(alert),
+      androidScheduleMode: AndroidScheduleMode.alarmClock,
       payload: '$transitionAlertPayloadPrefix${alert.id}',
     );
   }
@@ -215,26 +261,31 @@ class TransitionAlertService {
   /// de notificação (base + número do dia) para poder ser cancelado
   /// individualmente depois.
   Future<void> scheduleRecurring(TransitionAlert alert) async {
+    if (kIsWeb) return;
     await cancelSchedule(alert);
-    if (!alert.isScheduled ||
-        alert.scheduledHour == null ||
-        alert.scheduledMinute == null ||
+    if (!alert.isActive ||
+        (!alert.isScheduled && !alert.isRecurring) ||
+        alert.effectiveScheduledHour == null ||
+        alert.effectiveScheduledMinute == null ||
         alert.scheduledWeekdays.isEmpty) {
       return;
     }
 
     for (final weekday in alert.scheduledWeekdays) {
-      final scheduledDate = _nextInstanceOfWeekdayTime(
+      final scheduledDate = nextTransitionAlertOccurrence(
         weekday,
-        alert.scheduledHour!,
-        alert.scheduledMinute!,
+        alert.effectiveScheduledHour!,
+        alert.effectiveScheduledMinute!,
+        advanceMinutes: alert.advanceTime,
       );
       await _plugin.zonedSchedule(
         alert.notificationId + weekday,
         'Lembrete do Fala Comigo',
-        'Hora de mudar de atividade!',
+        alert.effectiveMessageText.isEmpty
+            ? 'Hora de mudar de atividade!'
+            : alert.effectiveMessageText,
         scheduledDate,
-        _buildDetails(),
+        _buildDetails(alert),
         androidScheduleMode: AndroidScheduleMode.alarmClock,
         matchDateTimeComponents: DateTimeComponents.dayOfWeekAndTime,
         payload: '$transitionAlertPayloadPrefix${alert.id}',
@@ -245,32 +296,50 @@ class TransitionAlertService {
   /// Cancela as notificações agendadas (nos 7 dias da semana) deste
   /// alerta.
   Future<void> cancelSchedule(TransitionAlert alert) async {
+    if (kIsWeb) return;
     for (var weekday = 1; weekday <= 7; weekday++) {
       await _plugin.cancel(alert.notificationId + weekday);
     }
   }
+}
 
-  /// Calcula a próxima ocorrência de um dia da semana (1=domingo ...
-  /// 7=sábado, convenção usada no resto do app) num horário
-  /// determinado.
-  tz.TZDateTime _nextInstanceOfWeekdayTime(int weekday, int hour, int minute) {
-    // package:timezone/Dart usa 1=segunda...7=domingo; convertemos
-    // da convenção do app (1=domingo...7=sábado).
-    final dartWeekday = weekday == 1 ? DateTime.sunday : weekday - 1;
+class TransitionAlertPermissionException implements Exception {
+  const TransitionAlertPermissionException(this.status);
 
-    var scheduled = tz.TZDateTime.now(tz.local);
-    scheduled = tz.TZDateTime(
-      tz.local,
-      scheduled.year,
-      scheduled.month,
-      scheduled.day,
-      hour,
-      minute,
-    );
-    while (scheduled.weekday != dartWeekday ||
-        scheduled.isBefore(tz.TZDateTime.now(tz.local))) {
-      scheduled = scheduled.add(const Duration(days: 1));
-    }
-    return scheduled;
+  final String status;
+
+  @override
+  String toString() =>
+      'Permissões do despertador não autorizadas. $status. Abra as configurações do Fala Comigo e permita notificações e alarmes.';
+}
+
+/// Calcula a próxima hora de disparo, já descontando a antecedência.
+/// A convenção pública do app é 1=domingo ... 7=sábado.
+tz.TZDateTime nextTransitionAlertOccurrence(
+  int weekday,
+  int hour,
+  int minute, {
+  int advanceMinutes = 0,
+  tz.TZDateTime? nowOverride,
+}) {
+  final dartWeekday = weekday == 1 ? DateTime.sunday : weekday - 1;
+  final now = nowOverride ?? tz.TZDateTime.now(tz.local);
+  var activity = tz.TZDateTime(
+    tz.local,
+    now.year,
+    now.month,
+    now.day,
+    hour,
+    minute,
+  );
+  while (activity.weekday != dartWeekday) {
+    activity = activity.add(const Duration(days: 1));
   }
+
+  var notification = activity.subtract(Duration(minutes: advanceMinutes));
+  while (!notification.isAfter(now)) {
+    activity = activity.add(const Duration(days: 7));
+    notification = activity.subtract(Duration(minutes: advanceMinutes));
+  }
+  return notification;
 }
