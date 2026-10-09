@@ -69,7 +69,7 @@ class CryptoService {
     }
     final requestedVersion = envelope['keyVersion'] is int
         ? envelope['keyVersion'] as int
-        : await _readCurrentVersion(organizationId);
+        : (await _readCurrentVersion(organizationId) ?? 0);
     final keyBytes = await _readVersionedKey(organizationId, requestedVersion);
     final secretBox = SecretBox(
       encryptedData.sublist(0, encryptedData.length - 16),
