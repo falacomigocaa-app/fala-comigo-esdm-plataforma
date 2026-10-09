@@ -69,6 +69,7 @@ flutter:
   assets:
     - assets/images/cards/
     - assets/icons/
+    - assets/sounds/transition_alarm.wav
 
   # Trava a orientação do app (definida também nativamente no Android)
   # em Paisagem para uso em tablets/celulares, conforme recomendação

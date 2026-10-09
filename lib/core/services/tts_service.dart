@@ -20,9 +20,9 @@ class TtsService {
     await _tts.setPitch(1.0);
     await _tts.setVolume(1.0);
 
-    // Evita que uma nova fala precise esperar a anterior terminar
-    // completamente ao ser interrompida.
-    await _tts.awaitSpeakCompletion(false);
+    // O alerta de transição só libera a tela depois que a mensagem foi
+    // realmente reproduzida pela criança.
+    await _tts.awaitSpeakCompletion(true);
 
     _initialized = true;
   }

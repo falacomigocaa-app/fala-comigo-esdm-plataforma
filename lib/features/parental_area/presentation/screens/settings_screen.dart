@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/theme/hyperfocus_theme.dart';
@@ -28,6 +29,11 @@ import 'parental_dashboard_screen.dart';
 import '../../../transition_alerts/data/providers/transition_alerts_provider.dart';
 import '../../../aac_grid/presentation/screens/visual_routine_screen.dart';
 import '../../../../core/widgets/secure_media_image.dart';
+
+const portalWebUrl = String.fromEnvironment(
+  'PORTAL_WEB_URL',
+  defaultValue: 'https://falacomigocaa-app.github.io/fala-comigo/',
+);
 
 /// Painel dos Pais & Educadores.
 ///
@@ -195,6 +201,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           const _SettingsHero(),
           const SizedBox(height: 16),
           _LocationHeroCard(onConnect: _showLocationRoadmap),
+          const SizedBox(height: 16),
+          _PortalAccessCard(onOpen: _openPortal),
           const SizedBox(height: 16),
           _OptionASectionBox(
             icon: Icons.track_changes_rounded,
@@ -584,6 +592,23 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           const SizedBox(height: 24),
         ],
       );
+
+  Future<void> _openPortal() async {
+    final uri = Uri.tryParse(portalWebUrl);
+    if (uri != null &&
+        await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+      return;
+    }
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        const SnackBar(
+          content: Text('Não foi possível abrir o site web neste aparelho.'),
+          duration: Duration(seconds: 3),
+        ),
+      );
+  }
 
   void _showLocationRoadmap() {
     showDialog<void>(
@@ -1389,6 +1414,43 @@ class _SettingsSection extends StatelessWidget {
           const SizedBox(height: 12),
           Material(color: Colors.transparent, child: child),
         ],
+      ),
+    );
+  }
+}
+
+class _PortalAccessCard extends StatelessWidget {
+  final VoidCallback onOpen;
+
+  const _PortalAccessCard({required this.onOpen});
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      color: AppTheme.surface,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(18, 12, 18, 14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(Icons.language_outlined, color: AppTheme.primary),
+              title: Text('Acessar o site web'),
+              subtitle: Text(
+                'Abra o endereço oficial para entrar no portal pelo navegador.',
+              ),
+            ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: FilledButton.icon(
+                onPressed: onOpen,
+                icon: const Icon(Icons.open_in_new, size: 18),
+                label: const Text('Abrir site web'),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -8,6 +8,7 @@ import '../../../../core/plans/billing_service.dart';
 import '../../../../core/plans/plan_access_provider.dart';
 import '../../../../core/plans/plan_catalog.dart';
 import '../../../../core/plans/plan_models.dart';
+import '../../../../core/services/auth_token_service.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../widgets/parental_ui.dart';
 
@@ -20,11 +21,19 @@ class PlanStatusScreen extends ConsumerStatefulWidget {
 }
 
 class _PlanStatusScreenState extends ConsumerState<PlanStatusScreen> {
+  bool _checkoutAvailable = false;
+
   @override
   void initState() {
     super.initState();
     ref.read(planAccessProvider.notifier).hydrate();
     unawaited(ref.read(planAccessProvider.notifier).hydrateRemote());
+    unawaited(_loadCheckoutAvailability());
+  }
+
+  Future<void> _loadCheckoutAvailability() async {
+    final token = await AuthTokenService.readToken();
+    if (mounted) setState(() => _checkoutAvailable = token?.isNotEmpty == true);
   }
 
   Future<void> _startSandboxCheckout(Plan plan) async {
@@ -40,9 +49,15 @@ class _PlanStatusScreenState extends ConsumerState<PlanStatusScreen> {
       );
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Checkout indisponível: $error')),
-      );
+      final messenger = ScaffoldMessenger.of(context);
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text('Checkout indisponível: $error'),
+            duration: const Duration(seconds: 3),
+          ),
+        );
     }
   }
 
@@ -107,8 +122,9 @@ class _PlanStatusScreenState extends ConsumerState<PlanStatusScreen> {
             (plan) => _PlanCard(
               plan: plan,
               selected: plan.id == access.plan.id,
-              onCheckout:
-                  plan.pricePending ? () => _startSandboxCheckout(plan) : null,
+              onCheckout: _checkoutAvailable && plan.pricePending
+                  ? () => _startSandboxCheckout(plan)
+                  : null,
             ),
           ),
           if (license == null)
@@ -116,6 +132,14 @@ class _PlanStatusScreenState extends ConsumerState<PlanStatusScreen> {
               padding: EdgeInsets.only(top: 12),
               child: Text(
                 'Nenhuma assinatura ou licença remota está conectada. O plano Essencial continua funcionando neste aparelho.',
+                style: TextStyle(color: Colors.grey, fontSize: 12),
+              ),
+            ),
+          if (!_checkoutAvailable)
+            const Padding(
+              padding: EdgeInsets.only(top: 10),
+              child: Text(
+                'Planos pagos ficam ocultos até entrar com uma conta. A comunicação básica continua disponível offline.',
                 style: TextStyle(color: Colors.grey, fontSize: 12),
               ),
             ),

@@ -11,7 +11,9 @@ import '../../features/transition_alerts/domain/models/transition_alert.dart';
 /// Atividade — precisa de alta prioridade e "tela cheia" para
 /// acordar o aparelho e chamar a atenção, do mesmo jeito que um
 /// despertador ou uma ligação.
-const String _channelId = 'transition_alert_channel';
+// v2 força a recriação do canal com som de alarme em instalações antigas
+// que possam ter criado o canal anterior sem áudio.
+const String _channelId = 'transition_alert_channel_v2';
 const String _channelName = 'Alertas de Transição';
 const String _channelDescription =
     'Avisos de transição de atividade com contagem visual e checklist';
@@ -153,14 +155,18 @@ class TransitionAlertService {
         fullScreenIntent: true,
         category: AndroidNotificationCategory.alarm,
         visibility: NotificationVisibility.private,
-        playSound: alert.hasSound,
+        sound: const RawResourceAndroidNotificationSound('transition_alarm'),
+        audioAttributesUsage: AudioAttributesUsage.alarm,
+        playSound: true,
+        ongoing: true,
+        autoCancel: false,
         enableVibration: vibrationPattern != null,
         vibrationPattern: vibrationPattern,
       ),
       iOS: DarwinNotificationDetails(
         presentAlert: true,
         presentBadge: true,
-        presentSound: alert.hasSound,
+        presentSound: true,
         criticalSoundVolume: alert.hasSound ? volume : null,
       ),
     );
