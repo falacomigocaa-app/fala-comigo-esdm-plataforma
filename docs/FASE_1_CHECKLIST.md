@@ -27,7 +27,7 @@
 - `[x]` Cartões: há fluxo de criação/edição, reordenação drag-and-drop e agora faixa de preview visual com imagem, rótulo e fallback seguro.
 - `[x]` Temas de hiperfoco: miniaturas visuais com cor/emoji, seleção por toque e preview em tempo real da combinação escolhida.
 - `[~]` Identidade visual Material 3: há paleta profissional, bordas e espaçamento melhorados; a densidade e a sensação de “painel” ainda precisam de uma rodada dedicada.
-- `[ ]` Validação visual responsiva e acessibilidade da área parental em telas pequenas, tablet, contraste e touch targets.
+- `[~]` Validação visual responsiva e acessibilidade da área parental: cenários automatizados cobrem celular compacto, tablet, overflow, teclado virtual, semântica e alvos de toque; ainda falta a matriz manual em aparelhos reais e a revisão visual final de contraste com escala de texto ampliada.
 
 ## Fase 1.2 — Backend e autenticação
 
@@ -96,3 +96,15 @@
 > Observação de teste: o arquivo de preview usa Hive em diretório temporário isolado. O teardown de fechamento foi omitido porque a versão atual do Hive/Flutter ficava bloqueada ao encerrar widgets que ainda mantêm providers ativos; isso não altera o armazenamento de produção nem o comportamento do app.
 
 > Não declarar a Fase 1 como concluída até que os itens `[ ]` da Fase 1.1 sejam implementados e validados. A última validação conhecida do app foi de 122 testes Flutter aprovados; a página pública e o app Web responderam HTTP 200 após o commit `6a45495`.
+
+## Fase 1.1D — Responsividade e acessibilidade — implementação validada em 09/10/2026
+
+- `[x]` O dashboard parental alterna cabeçalho, métricas e ações rápidas para largura compacta, evitando compressão e overflow em celulares.
+- `[x]` O seletor de orientação troca o `SegmentedButton` por opções empilhadas abaixo de 360 dp, preservando leitura e alvos de toque.
+- `[x]` Ações de segurança/localização e novo cartão usam alvo mínimo de 48 dp.
+- `[x]` Testes em `test/parental_responsive_accessibility_test.dart` cobrem viewport 320x640, viewport 320x460 com teclado simulado, viewport 1024x768, navegação, semântica das opções e ausência de exceções de layout.
+- `[x]` Validação local com Flutter 3.38.0/Dart 3.10.0: `dart format --set-exit-if-changed lib test`, `flutter analyze --no-fatal-infos --no-fatal-warnings`, `flutter test` com 132 testes e `flutter build web --release` passaram.
+- `[x]` CI remoto verde no commit `25464cf`: [Flutter quality checks](https://github.com/falacomigocaa-app/fala-comigo-esdm-plataforma/actions/runs/37879819678) e [Backend PostgreSQL integration](https://github.com/falacomigocaa-app/fala-comigo-esdm-plataforma/actions/runs/37879819723).
+- `[~]` Continua pendente a validação manual em Android/iOS reais, incluindo contraste percebido, escala de texto ampliada, rotação, leitor de tela e matriz de touch targets em dispositivos físicos.
+
+**Próximo gate:** executar a matriz manual de dispositivos e, depois, decidir se o agrupamento avançado de cartões e miniaturas de categorias ainda agrega valor antes de avançar para P1/P2 do backlog full-stack.

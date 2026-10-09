@@ -168,3 +168,12 @@ A área parental agora oferece preview visual da grade infantil, com miniaturas 
 Também foram adicionadas chaves estáveis às seções expansíveis e Material local para preservar o feedback de toque dos ListTiles. A cobertura `test/parental_settings_preview_test.dart` valida cartão, miniaturas e troca de tema. Validação concluída: `flutter analyze` sem issues, `flutter test` com 128 testes aprovados e `flutter build web --release` concluído. O checklist foi atualizado em `docs/FASE_1_CHECKLIST.md`.
 
 Observação: o teste isolado usa Hive em diretório temporário; o teardown de fechamento foi omitido porque a versão atual do Hive/Flutter bloqueava ao encerrar providers ainda ativos. Isso não afeta a persistência de produção. Próximo marco: validar responsividade, contraste e touch targets em telas pequenas e tablet.
+
+
+## Fase 1.1D — Responsividade e acessibilidade parental — 09/10/2026
+
+A branch `feat/parental-responsive-accessibility` implementou layout adaptativo no dashboard parental e no seletor de orientação: abaixo de 360 dp, o cabeçalho e as métricas deixam de comprimir conteúdo, ações rápidas recebem mais altura e as opções de orientação ficam empilhadas. Os controles de segurança/localização e novo cartão passaram a exigir alvo mínimo de 48 dp. Foi adicionado `test/parental_responsive_accessibility_test.dart` para celular compacto (320x640), teclado simulado (320x460), tablet (1024x768), navegação, semântica e ausência de overflow.
+
+Validação local com Flutter 3.38.0/Dart 3.10.0: formatter sem alterações, `flutter analyze --no-fatal-infos --no-fatal-warnings` sem issues, `flutter test` com 132 testes aprovados e `flutter build web --release` concluído. O commit `25464cf` também passou nos workflows [Flutter quality checks](https://github.com/falacomigocaa-app/fala-comigo-esdm-plataforma/actions/runs/37879819678) e [Backend PostgreSQL integration](https://github.com/falacomigocaa-app/fala-comigo-esdm-plataforma/actions/runs/37879819723).
+
+A validação manual em aparelhos Android/iOS, leitor de tela, contraste percebido, escala de texto ampliada e rotação continua pendente; a Fase 1 não deve ser declarada totalmente concluída por causa desse gate físico.
