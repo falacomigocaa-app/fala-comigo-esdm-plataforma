@@ -47,6 +47,15 @@ test('PostgreSQL migration exposes Gate 3A authorization tables and tenant const
     `, [['organization_id', 'encrypted_data', 'iv']]);
     assert.deepEqual(e2eeColumns.rows.map((row) => row.column_name), ['encrypted_data', 'iv', 'organization_id']);
 
+    const membershipScopes = await client.query(`
+      select column_name
+      from information_schema.columns
+      where table_schema = 'public'
+        and table_name = 'memberships'
+        and column_name = 'scopes'
+    `);
+    assert.equal(membershipScopes.rows.length, 1);
+
     await client.query('begin');
     await client.query(`insert into users (id, external_subject, status) values
       ('pg-user-alpha', 'synthetic:pg-alpha', 'active'),
@@ -122,5 +131,41 @@ test('PostgreSQL migration exposes Gate 3A authorization tables and tenant const
     await client.query('rollback');
   } finally {
     await client.end();
+  }
+});
+
+test('authorization state survives store recreation in PostgreSQL server mode', { skip: !connectionString }, async () => {
+  const pool = new pg.Pool({ connectionString });
+  const ids = {
+    user: 'pg-persist-user',
+    organization: 'pg-persist-org',
+    membership: 'pg-persist-membership'
+  };
+  try {
+    await pool.query('delete from memberships where id = $1', [ids.membership]);
+    await pool.query('delete from users where id = $1', [ids.user]);
+    await pool.query('delete from organizations where id = $1', [ids.organization]);
+    await pool.query(`insert into users (id, external_subject, email, password_hash, status)
+      values ($1, $2, $3, $4, 'active')`, [ids.user, 'synthetic:pg-persist-user', 'pg-persist@example.test', '$2b$12$u7hinMZXhMWNJXvBs90RauPnmv8zVvZcSh7ohICCg/S9TJAESRqSi']);
+    await pool.query(`insert into organizations (id, name, type, status)
+      values ($1, 'Persistent Beta Test', 'clinic', 'active')`, [ids.organization]);
+    await pool.query(`insert into memberships (id, user_id, organization_id, role, status, valid_until, scopes)
+      values ($1, $2, $3, 'professional', 'active', '2099-01-01T00:00:00Z', $4)`, [ids.membership, ids.user, ids.organization, ['esdm_goal.read']]);
+
+    const firstStore = createStore({ pool, persistAuthorization: true });
+    const snapshot = await firstStore.hydrateAuthorization();
+    const membership = firstStore.memberships.find((item) => item.id === ids.membership);
+    assert.equal(membership.status, 'active');
+    membership.status = 'revoked';
+    await firstStore.flushAuthorizationState({ snapshot });
+
+    const secondStore = createStore({ pool, persistAuthorization: true });
+    await secondStore.hydrateAuthorization();
+    assert.equal(secondStore.memberships.find((item) => item.id === ids.membership).status, 'revoked');
+  } finally {
+    await pool.query('delete from memberships where id = $1', [ids.membership]);
+    await pool.query('delete from users where id = $1', [ids.user]);
+    await pool.query('delete from organizations where id = $1', [ids.organization]);
+    await pool.end();
   }
 });

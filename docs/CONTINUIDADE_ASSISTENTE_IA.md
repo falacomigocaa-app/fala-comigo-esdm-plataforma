@@ -201,3 +201,13 @@ Não abrir PR para a `main` nesta etapa: API persistente de staging, keystore pr
 A câmera abria a Activity externa do Android, mas o `main.dart` tratava qualquer pausa como saída da Área Parental e chamava o PIN no retorno. `ParentalSessionService` ganhou `beginExternalActivity`/`completeExternalActivity`; `AddCardScreen` marca a câmera durante `pickImage`; o lifecycle preserva a sessão somente nesse intervalo e continua bloqueando ao ir para segundo plano de verdade. A recuperação de dados perdidos e o rascunho Hive foram preservados.
 
 Validação: `flutter analyze` limpo, teste focado da sessão parental 5/5 e suíte Flutter 137/137. APK debug atualizado com API beta configurada: `build/app/outputs/flutter-apk/app-debug.apk`, SHA-256 `423a4211f79fa62c92b71500e65d3483a520746949ff55ae09499e5379434663`.
+
+## Persistência de autorização para beta real — 10/10/2026
+A branch `work/real-beta-persistence-20261010` parte da `origin/main` no merge `24c148c`. A etapa adicionou `migrations/006_membership_scopes.sql` e o modo servidor PostgreSQL do `store.js`: cada requisição hidrata autorização do banco e persiste em transação memberships, consentimentos, convites, relacionamentos, grants, benefícios e auditoria. O modo `NODE_ENV=test` continua usando fixtures em memória para preservar testes determinísticos. Foi adicionada regressão PostgreSQL para verificar alteração de membership após recriação do store.
+
+Evidência local: API `npm test` com 55 aprovados e 2 testes PostgreSQL pulados por ausência de `PGTEST_URL`; `node --check src/store.js`, `node --check src/app.js` e `git diff --check` aprovados. Próximo gate obrigatório: CI PostgreSQL com a migration 006, depois provisionamento do ambiente beta HTTPS, criação de identidades reais, rate limiting, assinatura release, MobSF e validação em dispositivos. Não usar dados reais antes desses gates.
+
+## Hardening de segurança e concorrência — 10/10/2026
+A PR #5 recebeu correções cirúrgicas: `m.scopes` foi incluído nas duas consultas de membership; login e refresh preservam escopos explícitos e impedem elevação para a chave E2EE. O app serializa hydrate, despacho e flush por instância. O flush calcula deltas por registro e não grava snapshot completo nem abre transação quando não há alteração. Rollback, indisponibilidade ou falha de hydrate respondem `503 PERSISTENCE_UNAVAILABLE`, nunca sucesso falso. Regressões cobrem escopos, concorrência e erro de persistência.
+
+Evidência local: 58 testes API aprovados, 2 PostgreSQL condicionais sem `PGTEST_URL`, sintaxe, audit de dependências e diff check aprovados. Próximo gate: CI PostgreSQL e Flutter após o push.
