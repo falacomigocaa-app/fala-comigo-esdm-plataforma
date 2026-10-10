@@ -241,6 +241,23 @@ function mapAuditEvent(row) {
   };
 }
 
+function authorizationSnapshot(store) {
+  return {
+    memberships: structuredClone(store.memberships),
+    consents: structuredClone(store.consents),
+    invitations: structuredClone(store.invitations),
+    relationships: structuredClone(store.relationships),
+    grants: structuredClone(store.grants),
+    benefits: structuredClone(store.benefits),
+    auditEvents: structuredClone(store.auditEvents)
+  };
+}
+
+function changedRows(currentRows, previousRows = [], idField = 'id') {
+  const previousById = new Map(previousRows.map((row) => [row[idField], JSON.stringify(row)]));
+  return currentRows.filter((row) => previousById.get(row[idField]) !== JSON.stringify(row));
+}
+
 function createPostgresPool() {
   if (!process.env.DATABASE_URL) return null;
 
@@ -281,7 +298,7 @@ export function createStore({ pool = createPostgresPool(), persistAuthorization 
     persistAuthorization: Boolean(pool && persistAuthorization),
 
     async hydrateAuthorization() {
-      if (!store.persistAuthorization) return;
+      if (!store.persistAuthorization) return null;
       const [users, organizations, memberships, subjects, consents, invitations, relationships, grants, benefits, auditEvents] = await Promise.all([
         pool.query('select * from users'),
         pool.query('select * from organizations'),
@@ -304,14 +321,25 @@ export function createStore({ pool = createPostgresPool(), persistAuthorization 
       store.grants = grants.rows.map(mapGrant);
       store.benefits = benefits.rows.map(mapBenefit);
       store.auditEvents = auditEvents.rows.map(mapAuditEvent);
+      return authorizationSnapshot(store);
     },
 
-    async flushAuthorizationState() {
-      if (!store.persistAuthorization) return;
+    async flushAuthorizationState({ snapshot } = {}) {
+      if (!store.persistAuthorization || !snapshot) return;
+      const dirty = {
+        memberships: changedRows(store.memberships, snapshot.memberships),
+        consents: changedRows(store.consents, snapshot.consents),
+        invitations: changedRows(store.invitations, snapshot.invitations),
+        relationships: changedRows(store.relationships, snapshot.relationships),
+        grants: changedRows(store.grants, snapshot.grants),
+        benefits: changedRows(store.benefits, snapshot.benefits),
+        auditEvents: changedRows(store.auditEvents, snapshot.auditEvents)
+      };
+      if (Object.values(dirty).every((rows) => rows.length === 0)) return;
       const client = await pool.connect();
       try {
         await client.query('begin');
-        for (const membership of store.memberships) {
+        for (const membership of dirty.memberships) {
           await client.query(`
             insert into memberships (id, user_id, organization_id, role, status, valid_until, scopes)
             values ($1,$2,$3,$4,$5,$6,$7)
@@ -324,7 +352,7 @@ export function createStore({ pool = createPostgresPool(), persistAuthorization 
               scopes = excluded.scopes
           `, [membership.id, membership.userId, membership.organizationId, membership.role, membership.status, membership.validUntil, Array.isArray(membership.scopes) ? membership.scopes : null]);
         }
-        for (const consent of store.consents) {
+        for (const consent of dirty.consents) {
           await client.query(`
             insert into consents (id, subject_id, organization_id, granted_by_user_id, recipient_user_id, purpose, scopes, notice_version, status, valid_until, created_at, revoked_at)
             values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
@@ -335,7 +363,7 @@ export function createStore({ pool = createPostgresPool(), persistAuthorization 
               revoked_at = excluded.revoked_at
           `, [consent.id, consent.subjectId, consent.organizationId, consent.grantedByUserId, consent.recipientUserId, consent.purpose, consent.scopes, consent.noticeVersion, consent.status, consent.validUntil, consent.createdAt, consent.revokedAt]);
         }
-        for (const invitation of store.invitations) {
+        for (const invitation of dirty.invitations) {
           await client.query(`
             insert into invitations (id, organization_id, invitee_user_id, subject_id, consent_id, purpose, scopes, role, status, expires_at)
             values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
@@ -349,28 +377,28 @@ export function createStore({ pool = createPostgresPool(), persistAuthorization 
               expires_at = excluded.expires_at
           `, [invitation.id, invitation.organizationId, invitation.inviteeUserId, invitation.subjectId, invitation.consentId, invitation.purpose, invitation.scopes ?? [], invitation.role, invitation.status, invitation.expiresAt]);
         }
-        for (const relationship of store.relationships) {
+        for (const relationship of dirty.relationships) {
           await client.query(`
             insert into care_relationships (id, user_id, subject_id, organization_id, role, status, valid_until)
             values ($1,$2,$3,$4,$5,$6,$7)
             on conflict (id) do update set status = excluded.status, valid_until = excluded.valid_until, role = excluded.role
           `, [relationship.id, relationship.userId, relationship.subjectId, relationship.organizationId, relationship.role, relationship.status, relationship.validUntil]);
         }
-        for (const grant of store.grants) {
+        for (const grant of dirty.grants) {
           await client.query(`
             insert into access_grants (id, user_id, subject_id, organization_id, consent_id, purpose, scopes, status, valid_until)
             values ($1,$2,$3,$4,$5,$6,$7,$8,$9)
             on conflict (id) do update set status = excluded.status, scopes = excluded.scopes, valid_until = excluded.valid_until
           `, [grant.id, grant.userId, grant.subjectId, grant.organizationId, grant.consentId, grant.purpose, grant.scopes, grant.status, grant.validUntil]);
         }
-        for (const benefit of store.benefits) {
+        for (const benefit of dirty.benefits) {
           await client.query(`
             insert into benefit_entitlements (id, organization_id, status, valid_until)
             values ($1,$2,$3,$4)
             on conflict (id) do update set status = excluded.status, valid_until = excluded.valid_until
           `, [benefit.id, benefit.organizationId, benefit.status, benefit.validUntil]);
         }
-        for (const event of store.auditEvents) {
+        for (const event of dirty.auditEvents) {
           await client.query(`
             insert into audit_events (id, user_id, organization_id, action, result, code, request_id, occurred_at, api_version)
             values ($1,$2,$3,$4,$5,$6,$7,$8,$9)
@@ -495,7 +523,7 @@ export function createStore({ pool = createPostgresPool(), persistAuthorization 
 
       if (pool) {
         const result = await pool.query(`
-          select u.id, u.email, u.password_hash, m.organization_id, m.role
+          select u.id, u.email, u.password_hash, m.organization_id, m.role, m.scopes
             from users u
             join memberships m on m.user_id = u.id
            where lower(u.email) = $1
@@ -536,7 +564,7 @@ export function createStore({ pool = createPostgresPool(), persistAuthorization 
       let membership;
       if (pool) {
         const result = await pool.query(`
-          select m.role, m.status, m.valid_until as "validUntil"
+          select m.role, m.scopes, m.status, m.valid_until as "validUntil"
             from memberships m join users u on u.id = m.user_id
            where m.user_id = $1 and m.organization_id = $2 and u.status = 'active'
         `, [claims.userId, claims.organizationId]);

@@ -153,11 +153,11 @@ test('authorization state survives store recreation in PostgreSQL server mode', 
       values ($1, $2, $3, 'professional', 'active', '2099-01-01T00:00:00Z', $4)`, [ids.membership, ids.user, ids.organization, ['esdm_goal.read']]);
 
     const firstStore = createStore({ pool, persistAuthorization: true });
-    await firstStore.hydrateAuthorization();
+    const snapshot = await firstStore.hydrateAuthorization();
     const membership = firstStore.memberships.find((item) => item.id === ids.membership);
     assert.equal(membership.status, 'active');
     membership.status = 'revoked';
-    await firstStore.flushAuthorizationState();
+    await firstStore.flushAuthorizationState({ snapshot });
 
     const secondStore = createStore({ pool, persistAuthorization: true });
     await secondStore.hydrateAuthorization();
