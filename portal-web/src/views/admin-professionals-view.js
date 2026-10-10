@@ -1,137 +1,71 @@
 import { apiClient } from '../api/client.js';
-
+import { esc, header } from './account-views.js';
 export const ADMIN_SCOPE_OPTIONS = [
-  { value: 'esdm_goal.read', label: 'Metas: leitura' },
-  { value: 'esdm_goal.write', label: 'Metas: escrita' },
-  { value: 'school_collection.read', label: 'Coletas: leitura' },
-  { value: 'school_collection.write', label: 'Coletas: escrita' },
-  { value: 'report.read', label: 'Relatórios: leitura' }
+  {value:'esdm_goal.read',label:'Ler metas'}, {value:'esdm_goal.write',label:'Registrar metas'},
+  {value:'school_collection.read',label:'Ler coletas'}, {value:'school_collection.write',label:'Registrar coletas'},
+  {value:'organization.key.read',label:'Usar chave da organização para coletas e relatórios'},
+  {value:'subject.create',label:'Cadastrar pessoa sob responsabilidade legal'},
+  {value:'membership.read',label:'Consultar equipe'}, {value:'access.invite',label:'Gerenciar equipe'}
 ];
-
-const ROLE_SCOPES = {
-  owner: ADMIN_SCOPE_OPTIONS.map((scope) => scope.value),
-  org_admin: ADMIN_SCOPE_OPTIONS.map((scope) => scope.value),
-  professional: ['esdm_goal.read', 'esdm_goal.write'],
-  caregiver: ['report.read']
+const roleAllowed = {
+  professional:['esdm_goal.read','esdm_goal.write','school_collection.read','school_collection.write','organization.key.read'],
+  teacher:['esdm_goal.read','school_collection.read','school_collection.write','organization.key.read'],
+  caregiver:['subject.create','esdm_goal.read','school_collection.read','organization.key.read'],
+  org_admin:['esdm_goal.read','esdm_goal.write','school_collection.read','school_collection.write','organization.key.read','membership.read','access.invite']
 };
-
-const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (char) => ({
-  '&': '&amp;',
-  '<': '&lt;',
-  '>': '&gt;',
-  "'": '&#39;',
-  '"': '&quot;'
-}[char]));
-
-export function hasAdministrativeScope(session) {
-  const scopes = Array.isArray(session?.scopes) ? session.scopes : [];
-  return scopes.includes('membership.read') || scopes.includes('access.invite');
+export const scopesForMember = (member) => Array.isArray(member?.scopes) ? member.scopes : [];
+export const hasAdministrativeScope = (session) => session?.scopes?.some((scope)=>['membership.read','access.invite'].includes(scope)) ?? false;
+export function renderMembers(members, session = {}) {
+  if (!members.length) return '<tr><td colspan="5">Nenhum profissional vinculado.</td></tr>';
+  return members.map((member)=>`<tr><td>${esc(member.email || member.userId)}</td><td>${esc(member.role)}</td><td><div class="scope-badges">${scopesForMember(member).map((scope)=>`<span class="scope-badge">${esc(scope)}</span>`).join('') || 'Nenhum escopo'}</div></td><td>${esc(member.status)}</td><td>${member.role !== 'owner' && member.userId !== session.userId && session.scopes?.includes('access.invite') ? `<button type="button" class="text-button" data-edit="${esc(member.id)}">Editar acesso</button>` : '—'}</td></tr>`).join('');
 }
-
-export function scopesForMember(member) {
-  return Array.isArray(member?.scopes) && member.scopes.length
-    ? member.scopes
-    : (ROLE_SCOPES[member?.role] || []);
+export function renderAdminProfessionalsView({session}) {
+  if (!hasAdministrativeScope(session)) return `${header(session)}<main class="page-content"><section class="panel access-denied"><h1>Acesso Negado</h1><p>Seu perfil não permite gerenciar a equipe.</p></section></main>`;
+  return `${header(session)}<main class="page-content"><h1>Profissionais e escopos</h1><p>Organização: ${esc(session.organizationId)}</p><section class="panel"><h2>Equipe vinculada</h2><p role="status" data-admin-status></p><div class="table-wrap"><table><thead><tr><th>Conta</th><th>Perfil</th><th>Permissões</th><th>Status</th><th>Ação</th></tr></thead><tbody data-admin-members></tbody></table></div></section>${session.scopes?.includes('access.invite') ? `<section class="panel"><h2>Convites pendentes</h2><div data-pending></div><h2 data-form-title>Convidar uma nova conta</h2><p>O destinatário cria a própria senha. O convite não concede acesso a pacientes sem consentimento do responsável.</p><form class="stack-form" data-admin-form><label for="account-email">Email</label><input id="account-email" type="email" name="email" autocomplete="off" required><label for="account-role">Perfil</label><select id="account-role" name="role"><option value="professional">Profissional clínico</option><option value="teacher">Escola</option><option value="caregiver">Responsável legal</option><option value="org_admin">Administrador</option></select><fieldset class="scope-fieldset"><legend>Permissões máximas do vínculo</legend>${ADMIN_SCOPE_OPTIONS.map(({value,label})=>`<label class="scope-option"><input type="checkbox" name="scopes" value="${value}"><span>${label}</span></label>`).join('')}</fieldset><div data-member-fields hidden><label for="member-status">Status</label><select name="status" id="member-status"><option value="active">Ativo</option><option value="revoked">Revogado</option></select><label for="member-expiry">Validade do vínculo</label><input name="validUntil" id="member-expiry" type="date"></div><button class="primary-button" data-submit>Criar convite</button><button class="secondary-button" data-cancel type="button" hidden>Cancelar edição</button><p role="status" data-admin-form-status></p></form><div data-invitation-result hidden><p>Link pessoal de ativação: compartilhe somente com o destinatário por um canal privado. Ele vale por sete dias.</p><label for="activation-link">Link de ativação</label><input id="activation-link" readonly autocomplete="off"><button type="button" class="secondary-button" data-copy>Copiar link</button></div></section>` : ''}</main>`;
 }
-
-function renderHeader(session) {
-  return `<header class="topbar"><a class="brand" href="/admin/profissionais" data-route="/admin/profissionais">Fala Comigo <span>Portal</span></a><nav aria-label="Navegação principal"><a href="/clinica" data-route="/clinica" class="nav-link">Clínica</a><a href="/escola" data-route="/escola" class="nav-link">Escola</a><a href="/relatorios" data-route="/relatorios" class="nav-link">Relatórios</a><a href="/admin/profissionais" data-route="/admin/profissionais" class="nav-link selected">Administração</a></nav><div class="session-actions"><span class="session-id">${escapeHtml(session?.userId || '')}</span><button class="text-button" data-logout type="button">Sair</button></div></header>`;
-}
-
-function renderDenied({ session }) {
-  return `<div class="app-shell"><header class="topbar"><a class="brand" href="/clinica">Fala Comigo <span>Portal</span></a><div class="session-actions"><span class="session-id">${escapeHtml(session?.userId || '')}</span></div></header><main class="page-content"><section class="panel access-denied" role="alert"><p class="eyebrow">Área restrita</p><h1>Acesso Negado</h1><p>Seu perfil não possui escopo administrativo para gerenciar profissionais desta organização.</p><a class="secondary-button" href="/clinica">Voltar ao painel clínico</a></section></main></div>`;
-}
-
-export function renderAdminProfessionalsView({ session }) {
-  if (!hasAdministrativeScope(session)) return renderDenied({ session });
-  const scopeControls = ADMIN_SCOPE_OPTIONS.map((scope) => `<label class="scope-option"><input type="checkbox" name="scopes" value="${scope.value}"><span>${scope.label}</span></label>`).join('');
-  return `<div class="app-shell admin-page">${renderHeader(session)}<main class="page-content">
-    <div class="page-heading"><div><p class="eyebrow">Controle de acesso</p><h1>Profissionais e escopos</h1><p class="muted">Administre os vínculos da organização e defina o mínimo de acesso necessário para cada profissional.</p></div><span class="badge active">Organização: ${escapeHtml(session?.organizationId || '—')}</span></div>
-    <section class="panel"><div class="section-heading"><div><p class="eyebrow">Memberships</p><h2>Profissionais vinculados</h2></div><span class="form-status" data-admin-status>Carregando profissionais…</span></div><div class="table-wrap"><table><thead><tr><th>Profissional</th><th>Perfil</th><th>Escopos concedidos</th><th>Status</th><th>Ação</th></tr></thead><tbody data-admin-members><tr><td colspan="5">Carregando…</td></tr></tbody></table></div></section>
-    <section class="panel admin-form-panel"><div class="section-heading"><div><p class="eyebrow">Convite e edição</p><h2 data-admin-form-title>Adicionar profissional</h2></div><span class="form-status">Os escopos serão enviados ao portal-api.</span></div><form class="stack-form" data-admin-form><label for="admin-user-id">ID do profissional</label><input id="admin-user-id" name="inviteeUserId" placeholder="user-professional-..." required><label for="admin-role">Perfil organizacional</label><select id="admin-role" name="role"><option value="professional">Profissional</option><option value="org_admin">Administrador</option><option value="caregiver">Cuidador</option></select><fieldset class="scope-fieldset"><legend>Escopos de acesso</legend><div class="scope-grid">${scopeControls}</div></fieldset><div class="admin-form-actions"><button class="primary-button" data-admin-submit type="submit">Salvar profissional</button><button class="secondary-button" data-admin-cancel type="button" hidden>Cancelar edição</button></div><p class="form-status" data-admin-form-status>Escolha apenas os escopos necessários à função.</p></form></section>
-  </main></div>`;
-}
-
-export function renderMembers(members) {
-  if (!members.length) return '<tr><td colspan="5">Nenhum profissional vinculado a esta organização.</td></tr>';
-  return members.map((member) => {
-    const scopes = scopesForMember(member);
-    const scopeBadges = scopes.length ? scopes.map((scope) => `<span class="scope-badge">${escapeHtml(scope)}</span>`).join('') : '<span class="muted">Nenhum escopo</span>';
-    return `<tr><td><strong>${escapeHtml(member.userId)}</strong><small>${escapeHtml(member.id)}</small></td><td>${escapeHtml(member.role)}</td><td><div class="scope-badges">${scopeBadges}</div></td><td><span class="badge ${member.status === 'active' ? 'active' : 'local'}">${escapeHtml(member.status || 'pendente')}</span></td><td><button class="text-button" data-edit-professional="${escapeHtml(member.userId)}" type="button">Editar acesso</button></td></tr>`;
-  }).join('');
-}
-
-export async function hydrateAdminProfessionalsView({ session }) {
+export async function hydrateAdminProfessionalsView({session}) {
   if (!hasAdministrativeScope(session)) return;
-  const status = document.querySelector('[data-admin-status]');
-  const membersBody = document.querySelector('[data-admin-members]');
-  const form = document.querySelector('[data-admin-form]');
-  const formStatus = document.querySelector('[data-admin-form-status]');
-  const formTitle = document.querySelector('[data-admin-form-title]');
-  const submit = document.querySelector('[data-admin-submit]');
-  const cancel = document.querySelector('[data-admin-cancel]');
-  if (!status || !membersBody || !form) return;
-
-  let members = [];
-  const resetForm = () => {
-    form.reset();
-    formTitle.textContent = 'Adicionar profissional';
-    submit.textContent = 'Salvar profissional';
-    cancel.hidden = true;
-    formStatus.textContent = 'Escolha apenas os escopos necessários à função.';
-  };
-  const loadMembers = async () => {
-    status.textContent = 'Carregando profissionais…';
-    membersBody.innerHTML = '<tr><td colspan="5">Carregando…</td></tr>';
-    try {
-      const result = await apiClient.carregarProfissionais(session.organizationId);
-      members = result.memberships || [];
-      membersBody.innerHTML = renderMembers(members);
-      status.textContent = `${members.length} vínculo(s) encontrado(s).`;
-      membersBody.querySelectorAll('[data-edit-professional]').forEach((button) => {
-        button.addEventListener('click', () => {
-          const member = members.find((candidate) => candidate.userId === button.dataset.editProfessional);
-          if (!member) return;
-          form.elements.inviteeUserId.value = member.userId;
-          form.elements.role.value = member.role === 'owner' ? 'org_admin' : member.role;
-          form.querySelectorAll('input[name="scopes"]').forEach((input) => {
-            input.checked = scopesForMember(member).includes(input.value);
-          });
-          formTitle.textContent = 'Editar acesso profissional';
-          submit.textContent = 'Reenviar convite com escopos';
-          cancel.hidden = false;
-          formStatus.textContent = 'Revise os escopos e confirme para enviar uma nova configuração de acesso.';
-        });
-      });
-    } catch (error) {
-      status.textContent = `Falha ao carregar: ${error.message}`;
-      membersBody.innerHTML = '<tr><td colspan="5">Não foi possível carregar os profissionais.</td></tr>';
+  const status=document.querySelector('[data-admin-status]'), rows=document.querySelector('[data-admin-members]');
+  const form=document.querySelector('[data-admin-form]'); let members=[], editing=null;
+  const syncOptions=()=>{if(!form)return; form.querySelectorAll('[name=scopes]').forEach((input)=>{input.disabled=!roleAllowed[form.elements.role.value]?.includes(input.value)||!session.scopes.includes(input.value); if(input.disabled)input.checked=false;});};
+  const reset=()=>{editing=null;form.reset();form.elements.email.disabled=false;document.querySelector('[data-member-fields]').hidden=true;document.querySelector('[data-cancel]').hidden=true;document.querySelector('[data-form-title]').textContent='Convidar uma nova conta';document.querySelector('[data-submit]').textContent='Criar convite';syncOptions();};
+  async function load(){
+    const result=await apiClient.carregarProfissionais(session.organizationId);
+    members=result.memberships;rows.innerHTML=renderMembers(members,session);status.textContent=`${members.length} vínculo(s).`;
+    if (form) {
+      const pending = await apiClient.request(`/v1/organizations/${encodeURIComponent(session.organizationId)}/account-invitations`);
+      const area = document.querySelector('[data-pending]');
+      area.innerHTML = pending.invitations.map((item) => `<p>${esc(item.email)} <button type="button" class="text-button" data-reissue="${esc(item.id)}">Gerar novo link</button></p>`).join('') || '<p class="muted">Nenhum convite pendente.</p>';
+      area.querySelectorAll('[data-reissue]').forEach((button) => button.addEventListener('click', async () => {
+        button.disabled = true;
+        try {
+          const result = await apiClient.request(`/v1/organizations/${encodeURIComponent(session.organizationId)}/account-invitations/${encodeURIComponent(button.dataset.reissue)}/reissue`, { method:'POST' });
+          document.querySelector('#activation-link').value = `${window.location.origin}/ativar#token=${encodeURIComponent(result.token)}`;
+          document.querySelector('[data-invitation-result]').hidden = false;
+          document.querySelector('[data-admin-form-status]').textContent = 'Novo link criado. O anterior deixou de valer.';
+        } catch (_) { document.querySelector('[data-admin-form-status]').textContent = 'Não foi possível renovar o convite.'; }
+        finally { button.disabled = false; }
+      }));
     }
-  };
-
-  cancel.addEventListener('click', resetForm);
-  form.addEventListener('submit', async (event) => {
-    event.preventDefault();
-    submit.disabled = true;
-    formStatus.textContent = 'Salvando escopos e enviando convite…';
-    const formData = new FormData(form);
-    const scopes = formData.getAll('scopes');
-    try {
-      await apiClient.convidarProfissional(session.organizationId, {
-        inviteeUserId: formData.get('inviteeUserId'),
-        role: formData.get('role'),
-        scopes,
-        purpose: 'Acesso profissional ao portal'
-      });
-      resetForm();
-      formStatus.textContent = 'Profissional salvo. A lista foi atualizada.';
-      await loadMembers();
-    } catch (error) {
-      formStatus.textContent = `Não foi possível salvar: ${error.message}`;
-    } finally {
-      submit.disabled = false;
-    }
-  });
-
-  await loadMembers();
+    rows.querySelectorAll('[data-edit]').forEach((button)=>button.addEventListener('click',()=>{
+      editing=members.find((member)=>member.id===button.dataset.edit);if(!form||!editing)return;
+      form.elements.email.value=editing.email||'';form.elements.email.disabled=true;form.elements.role.value=editing.role;form.elements.status.value=editing.status;form.elements.validUntil.value=editing.validUntil.slice(0,10);
+      syncOptions();form.querySelectorAll('[name=scopes]').forEach((input)=>{input.checked=!input.disabled&&editing.scopes.includes(input.value);});
+      document.querySelector('[data-member-fields]').hidden=false;document.querySelector('[data-cancel]').hidden=false;document.querySelector('[data-form-title]').textContent='Editar vínculo';document.querySelector('[data-submit]').textContent='Salvar acesso';document.querySelector('[data-invitation-result]').hidden=true;
+    }));
+  }
+  if(form){
+    reset();form.elements.role.addEventListener('change',syncOptions);document.querySelector('[data-cancel]').addEventListener('click',reset);
+    document.querySelector('[data-copy]').addEventListener('click',async()=>{const input=document.querySelector('#activation-link');try{await navigator.clipboard.writeText(input.value);}catch(_){input.select();}});
+    form.addEventListener('submit',async(event)=>{
+      event.preventDefault();const button=document.querySelector('[data-submit]'),message=document.querySelector('[data-admin-form-status]');button.disabled=true;document.querySelector('[data-invitation-result]').hidden=true;
+      const data=new FormData(form),body={role:data.get('role'),scopes:data.getAll('scopes')};
+      try{
+        if(editing){await apiClient.request(`/v1/organizations/${encodeURIComponent(session.organizationId)}/member-access/${encodeURIComponent(editing.id)}`,{method:'POST',body:{...body,status:data.get('status'),validUntil:`${data.get('validUntil')}T23:59:59.000Z`}});reset();message.textContent='Vínculo atualizado. Permissões removidas deixam de valer imediatamente; novos acessos exigem novo login.';}
+        else{const result=await apiClient.request(`/v1/organizations/${encodeURIComponent(session.organizationId)}/account-invitations`,{method:'POST',body:{...body,email:data.get('email')}});reset();document.querySelector('#activation-link').value=`${window.location.origin}/ativar#token=${encodeURIComponent(result.token)}`;document.querySelector('[data-invitation-result]').hidden=false;message.textContent='Convite criado. Guarde o link: ele só é exibido nesta sessão.';}
+        await load();
+      }catch(error){message.textContent=error.message==='ACCOUNT_EXISTS'?'Essa conta já existe. Gerencie seu vínculo ou solicite suporte.':'Não foi possível salvar. Confira email, permissões, prazo e sessão.';}finally{button.disabled=false;}
+    });
+  }
+  await load();
 }

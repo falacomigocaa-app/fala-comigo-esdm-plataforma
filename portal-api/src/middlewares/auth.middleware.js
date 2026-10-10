@@ -27,13 +27,13 @@ function validatedClaims(payload) {
   };
 }
 
-export function authenticateRequest(store, headers = {}) {
+export async function authenticateRequest(store, headers = {}) {
   const token = bearerToken(headers);
   if (!token) throw new AuthorizationError('AUTH_REQUIRED', 401);
 
   try {
     const claims = validatedClaims(verifyAccessToken(token));
-    const user = store.users.find((candidate) => candidate.id === claims.userId && candidate.status === 'active');
+    const user = await store.findRecord('users', { id: claims.userId, status: 'active' });
     if (!user) throw new AuthorizationError('AUTH_REQUIRED', 401);
     return { ...user, organizationId: claims.organizationId, scopes: claims.scopes, tokenIssuedAt: claims.iat, tokenExpiresAt: claims.exp };
   } catch (error) {
@@ -45,9 +45,9 @@ export function authenticateRequest(store, headers = {}) {
 
 /** Express-compatible adapter for deployments that expose the same auth layer through Express. */
 export function createAuthMiddleware(store) {
-  return (req, res, next) => {
+  return async (req, res, next) => {
     try {
-      req.user = authenticateRequest(store, req.headers);
+      req.user = await authenticateRequest(store, req.headers);
       next();
     } catch (error) {
       const status = error.status ?? 401;

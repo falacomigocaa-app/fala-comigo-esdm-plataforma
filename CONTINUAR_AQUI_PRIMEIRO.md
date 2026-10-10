@@ -168,3 +168,7 @@ A área parental agora oferece preview visual da grade infantil, com miniaturas 
 Também foram adicionadas chaves estáveis às seções expansíveis e Material local para preservar o feedback de toque dos ListTiles. A cobertura `test/parental_settings_preview_test.dart` valida cartão, miniaturas e troca de tema. Validação concluída: `flutter analyze` sem issues, `flutter test` com 128 testes aprovados e `flutter build web --release` concluído. O checklist foi atualizado em `docs/FASE_1_CHECKLIST.md`.
 
 Observação: o teste isolado usa Hive em diretório temporário; o teardown de fechamento foi omitido porque a versão atual do Hive/Flutter bloqueava ao encerrar providers ainda ativos. Isso não afeta a persistência de produção. Próximo marco: validar responsividade, contraste e touch targets em telas pequenas e tablet.
+
+## Preparação para produção — 10/10/2026 — trabalho em andamento
+
+Branch `coderabbit/audit-test-improvements/b0f933e5`, base `200f9b9`. Auditoria corrigiu persistência/autorização, relógio, idempotência, wipe e chave mobile. Novos fluxos de ativação, equipe, paciente e consentimento estão implementados com migration007. Consulte `docs/PRONTIDAO_PRODUCAO.md` para estado e limites. Até aqui: Flutter136 testes anteriores +2 prancha; API53/53 PostgreSQL; portal21 testes distintos. Builds finais/últimos gates ainda em execução; não afirmar produção liberada. Infraestrutura e assinatura definitivas continuam pendentes.

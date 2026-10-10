@@ -1,3 +1,4 @@
+import '../../../../core/services/auth_token_service.dart';
 import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -132,6 +133,7 @@ class MetaEsdmController extends StateNotifier<MetaEsdmState> {
     try {
       final bytes = await MobilePdfService.generate(
         subjectId: subjectId ??
+            await AuthTokenService.readSubjectId() ??
             const String.fromEnvironment(
               'PORTAL_SUBJECT_ID',
               defaultValue: 'local-subject',

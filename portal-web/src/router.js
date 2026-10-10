@@ -1,3 +1,5 @@
+import { renderActivateView, hydrateActivateView, renderAccountView, hydrateAccountView } from './views/account-views.js';
+import { renderPatientsView, hydratePatientsView } from './views/patients-view.js';
 import { clearSession, getSession } from './api/client.js';
 import { hydrateClinicaScreen, renderClinicaScreen } from './screens/clinica_screen.js';
 import { hydrateEscolaScreen, renderEscolaScreen } from './screens/escola_screen.js';
@@ -5,7 +7,7 @@ import { hydrateReportsView, renderReportsView } from './views/reports-view.js';
 import { hydrateLoginView, renderLoginView } from './views/login-view.js';
 import { hydrateAdminProfessionalsView, renderAdminProfessionalsView } from './views/admin-professionals-view.js';
 
-const routes = new Set(['/login', '/clinica', '/escola', '/relatorios', '/admin/profissionais']);
+const routes = new Set(['/login', '/clinica', '/escola', '/relatorios', '/admin/profissionais', '/pacientes', '/conta', '/ativar']);
 
 function normalizedPath(pathname = window.location.pathname) {
   const path = pathname.replace(/\/+/g, '/').replace(/\/$/, '');
@@ -31,7 +33,7 @@ export function createRouter({ root }) {
     const session = getSession();
     let path = normalizedPath();
 
-    if (!session && path !== '/login') {
+    if (!session && !['/login','/ativar'].includes(path)) {
       path = '/login';
       window.history.replaceState({}, '', path);
     }
@@ -49,6 +51,13 @@ export function createRouter({ root }) {
       }
     };
 
+    if (path === '/ativar') { root.innerHTML = renderActivateView(); hydrateActivateView(); return; }
+    if (path === '/conta') { root.innerHTML = renderAccountView(context); hydrateAccountView(context); return; }
+    if (path === '/pacientes') {
+      root.innerHTML = renderPatientsView(context);
+      hydratePatientsView(context).catch(() => { root.querySelector('[data-access-status]').textContent = 'Não foi possível carregar pacientes e acessos.'; });
+      return;
+    }
     if (path === '/clinica') {
       root.innerHTML = renderClinicaScreen(context);
       hydrateClinicaScreen(context).catch((error) => {

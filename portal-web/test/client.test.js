@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 function installBrowser(fetchImpl, session = { userId: 'user-professional-alpha', organizationId: 'org-demo-alpha', token: 'jwt-test-token' }) {
   globalThis.window = {
     PORTAL_API_BASE: 'http://127.0.0.1:8787',
-    localStorage: {
+    sessionStorage: {
       getItem: () => JSON.stringify(session),
       setItem: () => {},
       removeItem: () => {}
@@ -81,7 +81,7 @@ test('APIClient limpa a sessão e sinaliza reautenticação em 401', async () =>
     status: 401,
     async json() { return { error: 'TOKEN_EXPIRED', renewalRequired: true }; }
   }));
-  window.localStorage.removeItem = () => { removed = true; };
+  window.sessionStorage.removeItem = () => { removed = true; };
   window.dispatchEvent = () => { signaled = true; return true; };
 
   const { APIClient } = await import(`../src/api/client.js?case=${Date.now()}`);
@@ -104,7 +104,7 @@ test('APIClient renova a sessão e repete a requisição após TOKEN_EXPIRED', a
   let persisted;
   globalThis.window = {
     PORTAL_API_BASE: 'http://127.0.0.1:8787',
-    localStorage: {
+    sessionStorage: {
       getItem: () => JSON.stringify(persisted || session),
       setItem: (_key, value) => { persisted = JSON.parse(value); },
       removeItem: () => {}
@@ -155,7 +155,7 @@ test('APIClient compartilha um único refresh em requisições clínicas paralel
   let retriedCalls = 0;
   globalThis.window = {
     PORTAL_API_BASE: 'http://127.0.0.1:8787',
-    localStorage: {
+    sessionStorage: {
       getItem: () => JSON.stringify(persisted || session),
       setItem: (_key, value) => { persisted = JSON.parse(value); },
       removeItem: () => {}
@@ -235,4 +235,21 @@ test('APIClient.login envia email e senha ao provedor central', async () => {
     password: 'DemoPassword-2026'
   });
   assert.equal(result.accessToken, 'access-login');
+});
+
+test('refresh atrasado não restaura sessão encerrada', async () => {
+  let session = { token: 'old-token', refreshToken: 'old-refresh' };
+  let finish;
+  installBrowser(() => new Promise((resolve) => { finish = resolve; }));
+  window.sessionStorage = {
+    getItem: () => JSON.stringify(session),
+    setItem: (_, value) => { session = JSON.parse(value); },
+    removeItem: () => { session = null; }
+  };
+  const { APIClient, clearSession } = await import('../src/api/client.js');
+  const pending = new APIClient().refreshSession();
+  clearSession();
+  finish({ ok: true, status: 200, json: async () => ({ accessToken: 'new-token', refreshToken: 'new-refresh' }) });
+  await assert.rejects(pending, /SESSION_CHANGED/);
+  assert.equal(session, null);
 });

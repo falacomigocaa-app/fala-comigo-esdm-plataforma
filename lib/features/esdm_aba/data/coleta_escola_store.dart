@@ -27,7 +27,7 @@ class ColetaEscolaStore {
     await box.put(coleta.id, coleta);
   }
 
-  static Future<List<ColetaEscolaModel>> loadAll() async {
+  static Future<List<ColetaEscolaModel>> loadAll({String? subjectId}) async {
     final box = await _box();
     final records = box.values.toList();
     // Mantém leitura compatível com a primeira versão local da feature,
@@ -38,6 +38,6 @@ class ColetaEscolaStore {
     records.addAll(legacyBox.values);
     records
         .sort((left, right) => right.dataRegistro.compareTo(left.dataRegistro));
-    return records;
+    return records.where((record) => record.subjectId == subjectId).toList();
   }
 }

@@ -1,3 +1,7 @@
+import 'package:flutter/services.dart';
+import '../../../../core/services/communication_board_pdf_service.dart';
+import '../../../../core/services/parental_session_service.dart';
+import '../../../aac_grid/domain/models/pictogram_card.dart';
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:pdf/pdf.dart';
@@ -234,6 +238,38 @@ class _DataExportScreenState extends State<DataExportScreen> {
     await _share(doc, 'rotina_visual_fala_comigo.pdf');
   }
 
+  bool _exportingBoard = false;
+
+  Future<void> _exportBoard() async {
+    if (_exportingBoard) return;
+    _exportingBoard = true;
+    try {
+      ParentalSessionService.requireAuthenticated();
+      final box = await SecureBoxService.openSecureBox<PictogramCard>(
+          'pictogram_cards');
+      // Personal photos need a separate explicit choice before entering a PDF.
+      final cards = box.values.where((card) => !card.isCustomImage).toList();
+      final bytes = await CommunicationBoardPdfService.generate(
+        cards: cards,
+        loadImage: (card) async =>
+            (await rootBundle.load(card.imagePath)).buffer.asUint8List(),
+      );
+      ParentalSessionService.requireAuthenticated();
+      await Printing.sharePdf(
+          bytes: bytes, filename: 'prancha_fala_comigo.pdf');
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text(
+                  'Não foi possível gerar a prancha. Confira a sessão e os cartões disponíveis.')),
+        );
+      }
+    } finally {
+      _exportingBoard = false;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -318,6 +354,13 @@ class _DataExportScreenState extends State<DataExportScreen> {
                   controlAffinity: ListTileControlAffinity.leading,
                 ),
                 const SizedBox(height: 8),
+                _ExportCard(
+                  icon: Icons.grid_view,
+                  title: 'Prancha de comunicação para imprimir',
+                  description:
+                      'Cartões sem fotos pessoais, na ordem da grade. Uma alternativa em papel para quando o aparelho não estiver disponível.',
+                  onExport: _exportBoard,
+                ),
                 _ExportCard(
                   icon: Icons.insights_outlined,
                   title: 'Resumo de progresso',

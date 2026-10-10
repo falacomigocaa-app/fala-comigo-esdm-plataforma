@@ -49,3 +49,10 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
+
+# Node dependencies and private runtime configuration
+**/node_modules/
+**/.env
+**/.env.*
+!**/.env.example
+/android/.kotlin/

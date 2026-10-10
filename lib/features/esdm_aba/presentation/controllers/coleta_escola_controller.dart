@@ -1,3 +1,4 @@
+import '../../../../core/services/auth_token_service.dart';
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -98,7 +99,8 @@ class ColetaEscolaController extends StateNotifier<ColetaEscolaState> {
   }
 
   Future<void> _initializeConsent() async {
-    final grant = await ConcessaoAcessoStore.findActive(escolaPerfilAlvo);
+    final grant = await ConcessaoAcessoStore.findActive(escolaPerfilAlvo,
+        requireWrite: true);
     state = state.copyWith(consentimentoBloqueado: grant == null);
   }
 
@@ -111,13 +113,18 @@ class ColetaEscolaController extends StateNotifier<ColetaEscolaState> {
   Future<void> _initializeGoals() async {
     state = state.copyWith(carregandoMetas: true);
     try {
-      final cached = await GoalStore.loadForSubject(syncSubjectId);
+      final subjectId = await AuthTokenService.readSubjectId();
+      final cached =
+          await GoalStore.loadForSubject(subjectId ?? 'local-subject');
       state = state.copyWith(
         metas: cached,
         metaSelecionadaId: cached.isEmpty ? null : cached.first.id,
       );
-      await GoalSyncService.syncActiveGoals(subjectId: syncSubjectId);
-      final refreshed = await GoalStore.loadForSubject(syncSubjectId);
+      if (subjectId != null) {
+        await GoalSyncService.syncActiveGoals(subjectId: subjectId);
+      }
+      final refreshed =
+          await GoalStore.loadForSubject(subjectId ?? 'local-subject');
       state = state.copyWith(
         metas: refreshed,
         carregandoMetas: false,
@@ -151,7 +158,8 @@ class ColetaEscolaController extends StateNotifier<ColetaEscolaState> {
       return false;
     }
 
-    final grant = await ConcessaoAcessoStore.findActive(escolaPerfilAlvo);
+    final grant = await ConcessaoAcessoStore.findActive(escolaPerfilAlvo,
+        requireWrite: true);
     if (grant == null) {
       SyncQueueService.consentBlockedNotifier.value = true;
       return false;
@@ -159,18 +167,22 @@ class ColetaEscolaController extends StateNotifier<ColetaEscolaState> {
 
     state = state.copyWith(salvando: true, erro: null);
     try {
+      final subjectId = await AuthTokenService.readSubjectId();
       final coleta = ColetaEscolaModel(
         id: const Uuid().v4(),
         dataRegistro: DateTime.now(),
         blocoRotinaEscolar: bloco,
         nivelSuporte: nivel,
         metaId: state.metaSelecionadaId,
+        subjectId: subjectId,
       );
       await ColetaEscolaStore.save(coleta);
-      final syncStatus = await SyncQueueService.saveOrSyncCollection(
-        coleta: coleta,
-        subjectId: syncSubjectId,
-      );
+      final syncStatus = subjectId == null
+          ? SyncOutcome.localOnly
+          : await SyncQueueService.saveOrSyncCollection(
+              coleta: coleta,
+              subjectId: subjectId,
+            );
       state = state.copyWith(
         salvando: false,
         ultimaColeta: coleta,

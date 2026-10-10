@@ -11,7 +11,7 @@ const periodOptions = [
 const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
 
 function renderHeader(session) {
-  return `<header class="topbar"><a class="brand" href="/relatorios" data-route="/relatorios">Fala Comigo <span>Portal</span></a><nav aria-label="Navegação principal"><a href="/clinica" data-route="/clinica" class="nav-link">Clínica</a><a href="/escola" data-route="/escola" class="nav-link">Escola</a><a href="/relatorios" data-route="/relatorios" class="nav-link selected">Relatórios</a></nav><div class="session-actions"><span class="session-id">${escapeHtml(session?.userId || '')}</span><button class="text-button" data-logout type="button">Sair</button></div></header>`;
+  return `<header class="topbar"><a class="brand" href="/relatorios" data-route="/relatorios">Fala Comigo <span>Portal</span></a><nav aria-label="Navegação principal"><a href="/clinica" data-route="/clinica" class="nav-link">Clínica</a><a href="/escola" data-route="/escola" class="nav-link">Escola</a><a href="/relatorios" data-route="/relatorios" class="nav-link selected">Relatórios</a><a href="/pacientes" data-route="/pacientes" class="nav-link">Pacientes e acessos</a><a href="/conta" data-route="/conta" class="nav-link">Minha conta</a></nav><div class="session-actions"><span class="session-id">${escapeHtml(session?.userId || '')}</span><button class="text-button" data-logout type="button">Sair</button></div></header>`;
 }
 
 export function renderReportsView({ session }) {
@@ -116,6 +116,10 @@ export async function hydrateReportsView({ session }) {
   const goalsBody = document.querySelector('[data-report-goals]');
   if (!status || !subjectSelect || !periodSelect || !goalFilter || !chart || !goalsBody) return;
 
+  let loadVersion = 0;
+  let ready = false;
+  const printButton = document.querySelector('[data-print-report]');
+  if (printButton) printButton.disabled = true;
   let collections = [];
   let goals = [];
   let patients = [];
@@ -163,6 +167,11 @@ export async function hydrateReportsView({ session }) {
   };
 
   const loadSubject = async (subjectId) => {
+    const version = ++loadVersion;
+    ready = false;
+    if (printButton) printButton.disabled = true;
+    collections = []; goals = [];
+    render();
     currentSubjectId = subjectId;
     status.textContent = 'Carregando coletas e metas autorizadas…';
     chart.innerHTML = '<p class="report-empty">Carregando gráfico…</p>';
@@ -171,8 +180,11 @@ export async function hydrateReportsView({ session }) {
       apiClient.carregarMetas(subjectId)
     ]);
     try {
-      collections = await decryptCollectionEnvelopes(collectionResult.collections || [], { session });
+      const decrypted = await decryptCollectionEnvelopes(collectionResult.collections || [], { session });
+      if (version !== loadVersion || !subjectSelect.isConnected) return;
+      collections = decrypted;
     } catch (error) {
+      if (version !== loadVersion) return;
       if (error instanceof WebE2EEError || error?.code === 'E2EE_KEY_INVALID') {
         status.textContent = error.message;
         chart.innerHTML = `<div class="report-empty"><strong>${error.message}</strong><span>O conteúdo clínico permanece protegido e não foi renderizado.</span></div>`;
@@ -184,12 +196,14 @@ export async function hydrateReportsView({ session }) {
     goals = goalResult.goals || [];
     goalFilter.innerHTML = `<option value="all">Todas as metas</option>${goals.map((goal) => `<option value="${escapeHtml(goal.codigoTecnicoDenver)}">${escapeHtml(goal.codigoTecnicoDenver)}</option>`).join('')}`;
     goalFilter.disabled = false;
+    ready = true;
+    if (printButton) printButton.disabled = false;
     render();
     status.textContent = `${collections.length} coleta(s) e ${goals.length} meta(s) carregada(s).`;
   };
 
   try {
-    const patientsResult = await apiClient.carregarPacientes(session?.organizationId || 'org-demo-alpha');
+    const patientsResult = await apiClient.carregarPacientes(session?.organizationId);
     patients = patientsResult.subjects || [];
     if (!patients.length) {
       status.textContent = 'Nenhum paciente autorizado.';
@@ -209,6 +223,7 @@ export async function hydrateReportsView({ session }) {
     goalFilter.addEventListener('change', render);
     document.querySelector('[data-refresh-report]')?.addEventListener('click', () => loadSubject(currentSubjectId).catch((error) => { status.textContent = `Falha ao atualizar: ${escapeHtml(error.message)}`; }));
     document.querySelector('[data-print-report]')?.addEventListener('click', () => {
+      if (!ready) return;
       if (!exportClinicalReportPdf()) {
         status.textContent = 'Sessão ausente. Faça login novamente para exportar o relatório.';
       }

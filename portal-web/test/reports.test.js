@@ -127,3 +127,14 @@ test('chave E2EE ausente falha com mensagem amigável de decodificação', async
     (error) => error.code === 'E2EE_KEY_INVALID' && error.message === DECODE_ERROR_MESSAGE
   );
 });
+
+test('coleta cifrada no navegador pode ser lida pelo mesmo contrato AES-GCM', async () => {
+  const { encryptCollection, decryptE2EEEnvelope } = await import('../src/services/crypto-web.service.js');
+  const session = { organizationId: 'org-web-test', organizationKey: Buffer.alloc(32, 7).toString('base64') };
+  const payload = { subjectId: 'subject-web-test', blocoRotinaEscolar: 'Lanche', nivelSuporte: 'Independente' };
+  const first = await encryptCollection(payload, { session });
+  const second = await encryptCollection(payload, { session });
+  assert.notEqual(first.iv, second.iv);
+  assert.equal(JSON.stringify(first).includes('Lanche'), false);
+  assert.deepEqual(await decryptE2EEEnvelope(first, { session }), payload);
+});

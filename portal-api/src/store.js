@@ -1,4 +1,5 @@
 import pg from 'pg';
+import { attachRepository } from './repository.js';
 import { randomUUID } from 'node:crypto';
 import bcrypt from 'bcryptjs';
 import {
@@ -45,13 +46,27 @@ const baseOrganizations = [
 ];
 
 const roleScopes = {
-  owner: ['organization.read', 'organization.key.read', 'membership.read', 'access.invite', 'access.read', 'access.revoke', 'benefit.read', 'audit.read', 'esdm_goal.read', 'esdm_goal.write', 'routine.read', 'school_collection.read', 'school_collection.write'],
+  owner: ['subject.create', 'organization.read', 'organization.key.read', 'membership.read', 'access.invite', 'access.read', 'access.revoke', 'benefit.read', 'audit.read', 'esdm_goal.read', 'esdm_goal.write', 'routine.read', 'school_collection.read', 'school_collection.write'],
   org_admin: ['organization.read', 'organization.key.read', 'membership.read', 'access.invite', 'access.read', 'benefit.read', 'esdm_goal.read', 'esdm_goal.write', 'routine.read', 'school_collection.read', 'school_collection.write'],
   professional: ['organization.read', 'access.read', 'esdm_goal.read', 'esdm_goal.write'],
   teacher: ['organization.read', 'access.read', 'routine.read', 'school_collection.read', 'school_collection.write'],
-  caregiver: ['organization.read', 'access.read'],
+  caregiver: ['subject.create', 'organization.read', 'access.read', 'esdm_goal.read', 'school_collection.read', 'organization.key.read'],
   outsider: []
 };
+
+// Default roles remain conservative; clinical/key access must be explicitly delegated.
+export function allowedScopes(role) {
+  const defaults = roleScopes[role] ?? [];
+  const clinical = ['professional', 'teacher'].includes(role)
+    ? ['organization.key.read', 'esdm_goal.read', 'school_collection.read', 'school_collection.write'] : [];
+  return [...new Set([...defaults, ...clinical])];
+}
+export function effectiveScopes(membership) {
+  if (!membership) return [];
+  return Array.isArray(membership.scopes)
+    ? allowedScopes(membership.role).filter((scope) => membership.scopes.includes(scope))
+    : roleScopes[membership.role] ?? [];
+}
 
 const DUMMY_PASSWORD_HASH = '$2b$12$u7hinMZXhMWNJXvBs90RauPnmv8zVvZcSh7ohICCg/S9TJAESRqSi';
 
@@ -122,7 +137,7 @@ function createPostgresPool() {
     max: Number(process.env.PGPOOL_MAX ?? 10),
     idleTimeoutMillis: Number(process.env.PGPOOL_IDLE_TIMEOUT_MS ?? 30_000),
     connectionTimeoutMillis: Number(process.env.PGPOOL_CONNECTION_TIMEOUT_MS ?? 5_000),
-    ssl: process.env.PGSSLMODE === 'require' ? { rejectUnauthorized: false } : undefined
+    ssl: process.env.PGSSLMODE === 'require' ? { rejectUnauthorized: true } : undefined
   });
 
   pool.on('error', (error) => {
@@ -131,21 +146,23 @@ function createPostgresPool() {
   return pool;
 }
 
-export function createStore({ pool = createPostgresPool() } = {}) {
+export function createStore({ pool = createPostgresPool(), fixtures = !pool && process.env.NODE_ENV !== 'production' } = {}) {
+  if (!pool && process.env.NODE_ENV === 'production') throw new Error('DATABASE_URL is required in production');
   const store = {
-    users: structuredClone(baseUsers),
-    organizations: structuredClone(baseOrganizations),
-    memberships: structuredClone(baseMemberships),
-    subjects: structuredClone(baseSubjects),
+    users: fixtures ? structuredClone(baseUsers) : [],
+    organizations: fixtures ? structuredClone(baseOrganizations) : [],
+    memberships: fixtures ? structuredClone(baseMemberships) : [],
+    subjects: fixtures ? structuredClone(baseSubjects) : [],
     relationships: [],
-    consents: structuredClone(baseConsents),
-    invitations: structuredClone(baseInvitations),
-    grants: structuredClone(baseGrants),
-    benefits: structuredClone(baseBenefits),
+    consents: fixtures ? structuredClone(baseConsents) : [],
+    invitations: fixtures ? structuredClone(baseInvitations) : [],
+    grants: fixtures ? structuredClone(baseGrants) : [],
+    benefits: fixtures ? structuredClone(baseBenefits) : [],
     goals: [],
     collections: [],
     refreshTokens: new Map(),
     organizationKeys: new Map(),
+    activationTokens: [],
     auditEvents: [],
     idempotency: new Map(),
     pool,
@@ -154,7 +171,7 @@ export function createStore({ pool = createPostgresPool() } = {}) {
     async getOrganizationKey(organizationId) {
       let encryptedValue;
       if (pool) {
-        const result = await pool.query(`
+        const result = await store.database.query(`
           select organization_id, key_encrypted
             from organization_keys
            where organization_id = $1
@@ -173,7 +190,7 @@ export function createStore({ pool = createPostgresPool() } = {}) {
     async provisionOrganizationKey({ organizationId, createdByUserId, now = new Date() }) {
       const keyEncrypted = encryptOrganizationKey(generateOrganizationKey(), { organizationId, now });
       if (pool) {
-        await pool.query(`
+        await store.database.query(`
           insert into organization_keys (organization_id, key_encrypted, key_version, created_by_user_id, rotated_by_user_id, created_at, rotated_at)
           values ($1, $2, 1, $3, $3, $4, $4)
           on conflict (organization_id) do update set
@@ -200,7 +217,7 @@ export function createStore({ pool = createPostgresPool() } = {}) {
       if (!translation) throw new Error('INVALID_ESDM_CODE');
       const id = `goal-${randomUUID()}`;
       if (pool) {
-        const result = await pool.query(`
+        const result = await store.database.query(`
           insert into esdm_goals (id, subject_id, codigo_tecnico_denver, missao_pais, dica_pratica, status, passo_atual_aba, created_by_user_id)
           values ($1,$2,$3,$4,$5,$6,$7,$8) returning *
         `, [id, subjectId, codigoTecnicoDenver, translation.missaoPais, translation.dicaPratica, status, passoAtualAba, createdByUserId]);
@@ -213,7 +230,7 @@ export function createStore({ pool = createPostgresPool() } = {}) {
 
     async getGoalsBySubject(subjectId) {
       if (pool) {
-        const result = await pool.query('select * from esdm_goals where subject_id = $1 and status <> $2 order by created_at desc', [subjectId, 'Archived']);
+        const result = await store.database.query('select * from esdm_goals where subject_id = $1 and status <> $2 order by created_at desc', [subjectId, 'Archived']);
         return result.rows.map(mapGoal);
       }
       return store.goals.filter((goal) => goal.subjectId === subjectId && goal.status !== 'Archived');
@@ -222,7 +239,7 @@ export function createStore({ pool = createPostgresPool() } = {}) {
     async saveCollection({ subjectId, organizationId, encryptedData, iv, dataRegistro, createdByUserId }) {
       const id = `collection-${randomUUID()}`;
       if (pool) {
-        const result = await pool.query(`
+        const result = await store.database.query(`
           insert into school_collections (id, subject_id, organization_id, encrypted_data, iv, data_registro, created_by_user_id)
           values ($1,$2,$3,$4,$5,$6,$7) returning *
         `, [id, subjectId, organizationId, encryptedData, iv, dataRegistro, createdByUserId]);
@@ -244,12 +261,12 @@ export function createStore({ pool = createPostgresPool() } = {}) {
       return collection;
     },
 
-    async getCollectionsBySubject(subjectId) {
+    async getCollectionsBySubject(subjectId, organizationId) {
       if (pool) {
-        const result = await pool.query('select * from school_collections where subject_id = $1 order by data_registro desc', [subjectId]);
+        const result = await store.database.query('select * from school_collections where subject_id = $1 and organization_id = $2 order by data_registro desc', [subjectId, organizationId]);
         return result.rows.map(mapCollection);
       }
-      return store.collections.filter((collection) => collection.subjectId === subjectId).sort((a, b) => new Date(b.dataRegistro) - new Date(a.dataRegistro));
+      return store.collections.filter((collection) => collection.subjectId === subjectId && collection.organizationId === organizationId).sort((a, b) => new Date(b.dataRegistro) - new Date(a.dataRegistro));
     },
 
     async authenticateCredentials({ email, password }, now = new Date()) {
@@ -259,8 +276,8 @@ export function createStore({ pool = createPostgresPool() } = {}) {
       let membership;
 
       if (pool) {
-        const result = await pool.query(`
-          select u.id, u.email, u.password_hash, m.organization_id, m.role
+        const result = await store.database.query(`
+          select u.id, u.email, u.password_hash, m.organization_id, m.role, m.scopes
             from users u
             join memberships m on m.user_id = u.id
            where lower(u.email) = $1
@@ -290,11 +307,10 @@ export function createStore({ pool = createPostgresPool() } = {}) {
         throw new AuthorizationError('INVALID_CREDENTIALS', 401);
       }
 
-      const role = membership.role;
       return {
         userId: user.id,
         organizationId: membership.organizationId ?? membership.organization_id,
-        scopes: roleScopes[role] ?? []
+        scopes: effectiveScopes(membership)
       };
     },
 
@@ -303,7 +319,7 @@ export function createStore({ pool = createPostgresPool() } = {}) {
       const tokenHash = hashRefreshToken(token);
       const expiresAt = new Date(now.getTime() + DEFAULT_REFRESH_TOKEN_EXPIRATION_MS).toISOString();
       if (pool) {
-        await pool.query(`
+        await store.database.query(`
           insert into refresh_tokens (token_hash, user_id, organization_id, scopes, expires_at)
           values ($1, $2, $3, $4::jsonb, $5)
         `, [tokenHash, userId, organizationId, JSON.stringify([...new Set(scopes)]), expiresAt]);
@@ -328,7 +344,7 @@ export function createStore({ pool = createPostgresPool() } = {}) {
         throw new AuthorizationError('REFRESH_TOKEN_INVALID', 401);
       }
       if (pool) {
-        const result = await pool.query(`
+        const result = await store.database.query(`
           update refresh_tokens
              set revoked_at = $2
            where token_hash = $1
@@ -356,6 +372,8 @@ export function createStore({ pool = createPostgresPool() } = {}) {
       };
     }
   };
+
+  attachRepository(store);
 
   // Aliases de domínio preservados para compatibilidade com consumidores existentes.
   store.createGoal = store.saveGoal;

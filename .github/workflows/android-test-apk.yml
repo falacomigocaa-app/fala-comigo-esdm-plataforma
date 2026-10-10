@@ -1,4 +1,4 @@
-name: Android test APK artifact
+name: Android validation APK and AAB artifacts
 
 on:
   workflow_dispatch:
@@ -18,7 +18,7 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: 3.38.0
+          flutter-version: 3.47.6
           cache: true
 
       - name: Install dependencies
@@ -45,10 +45,14 @@ jobs:
       - name: Build release test APK
         run: flutter build apk --release
 
+      - name: Build validation AAB
+        run: flutter build appbundle --release
+
       - name: Verify APK and record hash
         run: |
           test -s build/app/outputs/flutter-apk/app-release.apk
-          sha256sum build/app/outputs/flutter-apk/app-release.apk | tee apk-sha256.txt
+          sha256sum build/app/outputs/flutter-apk/app-release.apk build/app/outputs/bundle/release/app-release.aab | tee apk-sha256.txt
+          jarsigner -verify build/app/outputs/bundle/release/app-release.aab
           sdk_root="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
           apksigner_path="$(find "$sdk_root/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
           test -x "$apksigner_path"
@@ -58,6 +62,7 @@ jobs:
         run: |
           mkdir -p artifact
           cp build/app/outputs/flutter-apk/app-release.apk artifact/fala-comigo-test.apk
+          cp build/app/outputs/bundle/release/app-release.aab artifact/fala-comigo-validation.aab
           cp apk-sha256.txt artifact/apk-sha256.txt
           test -s artifact/fala-comigo-test.apk
           test -s artifact/apk-sha256.txt
@@ -71,6 +76,7 @@ jobs:
           path: |
             artifact/fala-comigo-test.apk
             artifact/apk-sha256.txt
+            artifact/fala-comigo-validation.aab
 
       - name: Clean ephemeral signing files
         if: always()

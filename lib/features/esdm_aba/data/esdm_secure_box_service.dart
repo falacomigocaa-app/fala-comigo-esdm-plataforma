@@ -19,6 +19,12 @@ class EsdmSecureBoxService {
   static const _secureStorage = FlutterSecureStorage();
   static const _keyPrefix = 'fala_comigo_esdm_hive_key_';
 
+  static Future<void> deleteEncryptionKeys() async {
+    for (final key in (await _secureStorage.readAll()).keys) {
+      if (key.startsWith(_keyPrefix)) await _secureStorage.delete(key: key);
+    }
+  }
+
   static Future<Box<ConcessaoAcessoModel>> openConcessoesBox() async {
     _registerAdapters();
     return _openBox<ConcessaoAcessoModel>(concessoesAcessoBoxName);

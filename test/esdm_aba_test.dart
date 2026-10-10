@@ -306,6 +306,10 @@ void main() {
       authenticationRequests += 1;
     };
     SyncQueueService.connectivityOverride = () async => true;
+    await CryptoService.importOrganizationKey(
+        'org-demo-alpha', base64Encode(List<int>.filled(32, 17)));
+    AuthTokenService.refreshOverride =
+        (uri, headers, body) async => http.Response('{}', 503);
     SyncQueueService.postOverride = (uri, headers, body) async {
       expect(headers['authorization'], 'Bearer access-expired');
       return http.Response(
@@ -335,6 +339,7 @@ void main() {
     } finally {
       SyncQueueService.connectivityOverride = null;
       SyncQueueService.postOverride = null;
+      AuthTokenService.refreshOverride = null;
       AuthTokenService.onAuthenticationRequired = null;
       await SyncQueueStore.remove(
         (await SyncQueueStore.pending()).firstWhere(

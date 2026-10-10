@@ -36,11 +36,13 @@ class ConcessaoAcessoStore {
     return null;
   }
 
-  static Future<ConcessaoAcessoModel?> findActive(String perfilAlvo) async {
+  static Future<ConcessaoAcessoModel?> findActive(String perfilAlvo,
+      {bool requireWrite = false}) async {
     final concessoes = await loadAll();
     for (final concessao in concessoes) {
-      final enabled =
-          concessao.permiteLeituraMetas || concessao.permiteEscritaDados;
+      final enabled = requireWrite
+          ? concessao.permiteEscritaDados
+          : concessao.permiteLeituraMetas || concessao.permiteEscritaDados;
       if (concessao.perfilAlvo == perfilAlvo &&
           enabled &&
           concessao.estaAtiva) {

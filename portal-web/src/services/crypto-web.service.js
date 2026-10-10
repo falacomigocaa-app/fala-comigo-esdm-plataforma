@@ -70,3 +70,15 @@ export async function decryptCollectionEnvelopes(collections, options = {}) {
 }
 
 export { DECODE_ERROR_MESSAGE };
+
+export async function encryptCollection(payload, { session, cryptoRef = globalThis.crypto } = {}) {
+  const organizationId = session?.organizationId;
+  if (!organizationId) throw new WebE2EEError();
+  const rawKey = base64ToBytes(organizationKeyValue(session, organizationId));
+  if (rawKey.length !== 32) throw new WebE2EEError();
+  const key = await subtleCrypto(cryptoRef).importKey('raw', rawKey, { name: 'AES-GCM' }, false, ['encrypt']);
+  const iv = cryptoRef.getRandomValues(new Uint8Array(12));
+  const ciphertext = new Uint8Array(await subtleCrypto(cryptoRef).encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(JSON.stringify(payload))));
+  const encode = (bytes) => btoa(Array.from(bytes, (byte) => String.fromCharCode(byte)).join(''));
+  return { organizationId, encryptedData: encode(ciphertext), iv: encode(iv) };
+}

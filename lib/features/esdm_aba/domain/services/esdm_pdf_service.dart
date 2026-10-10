@@ -1,3 +1,4 @@
+import '../../../../core/services/auth_token_service.dart';
 import 'dart:typed_data';
 
 import 'package:pdf/pdf.dart';
@@ -21,7 +22,8 @@ class EsdmPdfService {
 
   static Future<Uint8List> gerarRelatorioUnificado() async {
     final metas = await MetaEsdmStore.loadAll();
-    final coletas = await ColetaEscolaStore.loadAll();
+    final coletas = await ColetaEscolaStore.loadAll(
+        subjectId: await AuthTokenService.readSubjectId());
     final concessoes = await ConcessaoAcessoStore.loadAll();
     final document = pw.Document();
     final generatedAt = _formatDateTime(DateTime.now());

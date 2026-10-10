@@ -3,8 +3,9 @@ import assert from 'node:assert/strict';
 
 import { createApp } from '../src/app.js';
 import { issueAccessToken } from '../src/services/auth.service.js';
-import { roleScopes } from '../src/store.js';
+import { roleScopes, createStore } from '../src/store.js';
 
+delete process.env.MASTER_CRYPTO_KEY;
 process.env.JWT_SECRET ??= 'test-only-jwt-secret-with-at-least-32-characters';
 
 function tokenFor(app, userId, options = {}) {
@@ -31,7 +32,7 @@ function request(app, method, url, userId, { token, body } = {}) {
 }
 
 test('P0: JWT expirado é rejeitado com sinalização de renovação', async () => {
-  const app = createApp();
+  const app = createApp({ store: createStore({ pool: null }) });
   const result = await request(app, 'GET', '/v1/me', 'user-admin-alpha', {
     token: tokenFor(app, 'user-admin-alpha', { expiresIn: -1 }),
   });
@@ -43,7 +44,7 @@ test('P0: JWT expirado é rejeitado com sinalização de renovação', async () 
 });
 
 test('P0: refresh concorrente aceita uma rotação e rejeita o replay', async () => {
-  const app = createApp();
+  const app = createApp({ store: createStore({ pool: null }) });
   const claims = {
     userId: 'user-admin-alpha',
     organizationId: 'org-demo-alpha',
@@ -60,7 +61,7 @@ test('P0: refresh concorrente aceita uma rotação e rejeita o replay', async ()
 });
 
 test('P0: envelope E2EE de outra organização é rejeitado antes da persistência', async () => {
-  const app = createApp();
+  const app = createApp({ store: createStore({ pool: null }) });
   const result = await request(app, 'POST', '/v1/subjects/subject-demo-child/school-collections', 'user-admin-alpha', {
     body: {
       organizationId: 'org-demo-beta',
@@ -75,7 +76,7 @@ test('P0: envelope E2EE de outra organização é rejeitado antes da persistênc
 });
 
 test('P0: consentimento expirado ou revogado bloqueia acesso clínico', async () => {
-  const expiredApp = createApp();
+  const expiredApp = createApp({ store: createStore({ pool: null }) });
   const expired = await request(
     expiredApp,
     'POST',
@@ -92,7 +93,7 @@ test('P0: consentimento expirado ou revogado bloqueia acesso clínico', async ()
   assert.equal(expired.status, 403);
   assert.equal(expired.body.error, 'EXPIRED');
 
-  const revokedApp = createApp();
+  const revokedApp = createApp({ store: createStore({ pool: null }) });
   const consent = revokedApp.store.consents.find((item) => item.id === 'consent-demo-clinic');
   consent.status = 'revoked';
   const blocked = await request(

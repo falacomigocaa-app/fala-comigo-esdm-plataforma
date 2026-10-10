@@ -1,3 +1,4 @@
+import '../../../../core/services/auth_token_service.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_theme.dart';
@@ -28,7 +29,8 @@ class _EsdmDashboardScreenState extends State<EsdmDashboardScreen> {
 
   Future<void> _load() async {
     try {
-      final records = await ColetaEscolaStore.loadAll();
+      final records = await ColetaEscolaStore.loadAll(
+          subjectId: await AuthTokenService.readSubjectId());
       final analysis = _DashboardAnalysis.from(records);
       if (!mounted) return;
       setState(() {

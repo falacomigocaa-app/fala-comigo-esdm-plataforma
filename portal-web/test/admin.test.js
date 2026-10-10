@@ -1,7 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  ADMIN_SCOPE_OPTIONS,
   hasAdministrativeScope,
   renderAdminProfessionalsView,
   renderMembers,
@@ -17,20 +16,23 @@ test('rota administrativa bloqueia sessão sem escopo de gestão', () => {
   assert.doesNotMatch(html, /data-admin-form/);
 });
 
-test('view administrativa renderiza controles de escopo e organização', () => {
+test('view administrativa informa limites reais do convite e organização', () => {
   const html = renderAdminProfessionalsView({
-    session: { userId: 'user-admin', organizationId: 'org-demo-alpha', scopes: ['membership.read'] }
+    session: { userId: 'user-admin', organizationId: 'org-demo-alpha', scopes: ['membership.read', 'access.invite'] }
   });
   assert.equal(hasAdministrativeScope({ scopes: ['membership.read'] }), true);
   assert.match(html, /Profissionais e escopos/);
   assert.match(html, /org-demo-alpha/);
-  for (const scope of ADMIN_SCOPE_OPTIONS) assert.match(html, new RegExp(scope.value.replace('.', '\\.'), 'u'));
-  assert.equal((html.match(/name="scopes"/g) || []).length, ADMIN_SCOPE_OPTIONS.length);
+  assert.match(html, /Permissões máximas do vínculo/);
+  assert.match(html, /name="scopes"/);
+  assert.match(html, /destinatário cria a própria senha/);
 });
 
-test('tabela administrativa lista escopos explícitos e aplica fallback por perfil', () => {
+test('tabela administrativa exibe escopos do servidor sem inventar permissões', () => {
   const explicit = scopesForMember({ role: 'professional', scopes: ['report.read'] });
   assert.deepEqual(explicit, ['report.read']);
+  assert.deepEqual(scopesForMember({ role: 'caregiver' }), []);
+  assert.deepEqual(scopesForMember({ role: 'org_admin', scopes: [] }), []);
   const html = renderMembers([
     { id: 'membership-1', userId: 'user-professional', role: 'professional', status: 'active', scopes: ['esdm_goal.write', 'report.read'] },
     { id: 'membership-2', userId: 'user-caregiver', role: 'caregiver', status: 'active' }
@@ -39,7 +41,7 @@ test('tabela administrativa lista escopos explícitos e aplica fallback por perf
   assert.match(html, /esdm_goal\.write/);
   assert.match(html, /report\.read/);
   assert.match(html, /user-caregiver/);
-  assert.match(html, /Editar acesso/);
+  assert.doesNotMatch(html, /data-edit=/);
   assert.match(renderMembers([]), /Nenhum profissional vinculado/);
 });
 
@@ -47,7 +49,7 @@ test('APIClient administrativo usa Bearer para listar e convidar profissional', 
   const requests = [];
   globalThis.window = {
     PORTAL_API_BASE: 'http://127.0.0.1:8787',
-    localStorage: {
+    sessionStorage: {
       getItem: () => JSON.stringify({ token: 'admin-token' }),
       setItem: () => {},
       removeItem: () => {}
@@ -80,4 +82,16 @@ test('APIClient administrativo usa Bearer para listar e convidar profissional', 
     scopes: ['esdm_goal.write'],
     purpose: 'Acesso profissional ao portal'
   });
+});
+
+test('somente gestor pode editar outro vínculo; owner e a própria conta são protegidos', () => {
+  const members = [
+    {id:'owner',userId:'owner-user',role:'owner',status:'active',scopes:[]},
+    {id:'self',userId:'admin-user',role:'org_admin',status:'active',scopes:[]},
+    {id:'staff',userId:'staff-user',role:'professional',status:'active',scopes:[]}
+  ];
+  const html=renderMembers(members,{userId:'admin-user',scopes:['access.invite']});
+  assert.match(html,/data-edit="staff"/);
+  assert.doesNotMatch(html,/data-edit="owner"/);
+  assert.doesNotMatch(html,/data-edit="self"/);
 });

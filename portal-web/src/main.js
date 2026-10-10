@@ -1,6 +1,6 @@
 import { createRouter } from './router.js';
 import { clearSession } from './api/client.js';
-import './styles.css';
+
 
 const root = document.querySelector('#app');
 

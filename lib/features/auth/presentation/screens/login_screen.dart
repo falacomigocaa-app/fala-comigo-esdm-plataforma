@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import '../../../../core/services/auth_token_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -29,7 +32,52 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           password: _passwordController.text,
         );
     if (success && mounted) {
-      Navigator.of(context).pushReplacementNamed('/coleta-escola');
+      try {
+        final organization = await AuthTokenService.readOrganizationId();
+        final token = await AuthTokenService.readToken();
+        final response = await http.get(
+            Uri.parse(authApiBaseUrl).resolve(
+                '/v1/organizations/${Uri.encodeComponent(organization ?? '')}/subjects'),
+            headers: {
+              'authorization': 'Bearer $token'
+            }).timeout(const Duration(seconds: 15));
+        if (response.statusCode != 200) {
+          throw StateError(
+              'Não foi possível consultar os pacientes autorizados.');
+        }
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        final subjects =
+            (data['subjects'] as List).cast<Map<String, dynamic>>();
+        if (!mounted) return;
+        if (subjects.isEmpty) {
+          throw StateError(
+              'Sua conta ainda não tem pacientes autorizados. Solicite o vínculo ao responsável.');
+        }
+        final selected = subjects.length == 1
+            ? subjects.single['id'] as String
+            : await showDialog<String>(
+                context: context,
+                builder: (context) => SimpleDialog(
+                    title: const Text('Selecione o paciente'),
+                    children: subjects
+                        .map((subject) => SimpleDialogOption(
+                            onPressed: () =>
+                                Navigator.pop(context, subject['id'] as String),
+                            child: Text(subject['displayName'] as String)))
+                        .toList()));
+        if (selected == null) return;
+        await AuthTokenService.selectSubject(selected);
+        if (mounted) {
+          Navigator.of(context).pushReplacementNamed('/coleta-escola');
+        }
+      } catch (error) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+              content: Text(error is StateError
+                  ? error.message.toString()
+                  : 'Não foi possível carregar os pacientes. Verifique sua conexão.')));
+        }
+      }
     }
   }
 

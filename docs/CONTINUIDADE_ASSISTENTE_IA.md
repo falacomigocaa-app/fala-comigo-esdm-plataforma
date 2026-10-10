@@ -169,3 +169,7 @@ Validação concluída: 126 testes Flutter aprovados, `flutter analyze` sem issu
 A Fase 1.1C foi concluída. A SettingsScreen apresenta a faixa `Preview da grade infantil`, com miniaturas de cartões e fallback seguro de imagem. Os temas de hiperfoco agora usam miniaturas horizontais com cor, emoji, seleção acessível e preview em tempo real do tema escolhido.
 
 Foram adicionadas chaves estáveis nas seções expansíveis e Material local nos conteúdos com ListTile. A cobertura está em `test/parental_settings_preview_test.dart`. Resultado: 128 testes Flutter aprovados, `flutter analyze` sem issues e `flutter build web --release` concluído. O próximo ponto de retomada é a validação de responsividade, contraste e touch targets em telas pequenas e tablet.
+
+## 10/10/2026 — preparação ampliada
+
+Trabalho atual na branch `coderabbit/audit-test-improvements/b0f933e5`, base `200f9b9`. Usuário autorizou melhorias reversíveis e pesquisa de referências, preservando CAA gratuita/offline. Estado detalhado em `PRONTIDAO_PRODUCAO.md`; registro local obrigatório em workspace-context/validation-record.md. Não há commit final nem publicação de produção nesta checkpoint. Segredos locais fora do repositório. Não confundir assinatura efêmera de validação com identidade de publicação.

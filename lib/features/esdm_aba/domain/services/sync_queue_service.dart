@@ -47,6 +47,22 @@ class SyncQueueService {
       _connectivitySubscription;
   static Timer? _fallbackTimer;
   static bool _isSyncing = false;
+  static bool _wiping = false;
+  static final Set<Future<Object?>> _operations = {};
+
+  static Future<void> suspendForWipe() async {
+    _wiping = true;
+    await dispose();
+    while (_operations.isNotEmpty) {
+      await Future.wait(_operations.toList().map(
+          (operation) => operation.then<void>((_) {}, onError: (Object _) {})));
+    }
+  }
+
+  static void resumeAfterWipe() {
+    _wiping = false;
+  }
+
   static final ValueNotifier<bool> consentBlockedNotifier =
       ValueNotifier(false);
 
@@ -57,6 +73,7 @@ class SyncQueueService {
       (results) {
         if (_hasNetwork(results)) unawaited(syncPending());
       },
+      onError: (Object _) {},
     );
     _fallbackTimer ??= Timer.periodic(
       const Duration(minutes: 1),
@@ -74,8 +91,20 @@ class SyncQueueService {
   static Future<SyncOutcome> saveOrSyncCollection({
     required ColetaEscolaModel coleta,
     required String subjectId,
+  }) {
+    if (_wiping) return Future.value(SyncOutcome.localOnly);
+    final operation =
+        _saveOrSyncCollection(coleta: coleta, subjectId: subjectId);
+    _operations.add(operation);
+    return operation.whenComplete(() => _operations.remove(operation));
+  }
+
+  static Future<SyncOutcome> _saveOrSyncCollection({
+    required ColetaEscolaModel coleta,
+    required String subjectId,
   }) async {
-    final grant = await ConcessaoAcessoStore.findActive(escolaPerfilAlvo);
+    final grant = await ConcessaoAcessoStore.findActive(escolaPerfilAlvo,
+        requireWrite: true);
     if (grant == null) {
       _notifyConsentBlocked();
       return SyncOutcome.blockedByConsent;
@@ -83,6 +112,7 @@ class SyncQueueService {
     _notifyConsentValid();
 
     final item = await _itemFor(coleta, subjectId: subjectId);
+    await SyncQueueStore.enqueue(item);
     if (!await _isOnline()) {
       await SyncQueueStore.enqueue(item);
       return SyncOutcome.queued;
@@ -90,6 +120,7 @@ class SyncQueueService {
 
     try {
       await _send(item);
+      await SyncQueueStore.remove(item);
       return SyncOutcome.synced;
     } on ConsentBlockedException {
       await SyncQueueStore.enqueue(item);
@@ -109,12 +140,21 @@ class SyncQueueService {
     }
   }
 
-  static Future<void> syncPending() async {
-    if (_isSyncing || !await _isOnline()) return;
+  static Future<void> syncPending() {
+    if (_wiping || _isSyncing) return Future.value();
     _isSyncing = true;
+    final operation = _syncPending();
+    _operations.add(operation);
+    return operation.whenComplete(() => _operations.remove(operation));
+  }
+
+  static Future<void> _syncPending() async {
     try {
+      if (!await _isOnline()) return;
       for (final item in await SyncQueueStore.pending()) {
-        final grant = await ConcessaoAcessoStore.findActive(escolaPerfilAlvo);
+        if (_wiping) return;
+        final grant = await ConcessaoAcessoStore.findActive(escolaPerfilAlvo,
+            requireWrite: true);
         if (grant == null) {
           _notifyConsentBlocked();
           return;
@@ -171,8 +211,10 @@ class SyncQueueService {
     );
   }
 
-  static Future<void> _send(SyncItem item) async {
-    final grant = await ConcessaoAcessoStore.findActive(escolaPerfilAlvo);
+  static Future<void> _send(SyncItem item, {bool canRefresh = true}) async {
+    if (_wiping) throw const ConsentBlockedException();
+    final grant = await ConcessaoAcessoStore.findActive(escolaPerfilAlvo,
+        requireWrite: true);
     if (grant == null) {
       _notifyConsentBlocked();
       throw const ConsentBlockedException();
@@ -199,6 +241,19 @@ class SyncQueueService {
       throw StateError('Envelope E2EE pertence a outra organização.');
     }
 
+    // Envelopes locais anteriores ao login são recifrados com a chave provisionada.
+    // A chave antiga permanece disponível apenas para leitura local.
+    if (!await CryptoService.hasProvisionedKey(organizationId)) {
+      throw const AuthTokenRequiredException();
+    }
+    final prepared = await CryptoService.prepareForUpload(item.payload);
+    if (prepared != item.payload) {
+      item.payload = prepared;
+      await SyncQueueStore.enqueue(item);
+    }
+    final finalGrant = await ConcessaoAcessoStore.findActive(escolaPerfilAlvo,
+        requireWrite: true);
+    if (_wiping || finalGrant == null) throw const ConsentBlockedException();
     final uri = Uri.parse(syncApiBaseUrl).resolve(
       '/v1/subjects/${Uri.encodeComponent(subjectId)}${item.endpoint}',
     );
@@ -217,6 +272,9 @@ class SyncQueueService {
             .timeout(const Duration(seconds: 15));
 
     if (response.statusCode == 401) {
+      if (canRefresh && await AuthTokenService.refreshSession()) {
+        return _send(item, canRefresh: false);
+      }
       throw AuthTokenExpiredException(response.statusCode, response.body);
     }
     if (response.statusCode != 200 && response.statusCode != 201) {

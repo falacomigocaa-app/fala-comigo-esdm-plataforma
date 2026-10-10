@@ -1,6 +1,10 @@
 import 'package:hive_flutter/hive_flutter.dart';
 
 import 'media_storage_service.dart';
+import 'auth_token_service.dart';
+import 'crypto_service.dart';
+import '../../features/esdm_aba/data/esdm_secure_box_service.dart';
+import '../../features/esdm_aba/domain/services/sync_queue_service.dart';
 import 'parental_pin_service.dart';
 import 'parental_session_service.dart';
 import 'secure_box_service.dart';
@@ -33,6 +37,11 @@ class DataWipeService {
     'shared_task_sync_queue',
     'sync_queue_box',
     'esdm_goals_box',
+    'concessoes_acesso_box',
+    'metas_esdm_box',
+    'coleta_escola_box',
+    'coleta_escola',
+    'sincronizacao_queue_box',
     'communication_profile',
     'communication_plans',
     'care_appointments',
@@ -41,6 +50,8 @@ class DataWipeService {
 
   static Future<DataWipeResult> deleteAllLocalData() async {
     ParentalSessionService.lock();
+    await AuthTokenService.clearToken();
+    await SyncQueueService.suspendForWipe();
     var notificationsCancelled = true;
     try {
       await TransitionAlertService.instance.cancelAllNotifications();
@@ -65,6 +76,8 @@ class DataWipeService {
     await MediaStorageService.deleteEncryptionKey();
     await SecureBoxService.deleteEncryptionKey();
     await ParentalPinService.clearCredentials();
+    await CryptoService.clearAllOrganizationKeys();
+    await EsdmSecureBoxService.deleteEncryptionKeys();
 
     // Recria caixas vazias com uma nova chave para que o app continue
     // utilizável sem exigir uma reinicialização do processo Flutter.
@@ -101,6 +114,7 @@ class DataWipeService {
         // A remoção local já foi concluída; o resultado informa a limitação.
       }
     }
+    SyncQueueService.resumeAfterWipe();
     return DataWipeResult(notificationsCancelled: notificationsCancelled);
   }
 }

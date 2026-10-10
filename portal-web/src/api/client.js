@@ -1,5 +1,5 @@
 const SESSION_KEY = 'fala-comigo.portal.session';
-const DEFAULT_API_BASE = 'http://127.0.0.1:8787';
+const DEFAULT_API_BASE = '/api';
 
 export const goalTranslations = {
   CE_N1_I5: {
@@ -21,20 +21,22 @@ function requestId() {
 }
 
 export function getSession() {
-  if (!globalThis.window?.localStorage) return null;
+  globalThis.window?.localStorage?.removeItem(SESSION_KEY);
+  if (!globalThis.window?.sessionStorage) return null;
   try {
-    return JSON.parse(window.localStorage.getItem(SESSION_KEY) || 'null');
+    return JSON.parse(window.sessionStorage.getItem(SESSION_KEY) || 'null');
   } catch (_) {
     return null;
   }
 }
 
 export function saveSession(session) {
-  globalThis.window?.localStorage?.setItem(SESSION_KEY, JSON.stringify(session));
+  globalThis.window?.sessionStorage?.setItem(SESSION_KEY, JSON.stringify(session));
 }
 
 export function clearSession() {
   globalThis.window?.localStorage?.removeItem(SESSION_KEY);
+  globalThis.window?.sessionStorage?.removeItem(SESSION_KEY);
 }
 
 export function getAccessToken() {
@@ -79,10 +81,10 @@ export class APIClient {
           await this.refreshSession();
           return this.request(path, { method, body }, false);
         } catch (_) {
-          notifyAuthenticationRequired();
+          if (getSession()?.token === session?.token) notifyAuthenticationRequired();
         }
       } else if (response.status === 401) {
-        notifyAuthenticationRequired();
+        if (getSession()?.token === session?.token) notifyAuthenticationRequired();
       }
       throw error;
     }
@@ -105,6 +107,7 @@ export class APIClient {
         error.status = response.status;
         throw error;
       }
+      if (getSession()?.token !== session.token || getSession()?.refreshToken !== session.refreshToken) throw new Error('SESSION_CHANGED');
       saveSession({
         ...session,
         token: payload.accessToken,

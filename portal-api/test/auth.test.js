@@ -1,8 +1,10 @@
+import { createStore } from '../src/store.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createApp } from '../src/app.js';
 import { issueAccessToken, verifyAccessToken } from '../src/services/auth.service.js';
 
+delete process.env.MASTER_CRYPTO_KEY;
 process.env.JWT_SECRET ??= 'test-only-jwt-secret-with-at-least-32-characters';
 
 const validClaims = {
@@ -20,7 +22,7 @@ function request(app, authorization) {
 }
 
 test('login central emite access e refresh token para credenciais válidas', async () => {
-  const app = createApp();
+  const app = createApp({ store: createStore({ pool: null }) });
   const result = await app.handle({
     method: 'POST',
     url: '/v1/auth/login',
@@ -36,7 +38,7 @@ test('login central emite access e refresh token para credenciais válidas', asy
 });
 
 test('login central rejeita senha inválida sem revelar qual credencial falhou', async () => {
-  const result = await createApp().handle({
+  const result = await createApp({ store: createStore({ pool: null }) }).handle({
     method: 'POST',
     url: '/v1/auth/login',
     body: { email: 'admin@fala-comigo.test', password: 'senha-incorreta' }
@@ -48,7 +50,7 @@ test('login central injeta a chave AES-256-GCM da organização autorizada', asy
   const previousMasterKey = process.env.MASTER_CRYPTO_KEY;
   process.env.MASTER_CRYPTO_KEY = Buffer.alloc(32, 23).toString('base64');
   try {
-    const app = createApp();
+    const app = createApp({ store: createStore({ pool: null }) });
     await app.store.provisionOrganizationKey({ organizationId: 'org-demo-alpha', createdByUserId: 'user-admin-alpha' });
     const result = await app.handle({
       method: 'POST',
@@ -66,25 +68,25 @@ test('login central injeta a chave AES-256-GCM da organização autorizada', asy
 });
 
 test('middleware bloqueia requisição sem token', async () => {
-  const result = await request(createApp());
+  const result = await request(createApp({ store: createStore({ pool: null }) }));
   assert.equal(result.status, 401);
   assert.deepEqual(result.body, { error: 'AUTH_REQUIRED' });
 });
 
 test('middleware aceita token válido e disponibiliza a identidade', async () => {
   const token = issueAccessToken(validClaims);
-  const result = await request(createApp(), `Bearer ${token}`);
+  const result = await request(createApp({ store: createStore({ pool: null }) }), `Bearer ${token}`);
   assert.equal(result.status, 200);
   assert.deepEqual(result.body, {
     id: validClaims.userId,
     status: 'active',
-    storageMode: process.env.DATABASE_URL ? 'postgres' : 'memory-test-only'
+    storageMode: 'memory-test-only'
   });
 });
 
 test('middleware rejeita token expirado com resposta padronizada de renovação', async () => {
   const token = issueAccessToken(validClaims, { expiresIn: -1 });
-  const result = await request(createApp(), `Bearer ${token}`);
+  const result = await request(createApp({ store: createStore({ pool: null }) }), `Bearer ${token}`);
   assert.equal(result.status, 401);
   assert.deepEqual(result.body, {
     error: 'TOKEN_EXPIRED',
@@ -94,7 +96,7 @@ test('middleware rejeita token expirado com resposta padronizada de renovação'
 });
 
 test('middleware rejeita token corrompido', async () => {
-  const result = await request(createApp(), 'Bearer not.a.jwt');
+  const result = await request(createApp({ store: createStore({ pool: null }) }), 'Bearer not.a.jwt');
   assert.deepEqual(result, { status: 401, body: { error: 'INVALID_TOKEN' } });
 });
 

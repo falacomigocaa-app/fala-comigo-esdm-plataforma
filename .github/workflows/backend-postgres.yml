@@ -75,6 +75,13 @@ jobs:
           PGPASSWORD: postgres
         run: psql "$DATABASE_URL" --set=ON_ERROR_STOP=1 --file portal-api/scripts/ci-seed.sql
 
+      - name: Seed authorization fixtures
+        working-directory: portal-api
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/fala_comigo_staging
+          ALLOW_DEMO_SEED: '1'
+        run: node scripts/seed-demo.js
+
       - name: Provision encrypted organization keys
         working-directory: portal-api
         env:

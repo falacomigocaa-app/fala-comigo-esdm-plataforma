@@ -15,7 +15,7 @@ export function renderLoginView() {
           <p class="form-status" data-login-status role="status"></p>
           <button class="primary-button" data-login-submit type="submit">Entrar</button>
         </form>
-        <p class="notice">Sua sessão usa access token de curta duração e renovação segura por refresh token rotativo.</p>
+        <p class="notice">Acesso reservado às pessoas autorizadas. Ao terminar em um dispositivo compartilhado, use Sair.</p>
       </section>
     </main>
   `;

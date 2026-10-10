@@ -1,0 +1,19 @@
+{$PORTAL_DOMAIN} {
+    reverse_proxy portal:4173
+}
+{$API_DOMAIN} {
+    reverse_proxy api:8787
+}
+{$SITE_DOMAIN} {
+    redir /app /app/ 308
+    handle_path /app/* {
+        root * /srv/app
+        try_files {path} /index.html
+        file_server
+    }
+    handle {
+        root * /srv/site
+        file_server
+    }
+    header X-Content-Type-Options nosniff
+}
