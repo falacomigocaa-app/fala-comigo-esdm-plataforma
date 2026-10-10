@@ -4,10 +4,11 @@ import { hydrateEscolaScreen, renderEscolaScreen } from './screens/escola_screen
 import { hydrateReportsView, renderReportsView } from './views/reports-view.js';
 import { hydrateLoginView, renderLoginView } from './views/login-view.js';
 import { hydrateAdminProfessionalsView, renderAdminProfessionalsView } from './views/admin-professionals-view.js';
+import { hydrateBugReportView, renderBugReportView } from './views/bug-report-view.js';
 import { checkBetaAccess } from './services/beta-gate.js';
 import { trackTelemetry } from './services/telemetry.js';
 
-const routes = new Set(['/login', '/clinica', '/escola', '/relatorios', '/admin/profissionais']);
+const routes = new Set(['/login', '/clinica', '/escola', '/relatorios', '/admin/profissionais', '/reportar-bug']);
 
 function normalizedPath(pathname = window.location.pathname) {
   const path = pathname.replace(/\/+/g, '/').replace(/\/$/, '');
@@ -95,6 +96,12 @@ export function createRouter({ root }) {
       hydrateAdminProfessionalsView(context).catch((error) => {
         root.querySelector('[data-admin-status]')?.replaceChildren(document.createTextNode(`Falha ao carregar administração: ${error.message}`));
       });
+      return;
+    }
+
+    if (path === '/reportar-bug') {
+      root.innerHTML = renderBugReportView(context);
+      hydrateBugReportView(context);
       return;
     }
 

@@ -64,11 +64,12 @@ export class APIClient {
     this.refreshPromises = new Map();
   }
 
-  async request(path, { method = 'GET', body } = {}, canRefresh = true, operationId = requestId()) {
+  async request(path, { method = 'GET', body, headers: extraHeaders = {} } = {}, canRefresh = true, operationId = requestId()) {
     const session = getSession();
     const headers = {
       accept: 'application/json',
-      'x-request-id': operationId
+      'x-request-id': operationId,
+      ...extraHeaders
     };
     if (session?.token) headers.authorization = `Bearer ${session.token}`;
     if (body !== undefined) headers['content-type'] = 'application/json';
@@ -89,7 +90,7 @@ export class APIClient {
         try {
           // Another request may have already rotated the token before this 401 arrived.
           if (sameSession(session, currentSession)) await this.refreshSession(session);
-          return this.request(path, { method, body }, false, operationId);
+          return this.request(path, { method, body, headers: extraHeaders }, false, operationId);
         } catch (_) {
           notifyAuthenticationRequired(session);
         }
@@ -179,6 +180,17 @@ export class APIClient {
     return this.request(`/v1/organizations/${encodeURIComponent(organizationId)}/invitations`, {
       method: 'POST',
       body: payload
+    });
+  }
+
+  reportBug({ description, severity }) {
+    return this.request('/v1/beta/report', {
+      method: 'POST',
+      body: { description, severity },
+      headers: {
+        'x-client-platform': 'web',
+        'x-client-version': 'web-0.1.0'
+      }
     });
   }
 }

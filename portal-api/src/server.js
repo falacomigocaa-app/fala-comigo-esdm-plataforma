@@ -9,7 +9,7 @@ const app = createApp();
 const allowedOrigin = process.env.PORTAL_WEB_ORIGIN ?? 'http://127.0.0.1:4173';
 const corsHeaders = {
   'access-control-allow-origin': allowedOrigin,
-  'access-control-allow-headers': 'accept, authorization, content-type, x-request-id',
+  'access-control-allow-headers': 'accept, authorization, content-type, x-request-id, x-client-platform, x-client-version, x-device-model',
   'access-control-allow-methods': 'GET, POST, OPTIONS'
 };
 

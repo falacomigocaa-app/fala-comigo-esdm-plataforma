@@ -14,7 +14,7 @@ function summarize(collections) {
 }
 
 function renderHeader(session) {
-  return `<header class="topbar"><a class="brand" href="/escola" data-route="/escola">Fala Comigo <span>Portal</span></a><nav aria-label="Navegação principal"><a href="/clinica" data-route="/clinica" class="nav-link">Clínica</a><a href="/escola" data-route="/escola" class="nav-link selected">Escola</a><a href="/relatorios" data-route="/relatorios" class="nav-link">Relatórios</a></nav><div class="session-actions"><span class="session-id">${escapeHtml(session?.userId || '')}</span><button class="text-button" data-logout type="button">Sair</button></div></header>`;
+  return `<header class="topbar"><a class="brand" href="/escola" data-route="/escola">Fala Comigo <span>Portal</span></a><nav aria-label="Navegação principal"><a href="/clinica" data-route="/clinica" class="nav-link">Clínica</a><a href="/escola" data-route="/escola" class="nav-link selected">Escola</a><a href="/relatorios" data-route="/relatorios" class="nav-link">Relatórios</a><a href="/reportar-bug" data-route="/reportar-bug" class="nav-link">Reportar Bug</a></nav><div class="session-actions"><span class="session-id">${escapeHtml(session?.userId || '')}</span><button class="text-button" data-logout type="button">Sair</button></div></header>`;
 }
 
 export function renderEscolaScreen({ session }) {

@@ -292,6 +292,7 @@ export function createStore({ pool = createPostgresPool(), persistAuthorization 
     organizationKeys: new Map(),
     auditEvents: [],
     telemetryEvents: [],
+    bugReports: [],
     idempotency: new Map(),
     pool,
     storageMode: pool ? 'postgres' : 'memory-test-only',
@@ -412,6 +413,30 @@ export function createStore({ pool = createPostgresPool(), persistAuthorization 
       } finally {
         client.release();
       }
+    },
+
+    async saveBugReport(report) {
+      const row = {
+        id: randomUUID(),
+        userId: report.userId,
+        organizationId: report.organizationId,
+        severity: report.severity,
+        description: report.description,
+        appVersion: report.appVersion,
+        platform: report.platform,
+        userAgent: report.userAgent,
+        deviceModel: report.deviceModel,
+        createdAt: report.createdAt ?? new Date().toISOString()
+      };
+      if (pool) {
+        await pool.query(`
+          insert into beta_bug_reports
+            (id, user_id, organization_id, severity, description, app_version, platform, user_agent, device_model, created_at)
+          values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+        `, [row.id, row.userId, row.organizationId, row.severity, row.description, row.appVersion, row.platform, row.userAgent, row.deviceModel, row.createdAt]);
+      }
+      store.bugReports.push(row);
+      return row;
     },
 
     async getOrganizationKey(organizationId) {
