@@ -1,4 +1,5 @@
 import { apiClient, saveSession } from '../api/client.js';
+import { setBetaBypass } from '../services/beta-gate.js';
 
 export function renderLoginView() {
   return `
@@ -46,8 +47,10 @@ export function hydrateLoginView({ navigate }) {
         organizationId: payload.organizationId,
         scopes: payload.scopes,
         organizationKey: payload.organizationKey,
-        organizationKeys: payload.organizationKeys
+        organizationKeys: payload.organizationKeys,
+        betaBypass: payload.betaBypass === true
       });
+      setBetaBypass(payload.betaBypass === true);
       navigate('/clinica');
     } catch (error) {
       status.textContent = error.status === 401

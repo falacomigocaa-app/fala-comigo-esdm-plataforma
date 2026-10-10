@@ -1,6 +1,7 @@
 import { AuthorizationError, audit, isFutureDate, membershipFor, requireScope, stableError } from './authorization.js';
 import { authenticateRequest } from './middlewares/auth.middleware.js';
 import { issueAccessToken } from './services/auth.service.js';
+import { assertBetaAccess, betaWindow } from './services/beta.service.js';
 import { createStore, esdmTranslations, roleScopes } from './store.js';
 
 const jsonHeaders = { 'content-type': 'application/json; charset=utf-8' };
@@ -9,28 +10,12 @@ function response(status, body) {
   return { status, body };
 }
 
-const betaStartAt = process.env.BETA_START_AT || '2026-10-10T00:00:00.000Z';
-const betaDurationDays = Math.min(365, Math.max(1, Number(process.env.BETA_DURATION_DAYS || 30)));
 const safeTelemetryEvents = new Set(['screen_view', 'beta_expired', 'sync_success', 'sync_failed']);
 const safeTelemetryScreens = new Set([
   '/login', '/clinica', '/escola', '/relatorios', '/admin/profissionais',
   'splash', 'home', 'login', 'parental_gate', 'esdm_dashboard',
   'coleta_escola', 'painel_consentimento', 'metas_esdm'
 ]);
-
-function betaWindow(now) {
-  const start = new Date(betaStartAt);
-  if (Number.isNaN(start.getTime())) throw new Error('INVALID_BETA_START_AT');
-  const expires = new Date(start.getTime() + betaDurationDays * 24 * 60 * 60 * 1000);
-  const serverNow = new Date(now);
-  const status = serverNow < start ? 'not_started' : serverNow >= expires ? 'expired' : 'active';
-  return {
-    status,
-    betaStartAt: start.toISOString(),
-    expiresAt: expires.toISOString(),
-    serverNow: serverNow.toISOString()
-  };
-}
 
 function sanitizeTelemetry(body = {}) {
   if (!safeTelemetryEvents.has(body.event)) return null;
@@ -182,6 +167,7 @@ export function createApp({ store = createStore(), now = () => new Date() } = {}
 
       if (method === 'POST' && path[0] === 'v1' && path[1] === 'auth' && path[2] === 'login') {
         const claims = await store.authenticateCredentials(body ?? {}, clock);
+        const beta = assertBetaAccess(claims.email, clock);
         const accessToken = issueAccessToken(claims);
         const refreshToken = await store.createRefreshToken(claims, clock);
         const canReadKey = claims.scopes.includes('organization.key.read');
@@ -199,6 +185,8 @@ export function createApp({ store = createStore(), now = () => new Date() } = {}
           refreshToken,
           expiresIn: 15 * 60,
           refreshExpiresIn: 7 * 24 * 60 * 60,
+          betaBypass: beta.betaBypass,
+          server_time: clock.toISOString(),
           ...(organizationKey ?? {})
         });
       }
@@ -206,6 +194,7 @@ export function createApp({ store = createStore(), now = () => new Date() } = {}
       if (method === 'POST' && path[0] === 'v1' && path[1] === 'auth' && path[2] === 'refresh') {
         const claims = await store.rotateRefreshToken(body?.refreshToken, clock);
         const currentClaims = await store.validateRefreshClaims(claims, clock);
+        const beta = assertBetaAccess(currentClaims.email, clock);
         const user = store.users.find((candidate) => candidate.id === claims.userId && candidate.status === 'active');
         if (!user) throw new AuthorizationError('REFRESH_TOKEN_INVALID', 401);
         const accessToken = issueAccessToken(currentClaims);
@@ -214,17 +203,21 @@ export function createApp({ store = createStore(), now = () => new Date() } = {}
           accessToken,
           refreshToken,
           expiresIn: 15 * 60,
-          refreshExpiresIn: 7 * 24 * 60 * 60
+          refreshExpiresIn: 7 * 24 * 60 * 60,
+          betaBypass: beta.betaBypass,
+          server_time: clock.toISOString()
         });
       }
 
       if (method === 'GET' && path[0] === 'v1' && path[1] === 'me') {
         context.user = authenticateRequest(store, headers);
+        assertBetaAccess(context.user.email, clock);
         return response(200, { id: context.user.id, status: context.user.status, storageMode: store.storageMode });
       }
 
       context.user = authenticateRequest(store, headers);
       context.organizationId = context.user.organizationId;
+      assertBetaAccess(context.user.email, clock);
       operationKey = idempotencyKey(context, method, path, requestId);
       if (path[0] !== 'v1') return response(404, { error: 'NOT_FOUND' });
 
@@ -481,7 +474,9 @@ export function createApp({ store = createStore(), now = () => new Date() } = {}
 
       return response(404, { error: 'NOT_FOUND' });
     } catch (rawError) {
-      const error = stableError(rawError);
+      const error = rawError?.code === 'BETA_PERIOD_EXPIRED'
+        ? { status: 403, code: 'BETA_PERIOD_EXPIRED' }
+        : stableError(rawError);
       if (context.user) sendAudit(store, context, 'request.denied', 'denied', error);
       if (error.code === 'TOKEN_EXPIRED') {
         return response(401, { error: 'TOKEN_EXPIRED', code: 'TOKEN_EXPIRED', renewalRequired: true });

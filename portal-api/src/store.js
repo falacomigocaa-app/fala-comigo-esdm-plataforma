@@ -555,6 +555,7 @@ export function createStore({ pool = createPostgresPool(), persistAuthorization 
 
       return {
         userId: user.id,
+        email: user.email,
         organizationId: membership.organizationId ?? membership.organization_id,
         scopes: scopesForMembership(membership)
       };
@@ -564,7 +565,7 @@ export function createStore({ pool = createPostgresPool(), persistAuthorization 
       let membership;
       if (pool) {
         const result = await pool.query(`
-          select m.role, m.scopes, m.status, m.valid_until as "validUntil"
+          select u.email, m.role, m.scopes, m.status, m.valid_until as "validUntil"
             from memberships m join users u on u.id = m.user_id
            where m.user_id = $1 and m.organization_id = $2 and u.status = 'active'
         `, [claims.userId, claims.organizationId]);
@@ -572,12 +573,13 @@ export function createStore({ pool = createPostgresPool(), persistAuthorization 
       } else {
         const user = store.users.find((item) => item.id === claims.userId && item.status === 'active');
         membership = user && store.memberships.find((item) => item.userId === claims.userId && item.organizationId === claims.organizationId);
+        if (membership && user) membership = { ...membership, email: user.email };
       }
       if (!membership || membership.status !== 'active' || !isFutureDate(membership.validUntil, now)) {
         throw new AuthorizationError('REFRESH_TOKEN_INVALID', 401);
       }
       const allowed = scopesForMembership(membership);
-      return { ...claims, scopes: claims.scopes.filter((scope) => allowed.includes(scope)) };
+      return { ...claims, email: membership.email ?? claims.email, scopes: claims.scopes.filter((scope) => allowed.includes(scope)) };
     },
 
     async createRefreshToken({ userId, organizationId, scopes }, now = new Date()) {

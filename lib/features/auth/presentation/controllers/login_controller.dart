@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 
 import '../../../../core/services/auth_token_service.dart';
+import '../../../../core/services/beta_gate_service.dart';
 import '../../../../core/services/crypto_service.dart';
 import '../../../esdm_aba/domain/services/sync_queue_service.dart';
 
@@ -85,6 +86,7 @@ class LoginController extends StateNotifier<LoginState> {
         accessToken: payload['accessToken'] as String,
         refreshToken: payload['refreshToken'] as String,
       );
+      await BetaGateService.setBetaBypass(payload['betaBypass'] == true);
       state = state.copyWith(loading: false, authenticated: true);
       unawaited(SyncQueueService.syncPending());
       return true;
