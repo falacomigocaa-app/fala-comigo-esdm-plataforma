@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/theme/hyperfocus_theme.dart';
 import '../../../../core/services/app_orientation_service.dart';
+import '../../../../core/services/bug_report_service.dart';
 import '../../../../core/services/data_wipe_service.dart';
 import '../../../aac_grid/data/providers/cards_provider.dart';
 import '../../../aac_grid/domain/models/pictogram_card.dart';
@@ -110,6 +111,99 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       MaterialPageRoute(builder: (_) => const ParentalGateScreen()),
       (route) => route.isFirst,
     );
+  }
+
+  Future<void> _showBugReportDialog() async {
+    final descriptionController = TextEditingController();
+    var severity = 'leve';
+    var sending = false;
+    String? errorMessage;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (_, setDialogState) => AlertDialog(
+          title: const Text('Reportar Erro / Feedback'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Descreva somente o comportamento técnico. Não inclua nomes, prontuários ou dados clínicos.',
+                  style: TextStyle(fontSize: 13, color: AppTheme.mutedText),
+                ),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  initialValue: severity,
+                  decoration: const InputDecoration(labelText: 'Severidade'),
+                  items: const [
+                    DropdownMenuItem(value: 'leve', child: Text('Leve')),
+                    DropdownMenuItem(value: 'travamento', child: Text('Travamento')),
+                    DropdownMenuItem(value: 'sugestao', child: Text('Sugestão')),
+                  ],
+                  onChanged: sending ? null : (value) => setDialogState(() => severity = value ?? 'leve'),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: descriptionController,
+                  enabled: !sending,
+                  maxLength: 2000,
+                  maxLines: 5,
+                  decoration: const InputDecoration(
+                    labelText: 'Descrição técnica',
+                    hintText: 'Ex.: o botão Atualizar não responde após voltar da escola.',
+                    alignLabelWithHint: true,
+                  ),
+                ),
+                if (errorMessage != null) ...[
+                  const SizedBox(height: 8),
+                  Text(errorMessage!, style: const TextStyle(color: Colors.redAccent)),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: sending ? null : () => Navigator.of(dialogContext).pop(),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: sending
+                  ? null
+                  : () async {
+                      final description = descriptionController.text.trim();
+                      if (description.isEmpty) {
+                        setDialogState(() => errorMessage = 'Descreva o comportamento observado.');
+                        return;
+                      }
+                      setDialogState(() {
+                        sending = true;
+                        errorMessage = null;
+                      });
+                      try {
+                        await BugReportService.submit(description: description, severity: severity);
+                        if (dialogContext.mounted) Navigator.of(dialogContext).pop();
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Feedback técnico enviado.')),
+                          );
+                        }
+                      } catch (_) {
+                        if (dialogContext.mounted) {
+                          setDialogState(() {
+                            sending = false;
+                            errorMessage = 'Não foi possível enviar agora. Tente novamente quando houver conexão.';
+                          });
+                        }
+                      }
+                    },
+              child: Text(sending ? 'Enviando…' : 'Enviar'),
+            ),
+          ],
+        ),
+      ),
+    );
+    descriptionController.dispose();
   }
 
   @override
@@ -576,6 +670,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   onTap: () => Navigator.of(context).push(
                     MaterialPageRoute(builder: (_) => const ChangePinScreen()),
                   ),
+                ),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.bug_report_outlined),
+                  title: const Text('Reportar Erro / Feedback'),
+                  subtitle: const Text('Enviar somente informações técnicas do beta'),
+                  onTap: _showBugReportDialog,
                 ),
                 ListTile(
                   contentPadding: EdgeInsets.zero,

@@ -16,6 +16,35 @@ const safeTelemetryScreens = new Set([
   'splash', 'home', 'login', 'parental_gate', 'esdm_dashboard',
   'coleta_escola', 'painel_consentimento', 'metas_esdm'
 ]);
+const bugSeverities = new Set(['leve', 'travamento', 'sugestao']);
+const sensitiveBugPattern = /(prontu[áa]rio|diagn[óo]stico|laudo|cpf|rg\b|data de nascimento|nome completo|endere[cç]o|telefone|e-?mail|paciente|crian[cç]a|subject[-_ ]?id|clinical|cl[íi]nic[ao])/iu;
+
+function safeTechnicalHeader(value, fallback = '', maxLength = 160) {
+  const normalized = typeof value === 'string' ? value.replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, maxLength) : '';
+  return sensitiveBugPattern.test(normalized) ? fallback : normalized || fallback;
+}
+
+function bugReportInput(body, headers) {
+  const description = typeof body?.description === 'string' ? body.description.trim() : '';
+  const severity = typeof body?.severity === 'string'
+    ? body.severity.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim()
+    : '';
+  if (!description || description.length > 2000 || !bugSeverities.has(severity)) {
+    throw new AuthorizationError('INVALID_BUG_REPORT', 400);
+  }
+  if (sensitiveBugPattern.test(description)) {
+    throw new AuthorizationError('BUG_REPORT_PRIVACY_VIOLATION', 400);
+  }
+  const platform = ['web', 'android'].includes(headers['x-client-platform']) ? headers['x-client-platform'] : 'unknown';
+  return {
+    description,
+    severity,
+    appVersion: safeTechnicalHeader(headers['x-client-version'], 'unknown', 64),
+    platform,
+    userAgent: safeTechnicalHeader(headers['user-agent'], '', 240),
+    deviceModel: safeTechnicalHeader(headers['x-device-model'], '', 120)
+  };
+}
 
 function sanitizeTelemetry(body = {}) {
   if (!safeTelemetryEvents.has(body.event)) return null;
@@ -220,6 +249,16 @@ export function createApp({ store = createStore(), now = () => new Date() } = {}
       assertBetaAccess(context.user.email, clock);
       operationKey = idempotencyKey(context, method, path, requestId);
       if (path[0] !== 'v1') return response(404, { error: 'NOT_FOUND' });
+
+      if (method === 'POST' && path[1] === 'beta' && path[2] === 'report') {
+        const report = await store.saveBugReport({
+          ...bugReportInput(body, headers),
+          userId: context.user.id,
+          organizationId: context.user.organizationId,
+          createdAt: clock.toISOString()
+        });
+        return response(201, { accepted: true, reportId: report.id });
+      }
 
       if (method === 'GET' && path[1] === 'organizations' && path[3] === 'keys') {
         context.organizationId = path[2];

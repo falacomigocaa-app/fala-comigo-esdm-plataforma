@@ -35,7 +35,7 @@ export function scopesForMember(member) {
 }
 
 function renderHeader(session) {
-  return `<header class="topbar"><a class="brand" href="/admin/profissionais" data-route="/admin/profissionais">Fala Comigo <span>Portal</span></a><nav aria-label="Navegação principal"><a href="/clinica" data-route="/clinica" class="nav-link">Clínica</a><a href="/escola" data-route="/escola" class="nav-link">Escola</a><a href="/relatorios" data-route="/relatorios" class="nav-link">Relatórios</a><a href="/admin/profissionais" data-route="/admin/profissionais" class="nav-link selected">Administração</a></nav><div class="session-actions"><span class="session-id">${escapeHtml(session?.userId || '')}</span><button class="text-button" data-logout type="button">Sair</button></div></header>`;
+  return `<header class="topbar"><a class="brand" href="/admin/profissionais" data-route="/admin/profissionais">Fala Comigo <span>Portal</span></a><nav aria-label="Navegação principal"><a href="/clinica" data-route="/clinica" class="nav-link">Clínica</a><a href="/escola" data-route="/escola" class="nav-link">Escola</a><a href="/relatorios" data-route="/relatorios" class="nav-link">Relatórios</a><a href="/reportar-bug" data-route="/reportar-bug" class="nav-link">Reportar Bug</a><a href="/admin/profissionais" data-route="/admin/profissionais" class="nav-link selected">Administração</a></nav><div class="session-actions"><span class="session-id">${escapeHtml(session?.userId || '')}</span><button class="text-button" data-logout type="button">Sair</button></div></header>`;
 }
 
 function renderDenied({ session }) {
