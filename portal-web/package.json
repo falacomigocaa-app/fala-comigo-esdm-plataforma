@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "start": "node dev_server.mjs",
-    "check": "node --check dev_server.mjs && node --check src/main.js && node --check src/router.js && node --check src/api/client.js && node --check src/screens/auth_screen.js && node --check src/screens/clinica_screen.js && node --check src/screens/escola_screen.js && node --check src/views/login-view.js && node --check src/views/reports-view.js && node --check src/views/admin-professionals-view.js && node --check src/services/crypto-web.service.js",
+    "check": "node --check dev_server.mjs && node --check src/main.js && node --check src/router.js && node --check src/api/client.js && node --check src/screens/auth_screen.js && node --check src/screens/clinica_screen.js && node --check src/screens/escola_screen.js && node --check src/views/login-view.js && node --check src/views/reports-view.js && node --check src/views/admin-professionals-view.js && node --check src/services/crypto-web.service.js && node --check src/services/beta-gate.js && node --check src/services/telemetry.js",
     "test": "node --test test/*.test.js"
   }
 }

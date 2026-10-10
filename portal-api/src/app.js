@@ -9,6 +9,43 @@ function response(status, body) {
   return { status, body };
 }
 
+const betaStartAt = process.env.BETA_START_AT || '2026-10-10T00:00:00.000Z';
+const betaDurationDays = Math.min(365, Math.max(1, Number(process.env.BETA_DURATION_DAYS || 30)));
+const safeTelemetryEvents = new Set(['screen_view', 'beta_expired', 'sync_success', 'sync_failed']);
+const safeTelemetryScreens = new Set([
+  '/login', '/clinica', '/escola', '/relatorios', '/admin/profissionais',
+  'splash', 'home', 'login', 'parental_gate', 'esdm_dashboard',
+  'coleta_escola', 'painel_consentimento', 'metas_esdm'
+]);
+
+function betaWindow(now) {
+  const start = new Date(betaStartAt);
+  if (Number.isNaN(start.getTime())) throw new Error('INVALID_BETA_START_AT');
+  const expires = new Date(start.getTime() + betaDurationDays * 24 * 60 * 60 * 1000);
+  const serverNow = new Date(now);
+  const status = serverNow < start ? 'not_started' : serverNow >= expires ? 'expired' : 'active';
+  return {
+    status,
+    betaStartAt: start.toISOString(),
+    expiresAt: expires.toISOString(),
+    serverNow: serverNow.toISOString()
+  };
+}
+
+function sanitizeTelemetry(body = {}) {
+  if (!safeTelemetryEvents.has(body.event)) return null;
+  const payload = {
+    event: body.event,
+    platform: body.platform === 'android' ? 'android' : body.platform === 'web' ? 'web' : 'unknown',
+    occurredAt: typeof body.occurredAt === 'string' ? body.occurredAt : new Date().toISOString()
+  };
+  if (body.event === 'screen_view' && safeTelemetryScreens.has(body.screen)) payload.screen = body.screen;
+  if (body.event === 'beta_expired' && ['expired', 'clock_rollback', 'not_started'].includes(body.reason)) {
+    payload.reason = body.reason;
+  }
+  return payload;
+}
+
 function parsePath(url) {
   return new URL(url, 'http://localhost').pathname.split('/').filter(Boolean);
 }
@@ -129,6 +166,18 @@ export function createApp({ store = createStore(), now = () => new Date() } = {}
     let operationKey;
 
     try {
+      if (method === 'GET' && path[0] === 'v1' && path[1] === 'beta' && path[2] === 'status') {
+        return response(200, betaWindow(clock));
+      }
+
+      if (method === 'POST' && path[0] === 'v1' && path[1] === 'telemetry') {
+        const sanitized = sanitizeTelemetry(body);
+        if (!sanitized) return response(400, { error: 'INVALID_TELEMETRY_EVENT' });
+        if (store.telemetryEvents.length >= 1000) store.telemetryEvents.shift();
+        store.telemetryEvents.push(sanitized);
+        return response(202, { accepted: true });
+      }
+
       if (method === 'POST' && path[0] === 'v1' && path[1] === 'auth' && path[2] === 'login') {
         const claims = await store.authenticateCredentials(body ?? {}, clock);
         const accessToken = issueAccessToken(claims);

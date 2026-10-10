@@ -42,6 +42,7 @@ const server = http.createServer(async (request, response) => {
 });
 
 const port = Number(process.env.PORT ?? 8787);
-server.listen(port, '127.0.0.1', () => {
-  console.log(`Fala Comigo portal API local: http://127.0.0.1:${port}`);
+const host = process.env.HOST ?? '127.0.0.1';
+server.listen(port, host, () => {
+  console.log(`Fala Comigo portal API local: http://${host}:${port}`);
 });

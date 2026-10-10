@@ -10,6 +10,9 @@ import 'core/services/app_orientation_service.dart';
 import 'core/services/secure_box_service.dart';
 import 'core/services/parental_session_service.dart';
 import 'core/services/tts_service.dart';
+import 'core/services/beta_gate_service.dart';
+import 'core/services/beta_telemetry_navigator_observer.dart';
+import 'core/services/beta_telemetry_service.dart';
 import 'core/theme/app_theme.dart';
 import 'features/aac_grid/data/providers/cards_provider.dart';
 import 'features/aac_grid/data/providers/seed_cards.dart';
@@ -26,6 +29,7 @@ import 'features/esdm_aba/presentation/screens/metas_esdm_screen.dart';
 import 'features/esdm_aba/presentation/screens/esdm_dashboard_screen.dart';
 import 'features/auth/presentation/screens/login_screen.dart';
 import 'features/onboarding/presentation/screens/splash_screen.dart';
+import 'features/onboarding/presentation/screens/beta_expired_screen.dart';
 import 'features/parental_area/presentation/screens/parental_gate_screen.dart';
 import 'features/transition_alerts/data/providers/transition_alerts_provider.dart';
 import 'features/transition_alerts/domain/models/transition_alert.dart';
@@ -138,14 +142,14 @@ class CaaApp extends StatefulWidget {
 
 class _CaaAppState extends State<CaaApp> with WidgetsBindingObserver {
   bool _wasInBackground = false;
-  late Future<void> _bootstrapFuture;
+  late Future<BetaAccessStatus> _startupFuture;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     ParentalSessionService.onExpired = _showParentalGate;
-    _bootstrapFuture = _bootstrap();
+    _startupFuture = _initializeApp();
   }
 
   @override
@@ -158,7 +162,15 @@ class _CaaAppState extends State<CaaApp> with WidgetsBindingObserver {
   }
 
   void _retryBootstrap() {
-    setState(() => _bootstrapFuture = _bootstrap());
+    setState(() => _startupFuture = _initializeApp());
+  }
+
+  Future<BetaAccessStatus> _initializeApp() async {
+    final betaStatus = await BetaGateService.checkAccess();
+    if (!betaStatus.allowed) return betaStatus;
+    await _bootstrap();
+    await BetaTelemetryService.track('screen_view', screen: 'splash');
+    return betaStatus;
   }
 
   @override
@@ -185,6 +197,7 @@ class _CaaAppState extends State<CaaApp> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     return MaterialApp(
       navigatorKey: navigatorKey,
+      navigatorObservers: [BetaTelemetryNavigatorObserver()],
       title: 'Fala Comigo',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
@@ -195,8 +208,8 @@ class _CaaAppState extends State<CaaApp> with WidgetsBindingObserver {
         '/metas-esdm': (_) => const MetasEsdmScreen(),
         '/esdm-dashboard': (_) => const EsdmDashboardScreen(),
       },
-      home: FutureBuilder<void>(
-        future: _bootstrapFuture,
+      home: FutureBuilder<BetaAccessStatus>(
+        future: _startupFuture,
         builder: (context, snapshot) {
           if (snapshot.hasError) {
             return _BootstrapError(onRetry: _retryBootstrap);
@@ -207,6 +220,10 @@ class _CaaAppState extends State<CaaApp> with WidgetsBindingObserver {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             _initializeOptionalServices();
           });
+          final betaStatus = snapshot.data!;
+          if (!betaStatus.allowed) {
+            return BetaExpiredScreen(reason: betaStatus.reason);
+          }
           return const SplashScreen();
         },
       ),

@@ -187,3 +187,11 @@ A branch `work/complete-audit-20261010` foi criada a partir da branch auditada d
 Validação: Flutter 3.47.6/Dart 3.13.5, JDK 17, `flutter pub get --enforce-lockfile`, formatador, `flutter analyze` e `flutter test` com 133 testes aprovados. APK debug gerado em `build/app/outputs/flutter-apk/app-debug.apk`, SHA-256 `b2d1282ead24b5d875dae110ef3bf490810c60db6ad06cb025320854c258ccc2`. Aviso não bloqueador do Flutter: migração futura para Built-in Kotlin; plugins atuais ainda aplicam KGP.
 
 Limites do beta: o APK debug não é artefato de publicação; `PORTAL_API_BASE_URL` deve apontar para uma API de staging acessível pelo aparelho, não para o default `127.0.0.1`. Persistência completa da autorização no portal, migração de chaves legadas, rate limiting/HTTPS operacional, MobSF e validação física ainda são gates de produção.
+
+
+## Preparação do beta real e auto-teste — 10/10/2026
+Criada a branch `work/beta-real-autotest-20261010` a partir de `work/complete-audit-20261010`. O backend expõe `/v1/beta/status`, com `BETA_START_AT` e `BETA_DURATION_DAYS`; Web e mobile usam a data do servidor, guardam a última expiração confiável no armazenamento local e bloqueiam retrocesso de relógio acima de cinco minutos. Foi criada a tela de beta expirado nas duas superfícies.
+
+A telemetria é allowlistada e sem leitura de formulários: apenas `screen_view`, `beta_expired`, `sync_success` e `sync_failed`, com nomes fixos de tela e motivos fixos. O backend remove campos extras e mantém somente um buffer técnico limitado em memória. Autotestes: portal-web 28 aprovados; portal-api 55 aprovados e 1 PostgreSQL condicionalmente pulado; Flutter 136 aprovados, analyzer e formatter limpos. Build Web release aprovado. APK release de beta apontando para a API temporária pública foi assinado com chave efêmera e verificado pelo `apksigner` v2; SHA-256 `3feae460783705419bd949ba063253603d0b9aec94bf515714fe3d4b8e6f64dd`.
+
+Não abrir PR para a `main` nesta etapa: API persistente de staging, keystore produtiva, MobSF (Docker indisponível), persistência completa da autorização, migração de chaves E2EE legadas e validação física ainda não estão concluídos. Consultar `docs/BETA_REAL_EXECUCAO.md` antes de qualquer uso com dados reais.

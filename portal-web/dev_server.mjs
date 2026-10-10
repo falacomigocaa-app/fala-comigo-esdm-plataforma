@@ -20,7 +20,14 @@ const server = http.createServer(async (request, response) => {
 
   try {
     const filePath = extname(candidate) ? candidate : fallback;
-    const body = await readFile(filePath);
+    let body = await readFile(filePath);
+    if (filePath.endsWith('index.html') && process.env.PORTAL_API_BASE) {
+      const apiBase = JSON.stringify(process.env.PORTAL_API_BASE.replace(/\/$/, ''));
+      body = Buffer.from(body.toString('utf8').replace(
+        '</head>',
+        `<script>window.PORTAL_API_BASE=${apiBase};</script></head>`,
+      ));
+    }
     response.writeHead(200, { 'content-type': contentTypes[extname(filePath)] || 'text/plain; charset=utf-8' });
     response.end(body);
   } catch (_) {
