@@ -28,6 +28,18 @@ void main() {
     expect(ParentalSessionService.requireSession(), isFalse);
   });
 
+  test('atividade externa temporária preserva a sessão parental', () {
+    ParentalSessionService.authenticate();
+    ParentalSessionService.beginExternalActivity();
+
+    expect(ParentalSessionService.isExternalActivityInProgress, isTrue);
+    expect(ParentalSessionService.isAuthenticated, isTrue);
+
+    ParentalSessionService.completeExternalActivity();
+    expect(ParentalSessionService.isExternalActivityInProgress, isFalse);
+    expect(ParentalSessionService.isAuthenticated, isTrue);
+  });
+
   test('expira automaticamente e notifica a camada de navegação', () async {
     var expired = false;
     ParentalSessionService.onExpired = () => expired = true;

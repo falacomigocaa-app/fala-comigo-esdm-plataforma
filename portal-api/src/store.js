@@ -147,6 +147,7 @@ export function createStore({ pool = createPostgresPool() } = {}) {
     refreshTokens: new Map(),
     organizationKeys: new Map(),
     auditEvents: [],
+    telemetryEvents: [],
     idempotency: new Map(),
     pool,
     storageMode: pool ? 'postgres' : 'memory-test-only',
