@@ -2,6 +2,7 @@ import { AuthorizationError, audit, isFutureDate, membershipFor, requireScope, s
 import { authenticateRequest } from './middlewares/auth.middleware.js';
 import { issueAccessToken } from './services/auth.service.js';
 import { assertBetaAccess, betaWindow } from './services/beta.service.js';
+import { createDiscordNotifier } from './services/discord-webhook.service.js';
 import { createStore, esdmTranslations, roleScopes } from './store.js';
 
 const jsonHeaders = { 'content-type': 'application/json; charset=utf-8' };
@@ -171,7 +172,11 @@ function requireEncryptedCollectionEnvelope(body, organizationId) {
   };
 }
 
-export function createApp({ store = createStore(), now = () => new Date() } = {}) {
+export function createApp({
+  store = createStore(),
+  now = () => new Date(),
+  discordNotifier = createDiscordNotifier()
+} = {}) {
   let requestQueue = Promise.resolve();
 
   async function handleRequest({ method, url, headers = {}, body = null }) {
@@ -256,6 +261,10 @@ export function createApp({ store = createStore(), now = () => new Date() } = {}
           userId: context.user.id,
           organizationId: context.user.organizationId,
           createdAt: clock.toISOString()
+        });
+        // Notificação é best-effort: a persistência e a resposta do testador não dependem do Discord.
+        void Promise.resolve(discordNotifier?.notify?.(report)).catch((error) => {
+          console.warn('[portal-api] falha inesperada no notifier Discord:', error.message);
         });
         return response(201, { accepted: true, reportId: report.id });
       }
