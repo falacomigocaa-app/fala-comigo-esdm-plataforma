@@ -3,6 +3,7 @@ export const BETA_DURATION_DAYS = 30;
 const BETA_EXPIRES_AT = Date.parse(BETA_START_AT) + BETA_DURATION_DAYS * 24 * 60 * 60 * 1000;
 const LAST_WALL_CLOCK_KEY = 'fala-comigo.beta.last-wall-clock';
 const EXPIRES_AT_KEY = 'fala-comigo.beta.expires-at';
+const BYPASS_KEY = 'fala-comigo.beta.bypass';
 const MAX_CLOCK_SKEW_MS = 5 * 60 * 1000;
 const DEFAULT_API_BASE = 'http://127.0.0.1:8787';
 let accessPromise;
@@ -18,14 +19,15 @@ function readLocalState() {
   const expiresAt = Number(local.getItem(EXPIRES_AT_KEY));
   return {
     lastWallClock: Number.isFinite(lastWallClock) && lastWallClock > 0 ? lastWallClock : null,
-    expiresAt: Number.isFinite(expiresAt) && expiresAt > 0 ? expiresAt : null
+    expiresAt: Number.isFinite(expiresAt) && expiresAt > 0 ? expiresAt : null,
+    bypass: local.getItem(BYPASS_KEY) === 'true'
   };
 }
 
-function persistLocalState({ nowMs, expiresAt }) {
+function persistLocalState({ nowMs, trustedNowMs, expiresAt }) {
   const local = storage();
   if (!local) return;
-  local.setItem(LAST_WALL_CLOCK_KEY, String(nowMs));
+  local.setItem(LAST_WALL_CLOCK_KEY, String(trustedNowMs || nowMs));
   if (expiresAt) local.setItem(EXPIRES_AT_KEY, String(expiresAt));
 }
 
@@ -40,6 +42,9 @@ export function evaluateBetaAccess({ nowMs = Date.now(), serverStatus = null, lo
   const expiresAt = Number.isFinite(serverExpiresAt)
     ? serverExpiresAt
     : localState.expiresAt || BETA_EXPIRES_AT;
+  if (localState.bypass || serverStatus?.betaBypass === true) {
+    return { allowed: true, reason: 'bypass', expiresAt };
+  }
   if (serverStatus?.status === 'not_started' || effectiveNowMs < Date.parse(BETA_START_AT)) {
     return { allowed: false, reason: 'not_started', expiresAt };
   }
@@ -70,7 +75,7 @@ export async function checkBetaAccess({
       // Offline fallback uses the last trusted expiry and clock rollback guard.
     }
     const result = evaluateBetaAccess({ nowMs, serverStatus, localState });
-    persistLocalState({ nowMs, expiresAt: result.expiresAt });
+    persistLocalState({ nowMs, trustedNowMs: Number.isFinite(serverNowMs) ? serverNowMs : nowMs, expiresAt: result.expiresAt });
     return result;
   })();
   return accessPromise;
@@ -78,4 +83,9 @@ export async function checkBetaAccess({
 
 export function resetBetaAccessCache() {
   accessPromise = undefined;
+}
+
+export function setBetaBypass(enabled) {
+  storage()?.setItem(BYPASS_KEY, enabled === true ? 'true' : 'false');
+  resetBetaAccessCache();
 }

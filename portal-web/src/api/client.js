@@ -125,7 +125,8 @@ export class APIClient {
         ...session,
         token: payload.accessToken,
         refreshToken: payload.refreshToken,
-        accessTokenExpiresAt: payload.expiresIn ? Date.now() + payload.expiresIn * 1000 : undefined
+        accessTokenExpiresAt: payload.expiresIn ? Date.now() + payload.expiresIn * 1000 : undefined,
+        betaBypass: payload.betaBypass === true
       });
       return payload;
     })().finally(() => {

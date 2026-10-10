@@ -30,6 +30,7 @@ class BetaGateService {
   static const _storage = FlutterSecureStorage();
   static const _lastWallClockKey = 'fala_comigo_beta_last_wall_clock';
   static const _expiresAtKey = 'fala_comigo_beta_expires_at';
+  static const _bypassKey = 'fala_comigo_beta_bypass';
   static const _maxClockSkew = Duration(minutes: 5);
   static final http.Client _client = http.Client();
   static Future<http.Response> Function(Uri uri)? statusRequestOverride;
@@ -51,6 +52,9 @@ class BetaGateService {
         localExpiresAt ??
         _defaultExpiry();
     final effectiveNow = serverNow ?? now;
+    if (serverStatus?['betaBypass'] == true) {
+      return _status(true, 'bypass', expiresAt);
+    }
     final reason = serverStatus?['status'] == 'not_started'
         ? 'not_started'
         : serverStatus?['status'] == 'expired' ||
@@ -66,6 +70,7 @@ class BetaGateService {
     final current = (now ?? DateTime.now)().toUtc();
     final lastWallClock = await _readDate(_lastWallClockKey);
     final localExpiresAt = await _readDate(_expiresAtKey);
+    final bypass = await _storage.read(key: _bypassKey) == 'true';
     if (lastWallClock != null &&
         current.add(_maxClockSkew).isBefore(lastWallClock)) {
       final status =
@@ -99,11 +104,15 @@ class BetaGateService {
       localExpiresAt: localExpiresAt,
       serverStatus: serverStatus,
     );
-    await _persist(current, status.expiresAt);
-    if (!status.allowed) {
-      await BetaTelemetryService.track('beta_expired', reason: status.reason);
+    final trustedNow = _parseDate(serverStatus?['server_time']) ?? current;
+    final effectiveStatus = bypass && status.reason != 'clock_rollback'
+        ? _status(true, 'bypass', status.expiresAt)
+        : status;
+    await _persist(trustedNow, effectiveStatus.expiresAt);
+    if (!effectiveStatus.allowed) {
+      await BetaTelemetryService.track('beta_expired', reason: effectiveStatus.reason);
     }
-    return status;
+    return effectiveStatus;
   }
 
   static BetaAccessStatus _status(
@@ -131,5 +140,9 @@ class BetaGateService {
     await _storage.write(key: _lastWallClockKey, value: now.toIso8601String());
     await _storage.write(
         key: _expiresAtKey, value: expiresAt.toIso8601String());
+  }
+
+  static Future<void> setBetaBypass(bool enabled) async {
+    await _storage.write(key: _bypassKey, value: enabled ? 'true' : 'false');
   }
 }
