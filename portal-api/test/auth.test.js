@@ -138,3 +138,60 @@ test('refresh rejeita token expirado sem revelar a sessão', async () => {
   });
   assert.deepEqual(result, { status: 401, body: { error: 'REFRESH_TOKEN_INVALID' } });
 });
+
+test('escopos explícitos do membership não caem no conjunto global do papel', async () => {
+  const queries = [];
+  const pool = {
+    async query(sql) {
+      queries.push(sql);
+      if (sql.includes('from users u')) {
+        return { rows: [{ id: 'pg-user', email: 'real@example.test', password_hash: '$2b$12$u7hinMZXhMWNJXvBs90RauPnmv8zVvZcSh7ohICCg/S9TJAESRqSi', organization_id: 'pg-org', role: 'owner', scopes: [] }] };
+      }
+      if (sql.includes('from memberships m')) {
+        return { rows: [{ role: 'owner', scopes: [], status: 'active', validUntil: '2099-01-01T00:00:00.000Z' }] };
+      }
+      throw new Error(`query inesperada: ${sql}`);
+    }
+  };
+  const store = createStore({ pool, persistAuthorization: false });
+  const login = await store.authenticateCredentials({ email: 'real@example.test', password: 'DemoPassword-2026' });
+  assert.deepEqual(login.scopes, []);
+  const refreshed = await store.validateRefreshClaims({ userId: 'pg-user', organizationId: 'pg-org', scopes: ['organization.key.read'] });
+  assert.deepEqual(refreshed.scopes, []);
+  assert.ok(queries.every((sql) => sql.includes('m.scopes')));
+});
+
+test('requisições concorrentes são serializadas no ciclo hydrate-dispatch-flush', async () => {
+  const events = [];
+  const store = {
+    persistAuthorization: true,
+    storageMode: 'postgres',
+    async hydrateAuthorization() {
+      events.push('hydrate');
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      return {};
+    },
+    async flushAuthorizationState() {
+      events.push('flush');
+    }
+  };
+  const app = createApp({ store });
+  const results = await Promise.all([
+    app.handle({ method: 'GET', url: '/v1/beta/status' }),
+    app.handle({ method: 'GET', url: '/v1/beta/status' })
+  ]);
+  assert.deepEqual(results.map((result) => result.status), [200, 200]);
+  assert.deepEqual(events, ['hydrate', 'flush', 'hydrate', 'flush']);
+});
+
+test('falha de persistência não é reportada como sucesso HTTP', async () => {
+  const app = createApp({
+    store: {
+      persistAuthorization: true,
+      async hydrateAuthorization() { return {}; },
+      async flushAuthorizationState() { throw new Error('rollback'); }
+    }
+  });
+  const result = await app.handle({ method: 'GET', url: '/v1/beta/status' });
+  assert.deepEqual(result, { status: 503, body: { error: 'PERSISTENCE_UNAVAILABLE' } });
+});

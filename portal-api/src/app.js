@@ -158,7 +158,9 @@ function requireEncryptedCollectionEnvelope(body, organizationId) {
 }
 
 export function createApp({ store = createStore(), now = () => new Date() } = {}) {
-  async function handle({ method, url, headers = {}, body = null }) {
+  let requestQueue = Promise.resolve();
+
+  async function handleRequest({ method, url, headers = {}, body = null }) {
     const path = parsePath(url);
     const requestId = headers['x-request-id'] ?? null;
     const clock = now();
@@ -486,6 +488,31 @@ export function createApp({ store = createStore(), now = () => new Date() } = {}
       }
       return response(error.status, { error: error.code });
     }
+  }
+
+  async function processRequest(request) {
+    let snapshot;
+    try {
+      snapshot = await store.hydrateAuthorization();
+    } catch (error) {
+      console.error('[portal-api] falha ao carregar autorização:', error.message);
+      return response(503, { error: 'PERSISTENCE_UNAVAILABLE' });
+    }
+
+    const result = await handleRequest(request);
+    try {
+      await store.flushAuthorizationState({ snapshot });
+    } catch (error) {
+      console.error('[portal-api] falha ao persistir autorização:', error.message);
+      return response(503, { error: 'PERSISTENCE_UNAVAILABLE' });
+    }
+    return result;
+  }
+
+  function handle(request) {
+    const run = requestQueue.then(() => processRequest(request), () => processRequest(request));
+    requestQueue = run.catch(() => undefined);
+    return run;
   }
 
   return { handle, store };
