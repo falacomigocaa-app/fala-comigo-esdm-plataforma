@@ -82,6 +82,13 @@ class SyncQueueService {
     }
     _notifyConsentValid();
 
+    final organizationId =
+        await AuthTokenService.readOrganizationId() ?? syncOrganizationId;
+    if (!await CryptoService.hasOrganizationKey(organizationId)) {
+      // The caller already saved the collection locally. Only an authenticated
+      // organization key can create a remotely readable envelope.
+      return SyncOutcome.localOnly;
+    }
     final item = await _itemFor(coleta, subjectId: subjectId);
     if (!await _isOnline()) {
       await SyncQueueStore.enqueue(item);

@@ -49,12 +49,12 @@ jobs:
       - name: Configurar Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: 3.38.0
+          flutter-version: 3.47.6
           cache: true
 
       - name: Construir app Web para a subrota do Pages
         run: |
-          flutter pub get
+          flutter pub get --enforce-lockfile
           flutter build web --release --base-href /fala-comigo/app/
           test -s build/web/index.html
           grep -F '<base href="/fala-comigo/app/">' build/web/index.html

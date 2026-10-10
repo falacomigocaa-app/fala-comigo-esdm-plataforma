@@ -236,3 +236,102 @@ test('APIClient.login envia email e senha ao provedor central', async () => {
   });
   assert.equal(result.accessToken, 'access-login');
 });
+
+function mutableBrowser(fetchImpl) {
+  let session = { userId: 'user-alpha', organizationId: 'org-alpha', token: 'access-old', refreshToken: 'refresh-old' };
+  installBrowser(fetchImpl);
+  window.localStorage.getItem = () => JSON.stringify(session);
+  window.localStorage.setItem = (_key, value) => { session = JSON.parse(value); };
+  window.localStorage.removeItem = () => { session = null; };
+  return { read: () => session, write: (value) => { session = value; } };
+}
+const expiredResponse = () => ({ ok: false, status: 401, async json() { return { error: 'TOKEN_EXPIRED', renewalRequired: true }; } });
+const refreshedResponse = () => ({ ok: true, status: 200, async json() { return { accessToken: 'access-new', refreshToken: 'refresh-new' }; } });
+
+test('late 401 reuses an already rotated token and retains POST request id', async () => {
+  let releaseLate;
+  const lateResponse = new Promise((resolve) => { releaseLate = resolve; });
+  let refreshCalls = 0;
+  const requests = [];
+  mutableBrowser(async (url, options) => {
+    requests.push({ url, options });
+    if (url.endsWith('/refresh')) { refreshCalls++; return refreshedResponse(); }
+    if (options.headers.authorization === 'Bearer access-old') {
+      if (url.includes('school-collections')) return lateResponse;
+      return expiredResponse();
+    }
+    return { ok: true, status: 200, async json() { return {}; } };
+  });
+  const { APIClient } = await import(`../src/api/client.js?late=${Date.now()}`);
+  const client = new APIClient();
+  const late = client.salvarColeta('subject-a', { encryptedData: 'test' });
+  await client.carregarMetas('subject-a');
+  releaseLate(expiredResponse());
+  await late;
+  assert.equal(refreshCalls, 1);
+  const posts = requests.filter((r) => r.url.includes('school-collections'));
+  assert.equal(posts.length, 2);
+  assert.equal(posts[0].options.headers['x-request-id'], posts[1].options.headers['x-request-id']);
+});
+
+test('refresh finishing after logout cannot restore the old session', async () => {
+  let releaseRefresh;
+  let refreshStarted;
+  const started = new Promise((resolve) => { refreshStarted = resolve; });
+  const pending = new Promise((resolve) => { releaseRefresh = resolve; });
+  const browser = mutableBrowser(async (url) => {
+    if (url.endsWith('/refresh')) { refreshStarted(); return pending; }
+    return expiredResponse();
+  });
+  const { APIClient } = await import(`../src/api/client.js?logout=${Date.now()}`);
+  const request = new APIClient().carregarMetas('subject-a');
+  const rejected = assert.rejects(request);
+  await started;
+  browser.write(null);
+  releaseRefresh(refreshedResponse());
+  await rejected;
+  assert.equal(browser.read(), null);
+});
+
+test('old unauthorized response cannot clear a newer login', async () => {
+  let release;
+  const pending = new Promise((resolve) => { release = resolve; });
+  const browser = mutableBrowser(() => pending);
+  const { APIClient } = await import(`../src/api/client.js?switched=${Date.now()}`);
+  const request = new APIClient().carregarMetas('subject-a');
+  const rejected = assert.rejects(request, /SESSION_CHANGED/);
+  const next = { userId: 'user-beta', organizationId: 'org-beta', token: 'beta', refreshToken: 'beta-refresh' };
+  browser.write(next);
+  release(expiredResponse());
+  await rejected;
+  assert.deepEqual(browser.read(), next);
+});
+
+test('APIClient.login preserves the invalid credentials error', async () => {
+  installBrowser(async () => ({ ok: false, status: 401, async json() { return { error: 'INVALID_CREDENTIALS' }; } }));
+  const { APIClient } = await import(`../src/api/client.js?login-error=${Date.now()}`);
+  await assert.rejects(() => new APIClient().login('synthetic@example.test', 'wrong'), (error) => error.message === 'INVALID_CREDENTIALS' && error.status === 401);
+});
+
+test('new login refresh cannot join an older session refresh', async () => {
+  let oldStarted;
+  let releaseOld;
+  const started = new Promise((resolve) => { oldStarted = resolve; });
+  const oldResponse = new Promise((resolve) => { releaseOld = resolve; });
+  const browser = mutableBrowser(async (_url, options) => {
+    const body = JSON.parse(options.body);
+    if (body.refreshToken === 'refresh-old') { oldStarted(); return oldResponse; }
+    return { ok: true, status: 200, async json() { return { accessToken: 'beta-new', refreshToken: 'beta-rotated' }; } };
+  });
+  const { APIClient } = await import(`../src/api/client.js?new-login-refresh=${Date.now()}`);
+  const client = new APIClient();
+  const old = client.refreshSession();
+  const rejected = assert.rejects(old, /SESSION_CHANGED/);
+  await started;
+  browser.write({ userId: 'user-beta', organizationId: 'org-beta', token: 'beta-expired', refreshToken: 'beta-refresh' });
+  await client.refreshSession();
+  releaseOld(refreshedResponse());
+  await rejected;
+  assert.equal(browser.read().userId, 'user-beta');
+  assert.equal(browser.read().token, 'beta-new');
+});

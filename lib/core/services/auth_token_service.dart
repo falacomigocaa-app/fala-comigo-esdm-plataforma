@@ -45,7 +45,6 @@ class AuthTokenService {
     required String accessToken,
     required String refreshToken,
   }) async {
-    await saveToken(accessToken);
     final normalizedRefresh = refreshToken.trim();
     if (normalizedRefresh.isEmpty) {
       throw ArgumentError.value(
@@ -54,6 +53,7 @@ class AuthTokenService {
         'Refresh token não pode ser vazio.',
       );
     }
+    await saveToken(accessToken);
     await _storage.write(key: _refreshTokenKey, value: normalizedRefresh);
   }
 

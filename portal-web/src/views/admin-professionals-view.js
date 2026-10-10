@@ -29,7 +29,7 @@ export function hasAdministrativeScope(session) {
 }
 
 export function scopesForMember(member) {
-  return Array.isArray(member?.scopes) && member.scopes.length
+  return Array.isArray(member?.scopes)
     ? member.scopes
     : (ROLE_SCOPES[member?.role] || []);
 }

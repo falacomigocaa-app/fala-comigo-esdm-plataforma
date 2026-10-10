@@ -81,3 +81,8 @@ test('APIClient administrativo usa Bearer para listar e convidar profissional', 
     purpose: 'Acesso profissional ao portal'
   });
 });
+
+test('empty explicit membership scopes stay empty in the admin table', async () => {
+  const { scopesForMember } = await import('../src/views/admin-professionals-view.js');
+  assert.deepEqual(scopesForMember({ role: 'professional', scopes: [] }), []);
+});

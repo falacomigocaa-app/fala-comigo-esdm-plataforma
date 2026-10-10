@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -6,6 +7,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:hive/hive.dart';
 
 import 'package:fala_comigo/core/services/data_wipe_service.dart';
+import 'package:fala_comigo/core/services/auth_token_service.dart';
+import 'package:fala_comigo/core/services/crypto_service.dart';
 import 'package:fala_comigo/core/services/parental_session_service.dart';
 import 'package:fala_comigo/core/services/secure_box_service.dart';
 import 'package:fala_comigo/features/aac_grid/domain/models/pictogram_card.dart';
@@ -99,6 +102,40 @@ void main() {
     messenger.setMockMethodCallHandler(secureStorageChannel, null);
     messenger.setMockMethodCallHandler(pathProviderChannel, null);
     await root.delete(recursive: true);
+  });
+
+  test('wipe remove todas as boxes clínicas, tokens e chaves E2EE/ESDM',
+      () async {
+    const clinicalBoxes = [
+      'metas_esdm_box',
+      'concessoes_acesso_box',
+      'coleta_escola_box',
+      'coleta_escola',
+      'sincronizacao_queue_box'
+    ];
+    for (final name in clinicalBoxes) {
+      final box = await Hive.openBox<String>(name);
+      await box.put('synthetic', 'dado sensível sintético');
+    }
+    await AuthTokenService.saveSessionTokens(
+        accessToken: 'access-wipe', refreshToken: 'refresh-wipe');
+    await CryptoService.saveOrganizationKey(
+        organizationId: 'org-wipe',
+        encodedKey: base64Encode(List<int>.filled(32, 19)));
+    secureValues['fala_comigo_esdm_hive_key_metas_esdm_box'] = 'synthetic-key';
+    secureValues['fala_comigo_esdm_hive_key_concessoes_acesso_box'] =
+        'synthetic-key';
+    await DataWipeService.deleteAllLocalData();
+    for (final name in clinicalBoxes) {
+      expect(await Hive.boxExists(name), isFalse, reason: name);
+    }
+    expect(await AuthTokenService.readToken(), isNull);
+    expect(await AuthTokenService.readRefreshToken(), isNull);
+    expect(await CryptoService.hasOrganizationKey('org-wipe'), isFalse);
+    expect(
+        secureValues.keys
+            .where((key) => key.startsWith('fala_comigo_esdm_hive_key_')),
+        isEmpty);
   });
 
   test('apagar dados limpa lembretes e cancela notificações agendadas',
