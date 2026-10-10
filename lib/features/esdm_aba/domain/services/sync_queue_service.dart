@@ -82,6 +82,13 @@ class SyncQueueService {
     }
     _notifyConsentValid();
 
+    final organizationId =
+        await AuthTokenService.readOrganizationId() ?? syncOrganizationId;
+    if (!await CryptoService.hasOrganizationKey(organizationId)) {
+      // The caller already saved the collection locally. Only an authenticated
+      // organization key can create a remotely readable envelope.
+      return SyncOutcome.localOnly;
+    }
     final item = await _itemFor(coleta, subjectId: subjectId);
     if (!await _isOnline()) {
       await SyncQueueStore.enqueue(item);
@@ -202,25 +209,39 @@ class SyncQueueService {
     final uri = Uri.parse(syncApiBaseUrl).resolve(
       '/v1/subjects/${Uri.encodeComponent(subjectId)}${item.endpoint}',
     );
-    final headers = {
-      'accept': 'application/json',
-      'content-type': 'application/json',
-      'authorization': 'Bearer $token',
-      'x-consent-profile': escolaPerfilAlvo,
-      'x-request-id': item.id,
-    };
-    final override = postOverride;
-    final response = override != null
-        ? await override(uri, headers, item.payload)
-        : await _client
-            .post(uri, headers: headers, body: item.payload)
-            .timeout(const Duration(seconds: 15));
-
-    if (response.statusCode == 401) {
-      throw AuthTokenExpiredException(response.statusCode, response.body);
-    }
-    if (response.statusCode != 200 && response.statusCode != 201) {
-      throw StateError('Sincronização recusada: HTTP ${response.statusCode}.');
+    var currentToken = token;
+    for (var attempt = 0; attempt < 2; attempt++) {
+      final headers = {
+        'accept': 'application/json',
+        'content-type': 'application/json',
+        'authorization': 'Bearer $currentToken',
+        'x-consent-profile': escolaPerfilAlvo,
+        'x-request-id': item.id,
+      };
+      final override = postOverride;
+      final response = override != null
+          ? await override(uri, headers, item.payload)
+          : await _client
+              .post(uri, headers: headers, body: item.payload)
+              .timeout(const Duration(seconds: 15));
+      if (response.statusCode == 401 && attempt == 0) {
+        if (!await AuthTokenService.refreshAccessToken()) {
+          throw AuthTokenExpiredException(response.statusCode, response.body);
+        }
+        currentToken = await AuthTokenService.readToken() ?? '';
+        if (currentToken.isEmpty) {
+          throw const AuthTokenRequiredException();
+        }
+        continue;
+      }
+      if (response.statusCode == 401) {
+        throw AuthTokenExpiredException(response.statusCode, response.body);
+      }
+      if (response.statusCode != 200 && response.statusCode != 201) {
+        throw StateError(
+            'Sincronização recusada: HTTP ${response.statusCode}.');
+      }
+      return;
     }
   }
 

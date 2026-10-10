@@ -39,6 +39,12 @@ class EsdmSecureBoxService {
     );
   }
 
+  static Future<void> deleteEncryptionKeys() async {
+    for (final boxName in [concessoesAcessoBoxName, metasEsdmBoxName]) {
+      await _secureStorage.delete(key: '$_keyPrefix$boxName');
+    }
+  }
+
   static void _registerAdapters() {
     if (!Hive.isAdapterRegistered(ConcessaoAcessoModelAdapter().typeId)) {
       Hive.registerAdapter(ConcessaoAcessoModelAdapter());

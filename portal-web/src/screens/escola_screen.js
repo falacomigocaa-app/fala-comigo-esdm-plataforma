@@ -1,4 +1,5 @@
 import { apiClient } from '../api/client.js';
+import { decryptCollectionEnvelopes } from '../services/crypto-web.service.js';
 
 const levels = { Recusa: 0, 'Ajuda Física': 1, 'Ajuda Verbal': 2, Independente: 3 };
 const blocks = ['Lanche', 'Recreio', 'Roda de Conversa', 'Atividade Sentada'];
@@ -33,7 +34,7 @@ export async function hydrateEscolaScreen({ session }) {
   const load = async () => {
     status.textContent = 'Consultando histórico autorizado…';
     const result = await apiClient.carregarHistoricoEscolar(subjectId);
-    const collections = result.collections || [];
+    const collections = await decryptCollectionEnvelopes(result.collections || [], { session });
     const summary = summarize(collections);
     const best = summary.filter((item) => item.average !== null).sort((a, b) => b.average - a.average)[0];
     bestBlock.textContent = best ? best.block : 'Sem registros';

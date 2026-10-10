@@ -20,7 +20,7 @@ curl -H 'Authorization: Bearer <JWT>' \
   http://127.0.0.1:8787/v1/organizations/org-demo-alpha/subjects
 ```
 
-Para ativar persistência PostgreSQL, aplique `migrations/001_initial.sql`, `migrations/002_refresh_tokens.sql` e `migrations/003_user_credentials.sql` em um banco de staging e inicie com `DATABASE_URL`:
+Para ativar persistência PostgreSQL, aplique `migrations/001_initial.sql`, `migrations/002_refresh_tokens.sql` , `migrations/003_user_credentials.sql`, `migrations/004_e2ee_school_collections.sql` e `migrations/005_organization_keys.sql` em um banco de staging e inicie com `DATABASE_URL`:
 
 ```bash
 cp .env.example .env
@@ -31,6 +31,8 @@ set +a
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f migrations/001_initial.sql
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f migrations/002_refresh_tokens.sql
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f migrations/003_user_credentials.sql
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f migrations/004_e2ee_school_collections.sql
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f migrations/005_organization_keys.sql
 npm start
 ```
 
@@ -77,6 +79,12 @@ Antes de qualquer leitura ou escrita, o backend valida membership, consentimento
 
 ## Limites
 
-O JWT e o servidor atual são destinados a desenvolvimento/staging. O login local usa bcrypt para o ciclo central de credenciais; antes de produção, deve ser conectado ao provedor de identidade corporativo e provisionado com hashes reais. Tokens expiram em 15 minutos por padrão, e o cliente renova a sessão com rotação ao receber `401` com `error: TOKEN_EXPIRED` e `renewalRequired: true`. O próximo gate é executar as três migrations e a integração PostgreSQL em staging com um `JWT_SECRET` real.
+O JWT e o servidor atual são destinados a desenvolvimento/staging. O login local usa bcrypt para o ciclo central de credenciais; antes de produção, deve ser conectado ao provedor de identidade corporativo e provisionado com hashes reais. Tokens expiram em 15 minutos por padrão, e o cliente renova a sessão com rotação ao receber `401` com `error: TOKEN_EXPIRED` e `renewalRequired: true`. O próximo gate é executar as cinco migrations e a integração PostgreSQL em staging com um `JWT_SECRET` real.
 
 Não adicionar senhas, tokens, nomes reais, dados de crianças, conteúdo clínico, fotos, vídeos, áudios ou credenciais a esta pasta.
+
+### Resultado da auditoria de 10/10/2026
+
+A autorização das rotas continua baseada em fixtures em memória, mesmo com `DATABASE_URL`; consentimentos, grants, convites e auditoria ainda não são persistidos pelo store. PostgreSQL funcional não comprova autorização produtiva. Use somente dados sintéticos até substituir essas fixtures por repositórios transacionais.
+
+Login entrega chave somente com `organization.key.read`. Refresh revalida membership atual; histórico escolar filtra organização; idempotência é local ao processo e separada por usuário/organização/operação, com 409 para payload diferente. Convites limitam escopos ao papel e ao consentimento; escopo `report.read` ainda não é suportado. Detalhes e gates: [auditoria](../docs/auditoria/2026-10-10/README.md).

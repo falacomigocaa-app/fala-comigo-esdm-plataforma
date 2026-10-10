@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createApp } from '../src/app.js';
+import { createStore } from '../src/store.js';
 import { issueAccessToken, verifyAccessToken } from '../src/services/auth.service.js';
 
 process.env.JWT_SECRET ??= 'test-only-jwt-secret-with-at-least-32-characters';
@@ -48,7 +49,7 @@ test('login central injeta a chave AES-256-GCM da organização autorizada', asy
   const previousMasterKey = process.env.MASTER_CRYPTO_KEY;
   process.env.MASTER_CRYPTO_KEY = Buffer.alloc(32, 23).toString('base64');
   try {
-    const app = createApp();
+    const app = createApp({ store: createStore({ pool: null }) });
     await app.store.provisionOrganizationKey({ organizationId: 'org-demo-alpha', createdByUserId: 'user-admin-alpha' });
     const result = await app.handle({
       method: 'POST',

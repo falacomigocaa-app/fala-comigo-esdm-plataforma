@@ -12,7 +12,7 @@ import {
   generateOrganizationKey,
   organizationKeyToBase64
 } from './services/organization-key.service.js';
-import { AuthorizationError } from './authorization.js';
+import { AuthorizationError, isFutureDate, scopesForMembership } from './authorization.js';
 
 const { Pool } = pg;
 
@@ -197,7 +197,7 @@ export function createStore({ pool = createPostgresPool() } = {}) {
 
     async saveGoal({ subjectId, codigoTecnicoDenver, status = 'Em Progresso', passoAtualAba = 1, createdByUserId }) {
       const translation = esdmTranslations[codigoTecnicoDenver];
-      if (!translation) throw new Error('INVALID_ESDM_CODE');
+      if (!Object.hasOwn(esdmTranslations, codigoTecnicoDenver)) throw new Error('INVALID_ESDM_CODE');
       const id = `goal-${randomUUID()}`;
       if (pool) {
         const result = await pool.query(`
@@ -244,12 +244,12 @@ export function createStore({ pool = createPostgresPool() } = {}) {
       return collection;
     },
 
-    async getCollectionsBySubject(subjectId) {
+    async getCollectionsBySubject(subjectId, organizationId = null) {
       if (pool) {
-        const result = await pool.query('select * from school_collections where subject_id = $1 order by data_registro desc', [subjectId]);
+        const result = await pool.query('select * from school_collections where subject_id = $1 and ($2::text is null or organization_id = $2) order by data_registro desc', [subjectId, organizationId]);
         return result.rows.map(mapCollection);
       }
-      return store.collections.filter((collection) => collection.subjectId === subjectId).sort((a, b) => new Date(b.dataRegistro) - new Date(a.dataRegistro));
+      return store.collections.filter((collection) => collection.subjectId === subjectId && (organizationId === null || collection.organizationId === organizationId)).sort((a, b) => new Date(b.dataRegistro) - new Date(a.dataRegistro));
     },
 
     async authenticateCredentials({ email, password }, now = new Date()) {
@@ -279,7 +279,7 @@ export function createStore({ pool = createPostgresPool() } = {}) {
         user = store.users.find((candidate) => candidate.email === normalizedEmail && candidate.status === 'active');
         membership = user
           ? store.memberships
-              .filter((candidate) => candidate.userId === user.id && candidate.status === 'active' && new Date(candidate.validUntil) > now)
+              .filter((candidate) => candidate.userId === user.id && candidate.status === 'active' && isFutureDate(candidate.validUntil, now))
               .sort((left, right) => new Date(right.validUntil) - new Date(left.validUntil))[0]
           : null;
       }
@@ -290,12 +290,31 @@ export function createStore({ pool = createPostgresPool() } = {}) {
         throw new AuthorizationError('INVALID_CREDENTIALS', 401);
       }
 
-      const role = membership.role;
       return {
         userId: user.id,
         organizationId: membership.organizationId ?? membership.organization_id,
-        scopes: roleScopes[role] ?? []
+        scopes: scopesForMembership(membership)
       };
+    },
+
+    async validateRefreshClaims(claims, now = new Date()) {
+      let membership;
+      if (pool) {
+        const result = await pool.query(`
+          select m.role, m.status, m.valid_until as "validUntil"
+            from memberships m join users u on u.id = m.user_id
+           where m.user_id = $1 and m.organization_id = $2 and u.status = 'active'
+        `, [claims.userId, claims.organizationId]);
+        membership = result.rows[0];
+      } else {
+        const user = store.users.find((item) => item.id === claims.userId && item.status === 'active');
+        membership = user && store.memberships.find((item) => item.userId === claims.userId && item.organizationId === claims.organizationId);
+      }
+      if (!membership || membership.status !== 'active' || !isFutureDate(membership.validUntil, now)) {
+        throw new AuthorizationError('REFRESH_TOKEN_INVALID', 401);
+      }
+      const allowed = scopesForMembership(membership);
+      return { ...claims, scopes: claims.scopes.filter((scope) => allowed.includes(scope)) };
     },
 
     async createRefreshToken({ userId, organizationId, scopes }, now = new Date()) {
@@ -345,7 +364,7 @@ export function createStore({ pool = createPostgresPool() } = {}) {
         };
       }
       const record = store.refreshTokens.get(tokenHash);
-      if (!record || record.revokedAt || new Date(record.expiresAt) <= now) {
+      if (!record || record.revokedAt || !isFutureDate(record.expiresAt, now)) {
         throw new AuthorizationError('REFRESH_TOKEN_INVALID', 401);
       }
       record.revokedAt = now.toISOString();

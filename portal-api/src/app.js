@@ -1,7 +1,7 @@
-import { AuthorizationError, audit, requireScope, stableError } from './authorization.js';
+import { AuthorizationError, audit, isFutureDate, membershipFor, requireScope, stableError } from './authorization.js';
 import { authenticateRequest } from './middlewares/auth.middleware.js';
 import { issueAccessToken } from './services/auth.service.js';
-import { createStore, esdmTranslations } from './store.js';
+import { createStore, esdmTranslations, roleScopes } from './store.js';
 
 const jsonHeaders = { 'content-type': 'application/json; charset=utf-8' };
 
@@ -25,20 +25,26 @@ function sendAudit(store, context, action, result, error = null) {
   });
 }
 
-function idempotent(store, requestId, handler) {
-  if (!requestId) return handler();
-  if (store.idempotency.has(requestId)) return store.idempotency.get(requestId);
-  const result = handler();
-  store.idempotency.set(requestId, result);
-  return result;
+function idempotencyKey(context, method, path, requestId) {
+  return requestId ? JSON.stringify([context.user.id, context.user.organizationId, method, path, requestId]) : null;
 }
 
-async function idempotentAsync(store, requestId, handler) {
-  if (!requestId) return handler();
-  if (store.idempotency.has(requestId)) return store.idempotency.get(requestId);
-  const result = await handler();
-  store.idempotency.set(requestId, result);
-  return result;
+async function idempotentAsync(store, key, body, handler) {
+  if (!key) return handler();
+  const fingerprint = JSON.stringify(body);
+  const previous = store.idempotency.get(key);
+  if (previous) {
+    if (previous.fingerprint !== fingerprint) throw new AuthorizationError('IDEMPOTENCY_CONFLICT', 409);
+    return structuredClone(await previous.result);
+  }
+  const entry = { fingerprint, result: Promise.resolve().then(handler).then((result) => structuredClone(result)) };
+  store.idempotency.set(key, entry);
+  try {
+    return structuredClone(await entry.result);
+  } catch (error) {
+    if (store.idempotency.get(key) === entry) store.idempotency.delete(key);
+    throw error;
+  }
 }
 
 function subjectForOwner(store, subjectId, userId) {
@@ -57,27 +63,33 @@ function activeConsent(store, consentId, now) {
   const consent = store.consents.find((item) => item.id === consentId);
   if (!consent) throw new AuthorizationError('CONSENT_REQUIRED');
   if (consent.status === 'revoked') throw new AuthorizationError('REVOKED');
-  if (consent.status !== 'active' || new Date(consent.validUntil) <= now) throw new AuthorizationError('EXPIRED');
+  if (consent.status !== 'active' || !isFutureDate(consent.validUntil, now)) throw new AuthorizationError('EXPIRED');
   return consent;
 }
 
-function grantFor(store, userId, subjectId, scope, now) {
-  const grant = store.grants.find((item) => item.userId === userId && item.subjectId === subjectId && item.status === 'active' && item.scopes.includes(scope));
+function grantFor(store, userId, subjectId, scope, now, organizationId) {
+  const grant = store.grants.find((item) => item.userId === userId && item.subjectId === subjectId && item.status === 'active' && item.organizationId === organizationId && item.scopes.includes(scope));
   if (!grant) throw new AuthorizationError('GRANT_REQUIRED');
-  if (new Date(grant.validUntil) <= now) throw new AuthorizationError('EXPIRED');
+  if (!isFutureDate(grant.validUntil, now)) throw new AuthorizationError('EXPIRED');
   const consent = activeConsent(store, grant.consentId, now);
+  membershipFor(store, userId, organizationId, now);
+  if (consent.subjectId !== subjectId || consent.organizationId !== organizationId ||
+      consent.recipientUserId !== userId || consent.purpose !== grant.purpose || !consent.scopes.includes(scope)) {
+    throw new AuthorizationError('CONSENT_MISMATCH');
+  }
   return { grant, consent };
 }
 
-function subjectWithScope(store, subjectId, userId, scope, now) {
+function subjectWithScope(store, subjectId, user, scope, now) {
+  requireScope(store, user.id, user.organizationId, scope, now, user);
   const subject = subjectById(store, subjectId);
-  if (subject.ownerUserId === userId) return { subject, grant: null };
-  const { grant } = grantFor(store, userId, subjectId, scope, now);
+  if (subject.ownerUserId === user.id) return { subject, grant: null };
+  const { grant } = grantFor(store, user.id, subjectId, scope, now, user.organizationId);
   return { subject, grant };
 }
 
 function requireGoalCode(code) {
-  if (!code || !esdmTranslations[code]) throw new AuthorizationError('INVALID_ESDM_CODE', 400);
+  if (!code || !Object.hasOwn(esdmTranslations, code)) throw new AuthorizationError('INVALID_ESDM_CODE', 400);
   return esdmTranslations[code];
 }
 
@@ -108,22 +120,24 @@ function requireEncryptedCollectionEnvelope(body, organizationId) {
   };
 }
 
-export function createApp({ store = createStore(), now = () => new Date('2026-09-25T12:00:00.000Z') } = {}) {
+export function createApp({ store = createStore(), now = () => new Date() } = {}) {
   async function handle({ method, url, headers = {}, body = null }) {
     const path = parsePath(url);
     const requestId = headers['x-request-id'] ?? null;
     const clock = now();
     const context = { user: null, organizationId: null, requestId, now: clock };
+    let operationKey;
 
     try {
       if (method === 'POST' && path[0] === 'v1' && path[1] === 'auth' && path[2] === 'login') {
         const claims = await store.authenticateCredentials(body ?? {}, clock);
         const accessToken = issueAccessToken(claims);
         const refreshToken = await store.createRefreshToken(claims, clock);
-        const organizationKey = process.env.MASTER_CRYPTO_KEY
+        const canReadKey = claims.scopes.includes('organization.key.read');
+        const organizationKey = process.env.MASTER_CRYPTO_KEY && canReadKey
           ? await store.getOrganizationKey(claims.organizationId)
           : null;
-        if (process.env.MASTER_CRYPTO_KEY && !organizationKey) {
+        if (process.env.MASTER_CRYPTO_KEY && canReadKey && !organizationKey) {
           throw new AuthorizationError('ORGANIZATION_KEY_UNAVAILABLE', 503);
         }
         return response(200, {
@@ -140,10 +154,11 @@ export function createApp({ store = createStore(), now = () => new Date('2026-09
 
       if (method === 'POST' && path[0] === 'v1' && path[1] === 'auth' && path[2] === 'refresh') {
         const claims = await store.rotateRefreshToken(body?.refreshToken, clock);
+        const currentClaims = await store.validateRefreshClaims(claims, clock);
         const user = store.users.find((candidate) => candidate.id === claims.userId && candidate.status === 'active');
         if (!user) throw new AuthorizationError('REFRESH_TOKEN_INVALID', 401);
-        const accessToken = issueAccessToken(claims);
-        const refreshToken = await store.createRefreshToken(claims, clock);
+        const accessToken = issueAccessToken(currentClaims);
+        const refreshToken = await store.createRefreshToken(currentClaims, clock);
         return response(200, {
           accessToken,
           refreshToken,
@@ -159,11 +174,12 @@ export function createApp({ store = createStore(), now = () => new Date('2026-09
 
       context.user = authenticateRequest(store, headers);
       context.organizationId = context.user.organizationId;
+      operationKey = idempotencyKey(context, method, path, requestId);
       if (path[0] !== 'v1') return response(404, { error: 'NOT_FOUND' });
 
       if (method === 'GET' && path[1] === 'organizations' && path[3] === 'keys') {
         context.organizationId = path[2];
-        requireScope(store, context.user.id, context.organizationId, 'organization.key.read', clock);
+        requireScope(store, context.user.id, context.organizationId, 'organization.key.read', clock, context.user);
         const organizationKey = await store.getOrganizationKey(context.organizationId);
         if (!organizationKey) throw new AuthorizationError('ORGANIZATION_KEY_UNAVAILABLE', 404);
         sendAudit(store, context, 'organization.key.read', 'allowed');
@@ -172,7 +188,7 @@ export function createApp({ store = createStore(), now = () => new Date('2026-09
 
       if (method === 'GET' && path[1] === 'organizations' && path[3] === undefined && path[2]) {
         context.organizationId = path[2];
-        requireScope(store, context.user.id, context.organizationId, 'organization.read', clock);
+        requireScope(store, context.user.id, context.organizationId, 'organization.read', clock, context.user);
         const organization = store.organizations.find((item) => item.id === context.organizationId);
         if (!organization) throw new AuthorizationError('RELATIONSHIP_REQUIRED');
         sendAudit(store, context, 'organization.read', 'allowed');
@@ -181,7 +197,7 @@ export function createApp({ store = createStore(), now = () => new Date('2026-09
 
       if (method === 'GET' && path[1] === 'organizations' && path[3] === 'memberships') {
         context.organizationId = path[2];
-        requireScope(store, context.user.id, context.organizationId, 'membership.read', clock);
+        requireScope(store, context.user.id, context.organizationId, 'membership.read', clock, context.user);
         const memberships = store.memberships.filter((item) => item.organizationId === context.organizationId);
         sendAudit(store, context, 'membership.read', 'allowed');
         return response(200, { memberships });
@@ -189,10 +205,21 @@ export function createApp({ store = createStore(), now = () => new Date('2026-09
 
       if (method === 'GET' && path[1] === 'organizations' && path[3] === 'subjects') {
         context.organizationId = path[2];
-        requireScope(store, context.user.id, context.organizationId, 'access.read', clock);
+        requireScope(store, context.user.id, context.organizationId, 'access.read', clock, context.user);
         const subjects = store.subjects.filter((subject) => {
           if (subject.ownerUserId === context.user.id) return true;
-          return store.grants.some((grant) => grant.userId === context.user.id && grant.organizationId === context.organizationId && grant.subjectId === subject.id && grant.status === 'active' && new Date(grant.validUntil) > clock);
+          return store.grants.some((grant) => {
+            if (grant.userId !== context.user.id || grant.organizationId !== context.organizationId || grant.subjectId !== subject.id) return false;
+            return grant.scopes.some((scope) => {
+              try {
+                grantFor(store, context.user.id, subject.id, scope, clock, context.organizationId);
+                return true;
+              } catch (error) {
+                if (error instanceof AuthorizationError) return false;
+                throw error;
+              }
+            });
+          });
         }).map((subject) => ({ id: subject.id, displayName: subject.displayName, status: subject.status, organizationId: context.organizationId }));
         sendAudit(store, context, 'subject.list', 'allowed');
         return response(200, { subjects });
@@ -206,7 +233,8 @@ export function createApp({ store = createStore(), now = () => new Date('2026-09
         const scopes = Array.isArray(body?.scopes) ? [...new Set(body.scopes)] : [];
         if (scopes.length === 0 || !body?.purpose || !body?.recipientUserId) throw new AuthorizationError('INVALID_CONSENT', 400);
         const validUntil = body.validUntil ?? '2099-01-01T00:00:00.000Z';
-        if (new Date(validUntil) <= clock) throw new AuthorizationError('EXPIRED');
+        if (!Number.isFinite(new Date(validUntil).getTime())) throw new AuthorizationError('INVALID_CONSENT', 400);
+        if (!isFutureDate(validUntil, clock)) throw new AuthorizationError('EXPIRED');
         const consent = {
           id: `consent-${store.consents.length + 1}`,
           subjectId: subject.id,
@@ -232,7 +260,7 @@ export function createApp({ store = createStore(), now = () => new Date('2026-09
         const isGoal = resource === 'esdm-goals';
         const readScope = isGoal ? 'esdm_goal.read' : 'school_collection.read';
         const writeScope = isGoal ? 'esdm_goal.write' : 'school_collection.write';
-        const { subject, grant } = subjectWithScope(store, subjectId, context.user.id, method === 'POST' ? writeScope : readScope, clock);
+        const { subject, grant } = subjectWithScope(store, subjectId, context.user, method === 'POST' ? writeScope : readScope, clock);
         context.organizationId = grant?.organizationId ?? context.user.organizationId;
 
         if (method === 'GET' && isGoal) {
@@ -242,7 +270,7 @@ export function createApp({ store = createStore(), now = () => new Date('2026-09
         }
         if (method === 'POST' && isGoal) {
           const translation = requireGoalCode(body?.codigoTecnicoDenver);
-          const result = await idempotentAsync(store, requestId, () => store.saveGoal({
+          const result = await idempotentAsync(store, operationKey, body, () => store.saveGoal({
             subjectId: subject.id,
             codigoTecnicoDenver: body.codigoTecnicoDenver,
             status: body.status ?? 'Em Progresso',
@@ -253,13 +281,13 @@ export function createApp({ store = createStore(), now = () => new Date('2026-09
           return response(201, { goal: { ...result, ...translation } });
         }
         if (method === 'GET' && !isGoal) {
-          const collections = await store.getCollectionsBySubject(subject.id);
+          const collections = await store.getCollectionsBySubject(subject.id, context.user.organizationId);
           sendAudit(store, context, 'school_collection.read', 'allowed');
           return response(200, { collections });
         }
         if (method === 'POST' && !isGoal) {
           const envelope = requireEncryptedCollectionEnvelope(body, context.user.organizationId);
-          const result = await idempotentAsync(store, requestId, () => store.saveCollection({
+          const result = await idempotentAsync(store, operationKey, body, () => store.saveCollection({
             subjectId: subject.id,
             organizationId: envelope.organizationId,
             encryptedData: envelope.encryptedData,
@@ -278,7 +306,7 @@ export function createApp({ store = createStore(), now = () => new Date('2026-09
           sendAudit(store, context, 'subject.read', 'allowed');
           return response(200, subject);
         }
-        const { grant } = grantFor(store, context.user.id, subject.id, 'communication_profile.read', clock);
+        const { grant } = grantFor(store, context.user.id, subject.id, 'communication_profile.read', clock, context.user.organizationId);
         context.organizationId = grant.organizationId;
         sendAudit(store, context, 'subject.read', 'allowed');
         return response(200, { id: subject.id, displayName: subject.displayName, status: subject.status });
@@ -294,8 +322,8 @@ export function createApp({ store = createStore(), now = () => new Date('2026-09
 
       if (method === 'POST' && path[1] === 'organizations' && path[3] === 'invitations') {
         context.organizationId = path[2];
-        requireScope(store, context.user.id, context.organizationId, 'access.invite', clock);
-        const result = idempotent(store, requestId, () => {
+        requireScope(store, context.user.id, context.organizationId, 'access.invite', clock, context.user);
+        const result = await idempotentAsync(store, operationKey, body, () => {
           const invitation = {
             id: `invite-created-${store.invitations.length + 1}`,
             organizationId: context.organizationId,
@@ -303,11 +331,17 @@ export function createApp({ store = createStore(), now = () => new Date('2026-09
             subjectId: body?.subjectId ?? null,
             consentId: body?.consentId ?? null,
             purpose: body?.purpose ?? null,
-            scopes: Array.isArray(body?.scopes) ? [...new Set(body.scopes)] : [],
+            scopes: Array.isArray(body?.scopes) ? [...new Set(body.scopes)] : undefined,
             role: body?.role ?? 'professional',
             status: 'pending',
             expiresAt: body?.expiresAt ?? '2099-01-01T00:00:00.000Z'
           };
+          if (!['org_admin', 'professional', 'caregiver'].includes(invitation.role) ||
+              (body?.scopes !== undefined && !Array.isArray(body.scopes)) ||
+              invitation.scopes?.some((scope) => !roleScopes[invitation.role].includes(scope))) {
+            throw new AuthorizationError('INVALID_INVITATION', 400);
+          }
+          if (!isFutureDate(invitation.expiresAt, clock)) throw new AuthorizationError('INVALID_INVITATION', 400);
           if (invitation.subjectId || invitation.consentId) {
             if (!invitation.subjectId || !invitation.consentId) throw new AuthorizationError('CONSENT_REQUIRED', 400);
             const consent = activeConsent(store, invitation.consentId, clock);
@@ -331,7 +365,7 @@ export function createApp({ store = createStore(), now = () => new Date('2026-09
         const invitation = store.invitations.find((item) => item.id === path[2]);
         if (!invitation || invitation.inviteeUserId !== context.user.id) throw new AuthorizationError('RELATIONSHIP_REQUIRED');
         if (invitation.status !== 'pending') throw new AuthorizationError('REVOKED');
-        if (new Date(invitation.expiresAt) <= clock) throw new AuthorizationError('EXPIRED');
+        if (!isFutureDate(invitation.expiresAt, clock)) throw new AuthorizationError('EXPIRED');
         if (path[3] === 'decline') {
           invitation.status = 'declined';
           sendAudit(store, context, 'invitation.decline', 'allowed');
@@ -343,14 +377,22 @@ export function createApp({ store = createStore(), now = () => new Date('2026-09
           consent = activeConsent(store, invitation.consentId, clock);
           if (consent.subjectId !== invitation.subjectId || consent.recipientUserId !== context.user.id || consent.organizationId !== invitation.organizationId) throw new AuthorizationError('CONSENT_MISMATCH', 400);
         }
+        const membershipValues = { userId: context.user.id, organizationId: invitation.organizationId, role: invitation.role, status: 'active', validUntil: invitation.expiresAt };
+        let membership = store.memberships.find((item) => item.userId === context.user.id && item.organizationId === invitation.organizationId);
+        if (membership?.role === 'owner') throw new AuthorizationError('SCOPE_DENIED');
+        if (membership) Object.assign(membership, membershipValues);
+        else {
+          membership = { id: `membership-${invitation.id}`, ...membershipValues };
+          store.memberships.push(membership);
+        }
+        if (Array.isArray(invitation.scopes)) membership.scopes = [...invitation.scopes];
+        else delete membership.scopes;
         invitation.status = 'accepted';
-        const membership = { id: `membership-${invitation.id}`, userId: context.user.id, organizationId: invitation.organizationId, role: invitation.role, status: 'active', validUntil: invitation.expiresAt };
-        if (!store.memberships.some((item) => item.userId === membership.userId && item.organizationId === membership.organizationId)) store.memberships.push(membership);
         let grant = null;
         if (consent) {
           const relationship = { id: `relationship-${invitation.id}`, userId: context.user.id, subjectId: invitation.subjectId, organizationId: invitation.organizationId, role: invitation.role, status: 'active', validUntil: consent.validUntil };
           store.relationships.push(relationship);
-          grant = { id: `grant-${invitation.id}`, userId: context.user.id, subjectId: invitation.subjectId, organizationId: invitation.organizationId, consentId: consent.id, purpose: consent.purpose, scopes: consent.scopes, status: 'active', validUntil: consent.validUntil };
+          grant = { id: `grant-${invitation.id}`, userId: context.user.id, subjectId: invitation.subjectId, organizationId: invitation.organizationId, consentId: consent.id, purpose: consent.purpose, scopes: Array.isArray(invitation.scopes) ? consent.scopes.filter((scope) => invitation.scopes.includes(scope)) : [...consent.scopes], status: 'active', validUntil: consent.validUntil };
           store.grants.push(grant);
         }
         sendAudit(store, context, 'invitation.accept', 'allowed');
@@ -374,7 +416,7 @@ export function createApp({ store = createStore(), now = () => new Date('2026-09
 
       if (method === 'GET' && path[1] === 'organizations' && path[3] === 'benefits') {
         context.organizationId = path[2];
-        requireScope(store, context.user.id, context.organizationId, 'benefit.read', clock);
+        requireScope(store, context.user.id, context.organizationId, 'benefit.read', clock, context.user);
         const benefits = store.benefits.filter((item) => item.organizationId === context.organizationId);
         sendAudit(store, context, 'benefit.read', 'allowed');
         return response(200, { benefits });
@@ -382,7 +424,7 @@ export function createApp({ store = createStore(), now = () => new Date('2026-09
 
       if (method === 'GET' && path[1] === 'organizations' && path[3] === 'audit-events') {
         context.organizationId = path[2];
-        requireScope(store, context.user.id, context.organizationId, 'audit.read', clock);
+        requireScope(store, context.user.id, context.organizationId, 'audit.read', clock, context.user);
         return response(200, { events: store.auditEvents.filter((item) => item.organizationId === context.organizationId) });
       }
 

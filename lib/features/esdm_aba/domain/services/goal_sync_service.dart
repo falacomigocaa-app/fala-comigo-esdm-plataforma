@@ -35,13 +35,27 @@ class GoalSyncService {
       final uri = Uri.parse(goalSyncApiBaseUrl).resolve(
         '/v1/subjects/${Uri.encodeComponent(subjectId)}/esdm-goals',
       );
-      final response = await _client.get(
-        uri,
-        headers: {
-          'accept': 'application/json',
-          'authorization': 'Bearer $token',
-        },
-      ).timeout(const Duration(seconds: 15));
+      var currentToken = token;
+      late http.Response response;
+      for (var attempt = 0; attempt < 2; attempt++) {
+        response = await _client.get(
+          uri,
+          headers: {
+            'accept': 'application/json',
+            'authorization': 'Bearer $currentToken',
+          },
+        ).timeout(const Duration(seconds: 15));
+        if (response.statusCode != 401 || attempt == 1) break;
+        if (!await AuthTokenService.refreshAccessToken()) {
+          AuthTokenService.requireAuthentication();
+          return GoalSyncResult.unauthorized;
+        }
+        currentToken = await AuthTokenService.readToken() ?? '';
+        if (currentToken.isEmpty) {
+          AuthTokenService.requireAuthentication();
+          return GoalSyncResult.unauthorized;
+        }
+      }
       if (response.statusCode == 401) {
         AuthTokenService.requireAuthentication();
         return GoalSyncResult.unauthorized;

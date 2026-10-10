@@ -2,6 +2,9 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:cryptography/cryptography.dart';
+import 'package:fala_comigo/features/auth/presentation/controllers/login_controller.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive/hive.dart';
@@ -59,6 +62,13 @@ void main() {
           return null;
       }
     });
+  });
+
+  setUp(() async {
+    await CryptoService.saveOrganizationKey(
+      organizationId: syncOrganizationId,
+      encodedKey: base64Encode(List<int>.filled(32, 7)),
+    );
   });
 
   tearDownAll(() async {
@@ -156,6 +166,10 @@ void main() {
     const plaintext =
         '{"subjectId":"subject-clinical","nivelSuporte":"Independente","id":"coleta-1"}';
     await CryptoService.clearOrganizationKey(organizationId);
+    await CryptoService.saveOrganizationKey(
+      organizationId: organizationId,
+      encodedKey: base64Encode(List<int>.filled(32, 11)),
+    );
 
     final envelopeJson = await CryptoService.encryptPayload(
       organizationId: organizationId,
@@ -171,6 +185,120 @@ void main() {
     expect(await CryptoService.decryptPayload(envelopeJson), plaintext);
 
     await CryptoService.clearOrganizationKey(organizationId);
+  });
+
+  test('E2EE usa a chave provisionada e preserva chave/dados ao receber outra',
+      () async {
+    const organizationId = 'org-provisioned-test';
+    final key = base64Encode(List<int>.filled(32, 17));
+    await CryptoService.saveOrganizationKey(
+        organizationId: organizationId, encodedKey: key);
+    final encrypted = await CryptoService.encryptPayload(
+        organizationId: organizationId, plaintext: 'dados preservados');
+    await expectLater(
+      CryptoService.saveOrganizationKey(
+          organizationId: organizationId,
+          encodedKey: base64Encode(List<int>.filled(32, 18))),
+      throwsStateError,
+    );
+    expect(await CryptoService.decryptPayload(encrypted), 'dados preservados');
+    await CryptoService.clearOrganizationKey(organizationId);
+    await expectLater(
+        CryptoService.encryptPayload(
+            organizationId: organizationId, plaintext: 'sem chave'),
+        throwsStateError);
+    expect(await CryptoService.hasOrganizationKey(organizationId), isFalse);
+  });
+
+  test('login importa a chave do servidor e produz envelope interoperável',
+      () async {
+    const orgId = 'org-login-test';
+    final rawKey = List<int>.filled(32, 29);
+    final claims =
+        base64UrlEncode(utf8.encode(jsonEncode({'organizationId': orgId})));
+    final client = MockClient((request) async => http.Response(
+        jsonEncode({
+          'accessToken': 'header.$claims.signature',
+          'refreshToken': 'login-refresh',
+          'organizationId': orgId,
+          'organizationKey': base64Encode(rawKey),
+        }),
+        200));
+    SyncQueueService.connectivityOverride = () async => false;
+    final controller = LoginController(client: client);
+    try {
+      expect(
+          await controller.login(
+              email: 'synthetic@example.test', password: 'synthetic'),
+          isTrue);
+      final json = await CryptoService.encryptPayload(
+          organizationId: orgId, plaintext: 'coleta interoperável');
+      final envelope = jsonDecode(json) as Map<String, dynamic>;
+      final bytes = base64Decode(envelope['encryptedData'] as String);
+      final plaintext = await AesGcm.with256bits().decrypt(
+        SecretBox(bytes.sublist(0, bytes.length - 16),
+            nonce: base64Decode(envelope['iv'] as String),
+            mac: Mac(bytes.sublist(bytes.length - 16))),
+        secretKey: SecretKey(rawKey),
+      );
+      expect(utf8.decode(plaintext), 'coleta interoperável');
+      await pumpEventQueue();
+    } finally {
+      controller.dispose();
+      client.close();
+      SyncQueueService.connectivityOverride = null;
+      await AuthTokenService.clearToken();
+      await CryptoService.clearOrganizationKey(orgId);
+    }
+  });
+
+  test('refresh vazio não altera tokens de uma sessão existente', () async {
+    await AuthTokenService.saveSessionTokens(
+        accessToken: 'anterior', refreshToken: 'refresh-anterior');
+    await expectLater(
+        AuthTokenService.saveSessionTokens(
+            accessToken: 'novo', refreshToken: ' '),
+        throwsArgumentError);
+    expect(await AuthTokenService.readToken(), 'anterior');
+    expect(await AuthTokenService.readRefreshToken(), 'refresh-anterior');
+    await AuthTokenService.clearToken();
+  });
+
+  test(
+      'refresh mobile rotaciona tokens uma única vez para chamadas concorrentes',
+      () async {
+    await AuthTokenService.saveSessionTokens(
+      accessToken: 'access-expired',
+      refreshToken: 'refresh-current',
+    );
+    var refreshCalls = 0;
+    AuthTokenService.refreshRequestOverride = (uri, body) async {
+      refreshCalls += 1;
+      expect(uri.path, '/v1/auth/refresh');
+      expect(jsonDecode(body), {'refreshToken': 'refresh-current'});
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      return http.Response(
+        jsonEncode({
+          'accessToken': 'access-rotated',
+          'refreshToken': 'refresh-rotated',
+        }),
+        200,
+      );
+    };
+    try {
+      expect(
+          await Future.wait([
+            AuthTokenService.refreshAccessToken(),
+            AuthTokenService.refreshAccessToken(),
+          ]),
+          [true, true]);
+      expect(refreshCalls, 1);
+      expect(await AuthTokenService.readToken(), 'access-rotated');
+      expect(await AuthTokenService.readRefreshToken(), 'refresh-rotated');
+    } finally {
+      AuthTokenService.refreshRequestOverride = null;
+      await AuthTokenService.clearToken();
+    }
   });
 
   test('fila escolar persiste envelope E2EE e não o payload clínico em claro',
@@ -313,6 +441,12 @@ void main() {
         401,
       );
     };
+    AuthTokenService.refreshRequestOverride = (uri, body) async {
+      return http.Response(
+        '{"error":"REFRESH_TOKEN_EXPIRED"}',
+        401,
+      );
+    };
     try {
       await SyncQueueService.syncPending();
 
@@ -321,20 +455,13 @@ void main() {
       expect(afterAccessExpiry.attempts, 0);
       expect(authenticationRequests, 1);
 
-      // Simula a resposta 401 do endpoint de refresh após os sete dias.
-      final refreshResponse = http.Response(
-        '{"error":"REFRESH_TOKEN_EXPIRED"}',
-        401,
-      );
-      if (refreshResponse.statusCode == 401) {
-        await AuthTokenService.handleRefreshTokenExpired();
-      }
       expect(await AuthTokenService.readToken(), isNull);
       expect(await AuthTokenService.readRefreshToken(), isNull);
-      expect(authenticationRequests, 2);
+      expect(authenticationRequests, 1);
     } finally {
       SyncQueueService.connectivityOverride = null;
       SyncQueueService.postOverride = null;
+      AuthTokenService.refreshRequestOverride = null;
       AuthTokenService.onAuthenticationRequired = null;
       await SyncQueueStore.remove(
         (await SyncQueueStore.pending()).firstWhere(

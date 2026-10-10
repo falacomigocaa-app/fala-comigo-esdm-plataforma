@@ -41,7 +41,16 @@ export function getAccessToken() {
   return getSession()?.token || null;
 }
 
-function notifyAuthenticationRequired() {
+function sameIdentity(left, right) {
+  return left?.userId === right?.userId && left?.organizationId === right?.organizationId;
+}
+
+function sameSession(left, right) {
+  return sameIdentity(left, right) && left?.token === right?.token && left?.refreshToken === right?.refreshToken;
+}
+
+function notifyAuthenticationRequired(expectedSession) {
+  if (!sameSession(expectedSession, getSession())) return;
   clearSession();
   const event = typeof CustomEvent === 'function'
     ? new CustomEvent('fala-comigo:auth-required')
@@ -52,14 +61,14 @@ function notifyAuthenticationRequired() {
 export class APIClient {
   constructor({ baseUrl = globalThis.window?.PORTAL_API_BASE || DEFAULT_API_BASE } = {}) {
     this.baseUrl = baseUrl.replace(/\/$/, '');
-    this.refreshPromise = null;
+    this.refreshPromises = new Map();
   }
 
-  async request(path, { method = 'GET', body } = {}, canRefresh = true) {
+  async request(path, { method = 'GET', body } = {}, canRefresh = true, operationId = requestId()) {
     const session = getSession();
     const headers = {
       accept: 'application/json',
-      'x-request-id': requestId()
+      'x-request-id': operationId
     };
     if (session?.token) headers.authorization = `Bearer ${session.token}`;
     if (body !== undefined) headers['content-type'] = 'application/json';
@@ -71,29 +80,34 @@ export class APIClient {
     });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
+      const currentSession = getSession();
+      if (!sameIdentity(session, currentSession)) throw new Error('SESSION_CHANGED');
       const error = new Error(payload.error || `HTTP_${response.status}`);
       error.status = response.status;
       error.renewalRequired = payload.renewalRequired === true;
       if (response.status === 401 && canRefresh && error.renewalRequired) {
         try {
-          await this.refreshSession();
-          return this.request(path, { method, body }, false);
+          // Another request may have already rotated the token before this 401 arrived.
+          if (sameSession(session, currentSession)) await this.refreshSession(session);
+          return this.request(path, { method, body }, false, operationId);
         } catch (_) {
-          notifyAuthenticationRequired();
+          notifyAuthenticationRequired(session);
         }
       } else if (response.status === 401) {
-        notifyAuthenticationRequired();
+        notifyAuthenticationRequired(session);
       }
       throw error;
     }
+    if (!sameIdentity(session, getSession())) throw new Error('SESSION_CHANGED');
     return payload;
   }
 
-  async refreshSession() {
-    if (this.refreshPromise) return this.refreshPromise;
-    const session = getSession();
+  async refreshSession(expectedSession = getSession()) {
+    const session = expectedSession;
+    if (!sameSession(session, getSession())) throw new Error('SESSION_CHANGED');
     if (!session?.refreshToken) throw new Error('REFRESH_TOKEN_MISSING');
-    this.refreshPromise = (async () => {
+    if (this.refreshPromises.has(session.refreshToken)) return this.refreshPromises.get(session.refreshToken);
+    const promise = (async () => {
       const response = await fetch(`${this.baseUrl}/v1/auth/refresh`, {
         method: 'POST',
         headers: { accept: 'application/json', 'content-type': 'application/json' },
@@ -101,10 +115,12 @@ export class APIClient {
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok || typeof payload.accessToken !== 'string' || typeof payload.refreshToken !== 'string') {
+        if (!sameIdentity(session, getSession())) throw new Error('SESSION_CHANGED');
         const error = new Error(payload.error || 'REFRESH_TOKEN_INVALID');
         error.status = response.status;
         throw error;
       }
+      if (!sameSession(session, getSession())) throw new Error('SESSION_CHANGED');
       saveSession({
         ...session,
         token: payload.accessToken,
@@ -113,9 +129,10 @@ export class APIClient {
       });
       return payload;
     })().finally(() => {
-      this.refreshPromise = null;
+      this.refreshPromises.delete(session.refreshToken);
     });
-    return this.refreshPromise;
+    this.refreshPromises.set(session.refreshToken, promise);
+    return promise;
   }
 
   async login(email, password) {

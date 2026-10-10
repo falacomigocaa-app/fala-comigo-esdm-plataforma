@@ -96,3 +96,16 @@
 > Observação de teste: o arquivo de preview usa Hive em diretório temporário isolado. O teardown de fechamento foi omitido porque a versão atual do Hive/Flutter ficava bloqueada ao encerrar widgets que ainda mantêm providers ativos; isso não altera o armazenamento de produção nem o comportamento do app.
 
 > Não declarar a Fase 1 como concluída até que os itens `[ ]` da Fase 1.1 sejam implementados e validados. A última validação conhecida do app foi de 122 testes Flutter aprovados; a página pública e o app Web responderam HTTP 200 após o commit `6a45495`.
+
+## Reavaliação de segurança — 10/10/2026
+
+A evidência histórica dos itens `[x]` não certifica produção. A [auditoria atual](auditoria/2026-10-10/README.md) encontrou e corrigiu falhas adicionais e delimita:
+
+- `[~]` Backend: JWT/refresh/coletas/chaves persistem em PostgreSQL, mas a autorização das rotas ainda usa fixtures em memória.
+- `[~]` E2EE mobile: novas sessões usam chave do servidor; chaves aleatórias legadas conflitantes exigem migração segura.
+- `[~]` Refresh mobile: retenção/reautenticação em 401 existe; renovação HTTP automática ainda não foi implementada.
+- `[x]` Wipe clínico, tokens e chaves: regressão local passou nesta auditoria.
+- `[x]` Validação local desta branch: 132 testes Flutter, 53 API/PostgreSQL, 25 web; análise, build Web e formatação aprovados.
+- `[?]` APK/aparelho, MobSF e CI remoto no novo SDK.
+
+Antes de evoluir o piloto, concluir persistência de autorização e recuperação de chaves; responsividade Fase 1.1D continua pendente.

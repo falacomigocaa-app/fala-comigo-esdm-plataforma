@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import pg from 'pg';
+import { createStore } from '../src/store.js';
 import { decryptOrganizationKey, encryptOrganizationKey } from '../src/services/organization-key.service.js';
 
 const connectionString = process.env.PGTEST_URL;
@@ -70,8 +71,6 @@ test('PostgreSQL migration exposes Gate 3A authorization tables and tenant const
     `);
     assert.equal(persistedOrganizationKey.rows[0].key_encrypted, encryptedOrganizationKey);
     assert.deepEqual(decryptOrganizationKey(persistedOrganizationKey.rows[0].key_encrypted, { organizationId: 'pg-org-alpha' }), rawOrganizationKey);
-    if (previousMasterKey === undefined) delete process.env.MASTER_CRYPTO_KEY;
-    else process.env.MASTER_CRYPTO_KEY = previousMasterKey;
 
     await client.query(`insert into child_subjects (id, family_space_id, owner_user_id, display_name, status)
       values ('pg-subject-alpha', 'pg-family-alpha', 'pg-user-alpha', 'PG Demo Child', 'active')`);
@@ -93,6 +92,26 @@ test('PostgreSQL migration exposes Gate 3A authorization tables and tenant const
       bloco_rotina_escolar: null,
       nivel_suporte: null
     });
+
+    const store = createStore({ pool: client });
+    const loadedKey = await store.getOrganizationKey('pg-org-alpha');
+    assert.equal(loadedKey.organizationKey, rawOrganizationKey.toString('base64'));
+    await store.saveCollection({ subjectId: 'pg-subject-alpha', organizationId: 'pg-org-beta', encryptedData, iv, dataRegistro: '2026-10-06T00:00:00Z', createdByUserId: 'pg-user-beta' });
+    const alphaHistory = await store.getCollectionsBySubject('pg-subject-alpha', 'pg-org-alpha');
+    const betaHistory = await store.getCollectionsBySubject('pg-subject-alpha', 'pg-org-beta');
+    assert.equal(alphaHistory.length, 1);
+    assert.equal(betaHistory.length, 1);
+    assert.equal(alphaHistory[0].organizationId, 'pg-org-alpha');
+    assert.equal(betaHistory[0].organizationId, 'pg-org-beta');
+    const refreshClaims = { userId: 'pg-user-alpha', organizationId: 'pg-org-alpha', scopes: ['organization.read', 'access.invite'] };
+    assert.deepEqual((await store.validateRefreshClaims(refreshClaims)).scopes, refreshClaims.scopes);
+    await client.query("update memberships set role = 'professional' where id = 'pg-membership-alpha'");
+    assert.deepEqual((await store.validateRefreshClaims(refreshClaims)).scopes, ['organization.read']);
+    await client.query("update memberships set status = 'revoked' where id = 'pg-membership-alpha'");
+    await assert.rejects(() => store.validateRefreshClaims(refreshClaims), (error) => error.code === 'REFRESH_TOKEN_INVALID');
+
+    if (previousMasterKey === undefined) delete process.env.MASTER_CRYPTO_KEY;
+    else process.env.MASTER_CRYPTO_KEY = previousMasterKey;
 
     const isolated = await client.query(`
       select count(*)::int as count

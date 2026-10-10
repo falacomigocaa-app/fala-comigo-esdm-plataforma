@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createApp } from '../src/app.js';
 import { issueAccessToken } from '../src/services/auth.service.js';
-import { roleScopes } from '../src/store.js';
+import { createStore, roleScopes } from '../src/store.js';
 
 process.env.JWT_SECRET ??= 'test-only-jwt-secret-with-at-least-32-characters';
 
@@ -271,7 +271,7 @@ test('organization owner can provision and read only the unwrapped organization 
   const previousMasterKey = process.env.MASTER_CRYPTO_KEY;
   process.env.MASTER_CRYPTO_KEY = Buffer.alloc(32, 23).toString('base64');
   try {
-    const app = createApp();
+    const app = createApp({ store: createStore({ pool: null }) });
     await app.store.provisionOrganizationKey({ organizationId: 'org-demo-alpha', createdByUserId: 'user-admin-alpha' });
     const result = await request(app, 'GET', '/v1/organizations/org-demo-alpha/keys', 'user-admin-alpha');
 
@@ -289,7 +289,7 @@ test('professional without organization.key.read cannot read organization key', 
   const previousMasterKey = process.env.MASTER_CRYPTO_KEY;
   process.env.MASTER_CRYPTO_KEY = Buffer.alloc(32, 23).toString('base64');
   try {
-    const app = createApp();
+    const app = createApp({ store: createStore({ pool: null }) });
     await app.store.provisionOrganizationKey({ organizationId: 'org-demo-alpha', createdByUserId: 'user-admin-alpha' });
     const result = await request(app, 'GET', '/v1/organizations/org-demo-alpha/keys', 'user-professional-alpha');
 
@@ -305,7 +305,7 @@ test('organization key endpoint denies a member from a different organization', 
   const previousMasterKey = process.env.MASTER_CRYPTO_KEY;
   process.env.MASTER_CRYPTO_KEY = Buffer.alloc(32, 23).toString('base64');
   try {
-    const app = createApp();
+    const app = createApp({ store: createStore({ pool: null }) });
     await app.store.provisionOrganizationKey({ organizationId: 'org-demo-beta', createdByUserId: 'user-admin-beta' });
     const result = await request(app, 'GET', '/v1/organizations/org-demo-beta/keys', 'user-admin-alpha');
 

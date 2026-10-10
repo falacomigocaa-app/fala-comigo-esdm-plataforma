@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 
 import '../../../../core/services/auth_token_service.dart';
+import '../../../../core/services/crypto_service.dart';
 import '../../../esdm_aba/domain/services/sync_queue_service.dart';
 
 const authApiBaseUrl = String.fromEnvironment(
@@ -42,9 +43,12 @@ final loginControllerProvider =
 );
 
 class LoginController extends StateNotifier<LoginState> {
-  LoginController() : super(const LoginState());
+  LoginController({http.Client? client})
+      : _client = client ?? _defaultClient,
+        super(const LoginState());
 
-  static final http.Client _client = http.Client();
+  static final http.Client _defaultClient = http.Client();
+  final http.Client _client;
 
   Future<bool> login({required String email, required String password}) async {
     if (state.loading) return false;
@@ -67,6 +71,16 @@ class LoginController extends StateNotifier<LoginState> {
         throw StateError(_messageFor(payload, response.statusCode));
       }
 
+      if (payload['organizationKey'] != null) {
+        if (payload['organizationId'] is! String ||
+            payload['organizationKey'] is! String) {
+          throw const FormatException('Chave de organização inválida.');
+        }
+        await CryptoService.saveOrganizationKey(
+          organizationId: payload['organizationId'] as String,
+          encodedKey: payload['organizationKey'] as String,
+        );
+      }
       await AuthTokenService.saveSessionTokens(
         accessToken: payload['accessToken'] as String,
         refreshToken: payload['refreshToken'] as String,

@@ -15,21 +15,34 @@ export function authenticate(store, userId) {
   return user;
 }
 
+export function isFutureDate(value, now) {
+  const timestamp = typeof value === 'string' || value instanceof Date ? new Date(value).getTime() : NaN;
+  return Number.isFinite(timestamp) && timestamp > now.getTime();
+}
+
+export function scopesForMembership(membership) {
+  const allowed = roleScopes[membership.role] ?? [];
+  return Array.isArray(membership.scopes)
+    ? membership.scopes.filter((scope) => allowed.includes(scope))
+    : allowed;
+}
+
 export function membershipFor(store, userId, organizationId, now) {
   const membership = store.memberships.find((candidate) =>
     candidate.userId === userId && candidate.organizationId === organizationId
   );
   if (!membership) throw new AuthorizationError('RELATIONSHIP_REQUIRED');
   if (membership.status === 'revoked') throw new AuthorizationError('REVOKED');
-  if (membership.status !== 'active' || new Date(membership.validUntil) <= now) {
+  if (membership.status !== 'active' || !isFutureDate(membership.validUntil, now)) {
     throw new AuthorizationError('EXPIRED');
   }
   return membership;
 }
 
-export function requireScope(store, userId, organizationId, scope, now) {
+export function requireScope(store, userId, organizationId, scope, now, claims = null) {
   const membership = membershipFor(store, userId, organizationId, now);
-  const scopes = roleScopes[membership.role] ?? [];
+  const scopes = scopesForMembership(membership);
+  if (claims && (claims.organizationId !== organizationId || !claims.scopes.includes(scope))) throw new AuthorizationError('SCOPE_DENIED');
   if (!scopes.includes(scope)) throw new AuthorizationError('SCOPE_DENIED');
   return membership;
 }

@@ -4,12 +4,12 @@ workflows:
     max_build_duration: 60
     instance_type: linux_x2
     environment:
-      flutter: 3.38.0
+      flutter: 3.47.6
       android_signing:
         - fala-comigo-release
     scripts:
       - name: Get Flutter packages
-        script: flutter pub get
+        script: flutter pub get --enforce-lockfile
       - name: Create Android key.properties
         script: |
           cat > "$CM_BUILD_DIR/android/key.properties" <<EOF
@@ -36,10 +36,10 @@ workflows:
     max_build_duration: 30
     instance_type: linux_x2
     environment:
-      flutter: 3.38.0
+      flutter: 3.47.6
     scripts:
       - name: Get Flutter packages
-        script: flutter pub get
+        script: flutter pub get --enforce-lockfile
       - name: Analyze and test
         script: |
           flutter analyze --no-fatal-infos --no-fatal-warnings
