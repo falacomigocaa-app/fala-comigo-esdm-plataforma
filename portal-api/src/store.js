@@ -114,6 +114,133 @@ function mapCollection(row) {
   };
 }
 
+function mapUser(row) {
+  return {
+    id: row.id,
+    email: row.email,
+    passwordHash: row.password_hash,
+    externalSubject: row.external_subject,
+    status: row.status,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
+
+function mapOrganization(row) {
+  return {
+    id: row.id,
+    name: row.name,
+    type: row.type,
+    status: row.status,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
+
+function mapMembership(row) {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    organizationId: row.organization_id,
+    role: row.role,
+    status: row.status,
+    validUntil: row.valid_until,
+    ...(Array.isArray(row.scopes) ? { scopes: row.scopes } : {})
+  };
+}
+
+function mapSubject(row) {
+  return {
+    id: row.id,
+    familySpaceId: row.family_space_id,
+    ownerUserId: row.owner_user_id,
+    displayName: row.display_name,
+    status: row.status,
+    createdAt: row.created_at
+  };
+}
+
+function mapConsent(row) {
+  return {
+    id: row.id,
+    subjectId: row.subject_id,
+    organizationId: row.organization_id,
+    grantedByUserId: row.granted_by_user_id,
+    recipientUserId: row.recipient_user_id,
+    purpose: row.purpose,
+    scopes: row.scopes ?? [],
+    noticeVersion: row.notice_version,
+    status: row.status,
+    validUntil: row.valid_until,
+    createdAt: row.created_at,
+    revokedAt: row.revoked_at
+  };
+}
+
+function mapInvitation(row) {
+  return {
+    id: row.id,
+    organizationId: row.organization_id,
+    inviteeUserId: row.invitee_user_id,
+    subjectId: row.subject_id,
+    consentId: row.consent_id,
+    purpose: row.purpose,
+    scopes: row.scopes ?? [],
+    role: row.role,
+    status: row.status,
+    expiresAt: row.expires_at
+  };
+}
+
+function mapRelationship(row) {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    subjectId: row.subject_id,
+    organizationId: row.organization_id,
+    role: row.role,
+    status: row.status,
+    validUntil: row.valid_until
+  };
+}
+
+function mapGrant(row) {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    subjectId: row.subject_id,
+    organizationId: row.organization_id,
+    consentId: row.consent_id,
+    purpose: row.purpose,
+    scopes: row.scopes ?? [],
+    status: row.status,
+    validUntil: row.valid_until
+  };
+}
+
+function mapBenefit(row) {
+  return {
+    id: row.id,
+    organizationId: row.organization_id,
+    status: row.status,
+    validUntil: row.valid_until
+  };
+}
+
+function mapAuditEvent(row) {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    organizationId: row.organization_id,
+    action: row.action,
+    result: row.result,
+    code: row.code,
+    requestId: row.request_id,
+    occurredAt: row.occurred_at,
+    apiVersion: row.api_version
+  };
+}
+
 function createPostgresPool() {
   if (!process.env.DATABASE_URL) return null;
 
@@ -131,7 +258,7 @@ function createPostgresPool() {
   return pool;
 }
 
-export function createStore({ pool = createPostgresPool() } = {}) {
+export function createStore({ pool = createPostgresPool(), persistAuthorization = Boolean(pool && process.env.NODE_ENV !== 'test') } = {}) {
   const store = {
     users: structuredClone(baseUsers),
     organizations: structuredClone(baseOrganizations),
@@ -151,6 +278,113 @@ export function createStore({ pool = createPostgresPool() } = {}) {
     idempotency: new Map(),
     pool,
     storageMode: pool ? 'postgres' : 'memory-test-only',
+    persistAuthorization: Boolean(pool && persistAuthorization),
+
+    async hydrateAuthorization() {
+      if (!store.persistAuthorization) return;
+      const [users, organizations, memberships, subjects, consents, invitations, relationships, grants, benefits, auditEvents] = await Promise.all([
+        pool.query('select * from users'),
+        pool.query('select * from organizations'),
+        pool.query('select * from memberships'),
+        pool.query('select * from child_subjects'),
+        pool.query('select * from consents'),
+        pool.query('select * from invitations'),
+        pool.query('select * from care_relationships'),
+        pool.query('select * from access_grants'),
+        pool.query('select * from benefit_entitlements'),
+        pool.query('select * from audit_events order by occurred_at asc')
+      ]);
+      store.users = users.rows.map(mapUser);
+      store.organizations = organizations.rows.map(mapOrganization);
+      store.memberships = memberships.rows.map(mapMembership);
+      store.subjects = subjects.rows.map(mapSubject);
+      store.consents = consents.rows.map(mapConsent);
+      store.invitations = invitations.rows.map(mapInvitation);
+      store.relationships = relationships.rows.map(mapRelationship);
+      store.grants = grants.rows.map(mapGrant);
+      store.benefits = benefits.rows.map(mapBenefit);
+      store.auditEvents = auditEvents.rows.map(mapAuditEvent);
+    },
+
+    async flushAuthorizationState() {
+      if (!store.persistAuthorization) return;
+      const client = await pool.connect();
+      try {
+        await client.query('begin');
+        for (const membership of store.memberships) {
+          await client.query(`
+            insert into memberships (id, user_id, organization_id, role, status, valid_until, scopes)
+            values ($1,$2,$3,$4,$5,$6,$7)
+            on conflict (id) do update set
+              user_id = excluded.user_id,
+              organization_id = excluded.organization_id,
+              role = excluded.role,
+              status = excluded.status,
+              valid_until = excluded.valid_until,
+              scopes = excluded.scopes
+          `, [membership.id, membership.userId, membership.organizationId, membership.role, membership.status, membership.validUntil, Array.isArray(membership.scopes) ? membership.scopes : null]);
+        }
+        for (const consent of store.consents) {
+          await client.query(`
+            insert into consents (id, subject_id, organization_id, granted_by_user_id, recipient_user_id, purpose, scopes, notice_version, status, valid_until, created_at, revoked_at)
+            values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+            on conflict (id) do update set
+              status = excluded.status,
+              scopes = excluded.scopes,
+              valid_until = excluded.valid_until,
+              revoked_at = excluded.revoked_at
+          `, [consent.id, consent.subjectId, consent.organizationId, consent.grantedByUserId, consent.recipientUserId, consent.purpose, consent.scopes, consent.noticeVersion, consent.status, consent.validUntil, consent.createdAt, consent.revokedAt]);
+        }
+        for (const invitation of store.invitations) {
+          await client.query(`
+            insert into invitations (id, organization_id, invitee_user_id, subject_id, consent_id, purpose, scopes, role, status, expires_at)
+            values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+            on conflict (id) do update set
+              subject_id = excluded.subject_id,
+              consent_id = excluded.consent_id,
+              purpose = excluded.purpose,
+              scopes = excluded.scopes,
+              role = excluded.role,
+              status = excluded.status,
+              expires_at = excluded.expires_at
+          `, [invitation.id, invitation.organizationId, invitation.inviteeUserId, invitation.subjectId, invitation.consentId, invitation.purpose, invitation.scopes ?? [], invitation.role, invitation.status, invitation.expiresAt]);
+        }
+        for (const relationship of store.relationships) {
+          await client.query(`
+            insert into care_relationships (id, user_id, subject_id, organization_id, role, status, valid_until)
+            values ($1,$2,$3,$4,$5,$6,$7)
+            on conflict (id) do update set status = excluded.status, valid_until = excluded.valid_until, role = excluded.role
+          `, [relationship.id, relationship.userId, relationship.subjectId, relationship.organizationId, relationship.role, relationship.status, relationship.validUntil]);
+        }
+        for (const grant of store.grants) {
+          await client.query(`
+            insert into access_grants (id, user_id, subject_id, organization_id, consent_id, purpose, scopes, status, valid_until)
+            values ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+            on conflict (id) do update set status = excluded.status, scopes = excluded.scopes, valid_until = excluded.valid_until
+          `, [grant.id, grant.userId, grant.subjectId, grant.organizationId, grant.consentId, grant.purpose, grant.scopes, grant.status, grant.validUntil]);
+        }
+        for (const benefit of store.benefits) {
+          await client.query(`
+            insert into benefit_entitlements (id, organization_id, status, valid_until)
+            values ($1,$2,$3,$4)
+            on conflict (id) do update set status = excluded.status, valid_until = excluded.valid_until
+          `, [benefit.id, benefit.organizationId, benefit.status, benefit.validUntil]);
+        }
+        for (const event of store.auditEvents) {
+          await client.query(`
+            insert into audit_events (id, user_id, organization_id, action, result, code, request_id, occurred_at, api_version)
+            values ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+            on conflict (id) do nothing
+          `, [event.id, event.userId, event.organizationId, event.action, event.result, event.code, event.requestId, event.occurredAt, event.apiVersion]);
+        }
+        await client.query('commit');
+      } catch (error) {
+        await client.query('rollback');
+        throw error;
+      } finally {
+        client.release();
+      }
+    },
 
     async getOrganizationKey(organizationId) {
       let encryptedValue;

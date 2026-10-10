@@ -63,3 +63,8 @@ A assinatura é **efêmera de beta**, válida para teste controlado. Não é a k
 5. HTTPS, rate limiting, logs sem dados sensíveis e política de retenção da telemetria.
 6. Teste em aparelhos físicos Android/tablet e validação de acessibilidade/responsividade.
 7. Somente após os gates acima, abrir PR de integração na `main`.
+
+## Atualização de execução — persistência de autorização — 10/10/2026
+A branch `work/real-beta-persistence-20261010` iniciou a conversão do portal de fixtures para persistência real. A migration `portal-api/migrations/006_membership_scopes.sql` adiciona escopos explícitos por vínculo. Em servidor com `DATABASE_URL` e `NODE_ENV` diferente de `test`, a API hidrata o estado de autorização do PostgreSQL e faz flush transacional após cada requisição. A suíte unitária permanece sintética somente no modo `NODE_ENV=test`.
+
+Ainda bloqueiam o uso com a equipe: execução do teste PostgreSQL no CI/staging, revisão de concorrência e idempotência multi-instância, URL HTTPS estável, secrets reais cadastrados no provedor, identidade real, keystore de release, MobSF e testes físicos. O APK e o portal não devem ser apontados para dados reais até esses gates serem evidenciados.

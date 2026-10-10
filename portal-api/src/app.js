@@ -158,7 +158,7 @@ function requireEncryptedCollectionEnvelope(body, organizationId) {
 }
 
 export function createApp({ store = createStore(), now = () => new Date() } = {}) {
-  async function handle({ method, url, headers = {}, body = null }) {
+  async function handleRequest({ method, url, headers = {}, body = null }) {
     const path = parsePath(url);
     const requestId = headers['x-request-id'] ?? null;
     const clock = now();
@@ -486,6 +486,17 @@ export function createApp({ store = createStore(), now = () => new Date() } = {}
       }
       return response(error.status, { error: error.code });
     }
+  }
+
+  async function handle(request) {
+    await store.hydrateAuthorization();
+    let result;
+    try {
+      result = await handleRequest(request);
+    } finally {
+      await store.flushAuthorizationState();
+    }
+    return result;
   }
 
   return { handle, store };
