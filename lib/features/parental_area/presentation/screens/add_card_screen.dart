@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/services/media_storage_service.dart';
+import '../../../../core/services/parental_session_service.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/widgets/secure_media_image.dart';
 import '../../../aac_grid/data/providers/cards_provider.dart';
@@ -51,7 +52,7 @@ class _AddCardScreenState extends ConsumerState<AddCardScreen> {
   /// O Android pode destruir a Activity enquanto a câmera está aberta.
   /// Nesse caso o image_picker entrega a foto por retrieveLostData quando o
   /// Flutter volta a inicializar. O rascunho no Hive também permite recuperar
-  /// a imagem se o usuário precisar passar novamente pelo PIN parental.
+  /// a imagem sem perder o preenchimento do formulário parental.
   Future<void> _recoverCameraResult() async {
     final box = Hive.box(_settingsBox);
     final draftPath = box.get(_draftImageKey) as String?;
@@ -103,13 +104,18 @@ class _AddCardScreenState extends ConsumerState<AddCardScreen> {
   }
 
   Future<void> _pickImage(ImageSource source) async {
+    final isCamera = source == ImageSource.camera;
+    if (isCamera) ParentalSessionService.beginExternalActivity();
     try {
       await _saveDraft();
       final XFile? picked = await _picker.pickImage(
         source: source,
         imageQuality: 85,
       );
-      if (picked == null) return;
+      if (picked == null) {
+        if (isCamera) ParentalSessionService.completeExternalActivity();
+        return;
+      }
       try {
         final permanentPath = await MediaStorageService.persistFile(
           picked.path,
@@ -128,7 +134,9 @@ class _AddCardScreenState extends ConsumerState<AddCardScreen> {
           ),
         );
       }
+      if (isCamera) ParentalSessionService.completeExternalActivity();
     } catch (_) {
+      if (isCamera) ParentalSessionService.completeExternalActivity();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Não foi possível carregar essa imagem.')),

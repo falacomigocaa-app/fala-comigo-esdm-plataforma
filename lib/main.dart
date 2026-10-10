@@ -176,9 +176,16 @@ class _CaaAppState extends State<CaaApp> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.paused) {
+      if (ParentalSessionService.isExternalActivityInProgress) return;
       _wasInBackground = ParentalSessionService.isAuthenticated;
       ParentalSessionService.lock();
-    } else if (state == AppLifecycleState.resumed && _wasInBackground) {
+    } else if (state == AppLifecycleState.resumed) {
+      if (ParentalSessionService.isExternalActivityInProgress) {
+        ParentalSessionService.completeExternalActivity();
+        _wasInBackground = false;
+        return;
+      }
+      if (!_wasInBackground) return;
       _wasInBackground = false;
       _showParentalGate();
     }

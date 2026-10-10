@@ -20,9 +20,22 @@ class ParentalSessionService {
   static const sessionDuration = Duration(minutes: 10);
   static Timer? _expirationTimer;
   static bool _authenticated = false;
+  static bool _externalActivityInProgress = false;
   static VoidCallback? onExpired;
 
   static bool get isAuthenticated => _authenticated;
+
+  /// Mantém a sessão parental durante uma atividade externa iniciada pelo
+  /// responsável, como a câmera do sistema ou o seletor de mídia.
+  static bool get isExternalActivityInProgress => _externalActivityInProgress;
+
+  static void beginExternalActivity() {
+    _externalActivityInProgress = true;
+  }
+
+  static void completeExternalActivity() {
+    _externalActivityInProgress = false;
+  }
 
   static void authenticate({Duration? duration}) {
     _authenticated = true;
@@ -34,6 +47,7 @@ class ParentalSessionService {
     _expirationTimer?.cancel();
     _expirationTimer = null;
     _authenticated = false;
+    _externalActivityInProgress = false;
   }
 
   static bool requireSession() {

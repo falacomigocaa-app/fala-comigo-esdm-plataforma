@@ -195,3 +195,9 @@ Criada a branch `work/beta-real-autotest-20261010` a partir de `work/complete-au
 A telemetria é allowlistada e sem leitura de formulários: apenas `screen_view`, `beta_expired`, `sync_success` e `sync_failed`, com nomes fixos de tela e motivos fixos. O backend remove campos extras e mantém somente um buffer técnico limitado em memória. Autotestes: portal-web 28 aprovados; portal-api 55 aprovados e 1 PostgreSQL condicionalmente pulado; Flutter 136 aprovados, analyzer e formatter limpos. Build Web release aprovado. APK release de beta apontando para a API temporária pública foi assinado com chave efêmera e verificado pelo `apksigner` v2; SHA-256 `3feae460783705419bd949ba063253603d0b9aec94bf515714fe3d4b8e6f64dd`.
 
 Não abrir PR para a `main` nesta etapa: API persistente de staging, keystore produtiva, MobSF (Docker indisponível), persistência completa da autorização, migração de chaves E2EE legadas e validação física ainda não estão concluídos. Consultar `docs/BETA_REAL_EXECUCAO.md` antes de qualquer uso com dados reais.
+
+
+## Correção do novo cartão pela câmera — 10/10/2026
+A câmera abria a Activity externa do Android, mas o `main.dart` tratava qualquer pausa como saída da Área Parental e chamava o PIN no retorno. `ParentalSessionService` ganhou `beginExternalActivity`/`completeExternalActivity`; `AddCardScreen` marca a câmera durante `pickImage`; o lifecycle preserva a sessão somente nesse intervalo e continua bloqueando ao ir para segundo plano de verdade. A recuperação de dados perdidos e o rascunho Hive foram preservados.
+
+Validação: `flutter analyze` limpo, teste focado da sessão parental 5/5 e suíte Flutter 137/137. APK debug atualizado com API beta configurada: `build/app/outputs/flutter-apk/app-debug.apk`, SHA-256 `423a4211f79fa62c92b71500e65d3483a520746949ff55ae09499e5379434663`.
