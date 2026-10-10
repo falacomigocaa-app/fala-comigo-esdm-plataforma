@@ -264,6 +264,43 @@ void main() {
     await AuthTokenService.clearToken();
   });
 
+  test(
+      'refresh mobile rotaciona tokens uma única vez para chamadas concorrentes',
+      () async {
+    await AuthTokenService.saveSessionTokens(
+      accessToken: 'access-expired',
+      refreshToken: 'refresh-current',
+    );
+    var refreshCalls = 0;
+    AuthTokenService.refreshRequestOverride = (uri, body) async {
+      refreshCalls += 1;
+      expect(uri.path, '/v1/auth/refresh');
+      expect(jsonDecode(body), {'refreshToken': 'refresh-current'});
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      return http.Response(
+        jsonEncode({
+          'accessToken': 'access-rotated',
+          'refreshToken': 'refresh-rotated',
+        }),
+        200,
+      );
+    };
+    try {
+      expect(
+          await Future.wait([
+            AuthTokenService.refreshAccessToken(),
+            AuthTokenService.refreshAccessToken(),
+          ]),
+          [true, true]);
+      expect(refreshCalls, 1);
+      expect(await AuthTokenService.readToken(), 'access-rotated');
+      expect(await AuthTokenService.readRefreshToken(), 'refresh-rotated');
+    } finally {
+      AuthTokenService.refreshRequestOverride = null;
+      await AuthTokenService.clearToken();
+    }
+  });
+
   test('fila escolar persiste envelope E2EE e não o payload clínico em claro',
       () async {
     const itemId = 'school-collection-e2ee-test';
@@ -404,6 +441,12 @@ void main() {
         401,
       );
     };
+    AuthTokenService.refreshRequestOverride = (uri, body) async {
+      return http.Response(
+        '{"error":"REFRESH_TOKEN_EXPIRED"}',
+        401,
+      );
+    };
     try {
       await SyncQueueService.syncPending();
 
@@ -412,20 +455,13 @@ void main() {
       expect(afterAccessExpiry.attempts, 0);
       expect(authenticationRequests, 1);
 
-      // Simula a resposta 401 do endpoint de refresh após os sete dias.
-      final refreshResponse = http.Response(
-        '{"error":"REFRESH_TOKEN_EXPIRED"}',
-        401,
-      );
-      if (refreshResponse.statusCode == 401) {
-        await AuthTokenService.handleRefreshTokenExpired();
-      }
       expect(await AuthTokenService.readToken(), isNull);
       expect(await AuthTokenService.readRefreshToken(), isNull);
-      expect(authenticationRequests, 2);
+      expect(authenticationRequests, 1);
     } finally {
       SyncQueueService.connectivityOverride = null;
       SyncQueueService.postOverride = null;
+      AuthTokenService.refreshRequestOverride = null;
       AuthTokenService.onAuthenticationRequired = null;
       await SyncQueueStore.remove(
         (await SyncQueueStore.pending()).firstWhere(

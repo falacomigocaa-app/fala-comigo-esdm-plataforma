@@ -179,3 +179,11 @@ Corrigidos relógio/validades, autorização e consentimento, isolamento do hist
 Evidência local: `flutter pub get --enforce-lockfile`, `flutter analyze --no-pub`, formatador (139 arquivos), 132 testes Flutter e build Web release aprovados; API 53 testes PostgreSQL sem skips (52 + 1 skip condicional em memória); web 25 testes/check; 13 testes de site reutilizados; YAML, política de assinatura e diff check aprovados. A contaminação das chaves de teste entre execuções foi encontrada e corrigida.
 
 Limites: não houve APK/aparelho/CI remoto nesta etapa. Portal permanece sintético quanto à autorização: fixtures em memória ainda precisam de persistência transacional. Chaves legadas conflitantes são preservadas e precisam de migração; refresh HTTP automático mobile, rate limiting/HTTPS, CBC e Fase 1.1D seguem pendentes. Próximo gate: revisão/CI da branch, persistência de autorização e recuperação de chaves antes de dados reais.
+
+
+## Beta controlado — refresh mobile e APK debug — 10/10/2026
+A branch `work/complete-audit-20261010` foi criada a partir da branch auditada do CodeRabbit. O `AuthTokenService` agora faz refresh HTTP rotativo com deduplicação concorrente, validação de resposta, proteção contra logout/login concorrente e preservação da sessão em falhas de rede. `GoalSyncService` e `SyncQueueService` fazem retry único após 401; a fila mantém os itens quando o refresh falha ou a sessão expira. Foram adicionados testes de rotação concorrente e ajustado o teste de refresh expirado.
+
+Validação: Flutter 3.47.6/Dart 3.13.5, JDK 17, `flutter pub get --enforce-lockfile`, formatador, `flutter analyze` e `flutter test` com 133 testes aprovados. APK debug gerado em `build/app/outputs/flutter-apk/app-debug.apk`, SHA-256 `b2d1282ead24b5d875dae110ef3bf490810c60db6ad06cb025320854c258ccc2`. Aviso não bloqueador do Flutter: migração futura para Built-in Kotlin; plugins atuais ainda aplicam KGP.
+
+Limites do beta: o APK debug não é artefato de publicação; `PORTAL_API_BASE_URL` deve apontar para uma API de staging acessível pelo aparelho, não para o default `127.0.0.1`. Persistência completa da autorização no portal, migração de chaves legadas, rate limiting/HTTPS operacional, MobSF e validação física ainda são gates de produção.
