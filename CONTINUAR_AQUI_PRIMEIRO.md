@@ -168,3 +168,13 @@ A área parental agora oferece preview visual da grade infantil, com miniaturas 
 Também foram adicionadas chaves estáveis às seções expansíveis e Material local para preservar o feedback de toque dos ListTiles. A cobertura `test/parental_settings_preview_test.dart` valida cartão, miniaturas e troca de tema. Validação concluída: `flutter analyze` sem issues, `flutter test` com 128 testes aprovados e `flutter build web --release` concluído. O checklist foi atualizado em `docs/FASE_1_CHECKLIST.md`.
 
 Observação: o teste isolado usa Hive em diretório temporário; o teardown de fechamento foi omitido porque a versão atual do Hive/Flutter bloqueava ao encerrar providers ainda ativos. Isso não afeta a persistência de produção. Próximo marco: validar responsividade, contraste e touch targets em telas pequenas e tablet.
+
+## Auditoria e correções — 10/10/2026
+
+Branch: `coderabbit/audit-and-fix-issues/0959ae64`. Commit de implementação: `68ff6c1b26af1bf25fadf9a869592f7b0aabeb4f`; base auditada `200f9b9ba303d6884a105044baad7124532bfb39`. Relatório/handoff: [Auditoria 10/10/2026](docs/auditoria/2026-10-10/README.md).
+
+Corrigidos relógio/validades, autorização e consentimento, isolamento do histórico escolar, idempotência/concorrência, permissões de chave no login, refresh com membership atual, convites com escopos explícitos, sessão web em logout/login concorrente, descriptografia do resumo escolar, provisionamento E2EE mobile e wipe clínico/tokens/chaves. CI/Codemagic alinhados ao Flutter 3.47.6 validado e ao lockfile.
+
+Evidência local: `flutter pub get --enforce-lockfile`, `flutter analyze --no-pub`, formatador (139 arquivos), 132 testes Flutter e build Web release aprovados; API 53 testes PostgreSQL sem skips (52 + 1 skip condicional em memória); web 25 testes/check; 13 testes de site reutilizados; YAML, política de assinatura e diff check aprovados. A contaminação das chaves de teste entre execuções foi encontrada e corrigida.
+
+Limites: não houve APK/aparelho/CI remoto nesta etapa. Portal permanece sintético quanto à autorização: fixtures em memória ainda precisam de persistência transacional. Chaves legadas conflitantes são preservadas e precisam de migração; refresh HTTP automático mobile, rate limiting/HTTPS, CBC e Fase 1.1D seguem pendentes. Próximo gate: revisão/CI da branch, persistência de autorização e recuperação de chaves antes de dados reais.
