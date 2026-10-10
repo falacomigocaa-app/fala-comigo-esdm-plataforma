@@ -22,10 +22,27 @@ workflows:
         script: |
           flutter analyze --no-fatal-infos --no-fatal-warnings
           flutter test
+      - name: Validate beta build variables
+        script: |
+          set -eu
+          : "${PORTAL_API_BASE_URL:?PORTAL_API_BASE_URL must be configured in Codemagic}"
+          : "${BETA_START_AT:?BETA_START_AT must be configured in Codemagic}"
+          : "${BETA_DURATION_DAYS:?BETA_DURATION_DAYS must be configured in Codemagic}"
+          : "${BETA_BYPASS_EMAILS:?BETA_BYPASS_EMAILS must be configured in Codemagic}"
       - name: Build signed APK
-        script: flutter build apk --release
+        script: |
+          flutter build apk --release \
+            --dart-define="PORTAL_API_BASE_URL=${PORTAL_API_BASE_URL}" \
+            --dart-define="BETA_START_AT=${BETA_START_AT}" \
+            --dart-define="BETA_DURATION_DAYS=${BETA_DURATION_DAYS}" \
+            --dart-define="BETA_BYPASS_EMAILS=${BETA_BYPASS_EMAILS}"
       - name: Build signed AAB
-        script: flutter build appbundle --release
+        script: |
+          flutter build appbundle --release \
+            --dart-define="PORTAL_API_BASE_URL=${PORTAL_API_BASE_URL}" \
+            --dart-define="BETA_START_AT=${BETA_START_AT}" \
+            --dart-define="BETA_DURATION_DAYS=${BETA_DURATION_DAYS}" \
+            --dart-define="BETA_BYPASS_EMAILS=${BETA_BYPASS_EMAILS}"
     artifacts:
       - build/app/outputs/flutter-apk/*.apk
       - build/app/outputs/bundle/release/*.aab
