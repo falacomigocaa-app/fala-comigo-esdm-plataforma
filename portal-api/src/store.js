@@ -261,12 +261,16 @@ function changedRows(currentRows, previousRows = [], idField = 'id') {
 function createPostgresPool() {
   if (!process.env.DATABASE_URL) return null;
 
+  const databaseUrl = new URL(process.env.DATABASE_URL);
+  const sslMode = (databaseUrl.searchParams.get('sslmode') || process.env.PGSSLMODE || '').toLowerCase();
+  databaseUrl.searchParams.delete('sslmode');
+
   const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
+    connectionString: databaseUrl.toString(),
     max: Number(process.env.PGPOOL_MAX ?? 10),
     idleTimeoutMillis: Number(process.env.PGPOOL_IDLE_TIMEOUT_MS ?? 30_000),
     connectionTimeoutMillis: Number(process.env.PGPOOL_CONNECTION_TIMEOUT_MS ?? 5_000),
-    ssl: process.env.PGSSLMODE === 'require' ? { rejectUnauthorized: false } : undefined
+    ssl: sslMode === 'require' ? { rejectUnauthorized: false } : undefined
   });
 
   pool.on('error', (error) => {
