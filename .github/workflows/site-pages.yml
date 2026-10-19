@@ -114,6 +114,12 @@ jobs:
               source = re.sub(r"(['\"])(\./[^'\"]+\.js)\1", rf"\1\2?v={version}\1", source)
               module.write_text(source)
           PY
+          for route in clinica escola relatorios reportar-bug; do
+            mkdir -p "public/portal/$route"
+            sed 's#<head>#<head>\n    <base href="../">#' public/portal/index.html > "public/portal/$route/index.html"
+          done
+          mkdir -p public/portal/admin/profissionais
+          sed 's#<head>#<head>\n    <base href="../../">#' public/portal/index.html > public/portal/admin/profissionais/index.html
           test -s public/app/index.html
           test -s public/portal/index.html
 
