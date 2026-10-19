@@ -2,7 +2,7 @@ workflows:
   android-release:
     name: Android release (APK + AAB)
     max_build_duration: 60
-    instance_type: linux
+    instance_type: mac_mini_m2
     environment:
       flutter: 3.47.6
       groups:
@@ -53,7 +53,7 @@ workflows:
   web-release:
     name: Web release
     max_build_duration: 30
-    instance_type: linux
+    instance_type: mac_mini_m2
     environment:
       flutter: 3.47.6
       groups:
