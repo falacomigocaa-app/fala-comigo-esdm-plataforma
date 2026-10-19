@@ -42,6 +42,14 @@ test('owner reads its own organization', async () => {
   assert.equal(result.body.id, 'org-demo-alpha');
 });
 
+test('suspended organization blocks protected access', async () => {
+  const app = createApp();
+  app.store.organizations.find((item) => item.id === 'org-demo-alpha').status = 'suspended';
+  const result = await request(app, 'GET', '/v1/organizations/org-demo-alpha', 'user-admin-alpha');
+  assert.equal(result.status, 403);
+  assert.equal(result.body.error, 'ORGANIZATION_SUSPENDED');
+});
+
 test('cross-organization read is denied without revealing the other tenant', async () => {
   const app = createApp();
   const result = await request(app, 'GET', '/v1/organizations/org-demo-beta', 'user-admin-alpha');

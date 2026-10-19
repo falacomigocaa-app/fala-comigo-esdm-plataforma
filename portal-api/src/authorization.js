@@ -32,6 +32,8 @@ export function membershipFor(store, userId, organizationId, now) {
     candidate.userId === userId && candidate.organizationId === organizationId
   );
   if (!membership) throw new AuthorizationError('RELATIONSHIP_REQUIRED');
+  const organization = store.organizations.find((candidate) => candidate.id === organizationId);
+  if (!organization || organization.status !== 'active') throw new AuthorizationError('ORGANIZATION_SUSPENDED');
   if (membership.status === 'revoked') throw new AuthorizationError('REVOKED');
   if (membership.status !== 'active' || !isFutureDate(membership.validUntil, now)) {
     throw new AuthorizationError('EXPIRED');
