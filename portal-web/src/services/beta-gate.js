@@ -75,7 +75,8 @@ export async function checkBetaAccess({
       // Offline fallback uses the last trusted expiry and clock rollback guard.
     }
     const result = evaluateBetaAccess({ nowMs, serverStatus, localState });
-    persistLocalState({ nowMs, trustedNowMs: Number.isFinite(serverNowMs) ? serverNowMs : nowMs, expiresAt: result.expiresAt });
+    const trustedNowMs = Date.parse(serverStatus?.server_time || serverStatus?.serverNow || '');
+    persistLocalState({ nowMs, trustedNowMs: Number.isFinite(trustedNowMs) ? trustedNowMs : nowMs, expiresAt: result.expiresAt });
     return result;
   })();
   return accessPromise;
