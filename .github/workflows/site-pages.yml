@@ -1,4 +1,4 @@
-name: Publicar site institucional e app Flutter Web
+name: Publicar site institucional, portal profissional e app Flutter Web
 
 on:
   push:
@@ -11,6 +11,7 @@ on:
       - "web/**"
       - "assets/**"
       - "pubspec.*"
+      - "portal-web/**"
       - ".github/workflows/site-pages.yml"
       - ".github/workflows/static.yml"
   pull_request:
@@ -23,6 +24,7 @@ on:
       - "web/**"
       - "assets/**"
       - "pubspec.*"
+      - "portal-web/**"
       - ".github/workflows/site-pages.yml"
       - ".github/workflows/static.yml"
   workflow_dispatch:
@@ -70,10 +72,19 @@ jobs:
           test -s site/rh/index.html
           test -s site/rh/styles.css
           rm -rf public
-          mkdir -p public/app
+          mkdir -p public/app public/portal
           cp -a site/. public/
           cp -a build/web/. public/app/
+          cp -a portal-web/. public/portal/
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('public/portal/index.html')
+          html = path.read_text()
+          injection = '<script>window.PORTAL_API_BASE="https://fala-comigo-api-beta.onrender.com";</script>'
+          path.write_text(html.replace('</head>', f'{injection}</head>'))
+          PY
           test -s public/app/index.html
+          test -s public/portal/index.html
 
       - name: Configurar Pages
         uses: actions/configure-pages@v5

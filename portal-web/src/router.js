@@ -9,9 +9,21 @@ import { checkBetaAccess } from './services/beta-gate.js';
 import { trackTelemetry } from './services/telemetry.js';
 
 const routes = new Set(['/login', '/clinica', '/escola', '/relatorios', '/admin/profissionais', '/reportar-bug']);
+const appBasePath = (() => {
+  const marker = '/portal';
+  const index = window.location.pathname.indexOf(marker);
+  return index >= 0 ? window.location.pathname.slice(0, index + marker.length) : '';
+})();
+
+function routeUrl(path) {
+  return `${appBasePath}${path}` || '/';
+}
 
 function normalizedPath(pathname = window.location.pathname) {
-  const path = pathname.replace(/\/+/g, '/').replace(/\/$/, '');
+  const relative = pathname.startsWith(appBasePath)
+    ? pathname.slice(appBasePath.length)
+    : pathname;
+  const path = relative.replace(/\/+/g, '/').replace(/\/$/, '');
   return routes.has(path || '/login') ? path || '/login' : '/login';
 }
 
@@ -21,13 +33,13 @@ export function createRouter({ root }) {
 
   function navigate(path) {
     const nextPath = normalizedPath(path);
-    window.history.pushState({}, '', nextPath);
+    window.history.pushState({}, '', routeUrl(nextPath));
     render();
   }
 
   function handleAuthenticationRequired() {
     clearSession();
-    window.history.replaceState({}, '', '/login');
+    window.history.replaceState({}, '', routeUrl('/login'));
     render();
   }
 
@@ -51,11 +63,11 @@ export function createRouter({ root }) {
 
     if (!session && path !== '/login') {
       path = '/login';
-      window.history.replaceState({}, '', path);
+      window.history.replaceState({}, '', routeUrl(path));
     }
     if (session && path === '/login') {
       path = '/clinica';
-      window.history.replaceState({}, '', path);
+      window.history.replaceState({}, '', routeUrl(path));
     }
 
     const context = {
