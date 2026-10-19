@@ -48,6 +48,12 @@ jobs:
       - name: Testar conteúdo e links do site
         run: node --test tests/*.test.mjs
 
+      - name: Validar portal profissional
+        working-directory: portal-web
+        run: |
+          npm run check
+          npm test
+
       - name: Configurar Flutter
         uses: subosito/flutter-action@v2
         with:
@@ -57,9 +63,9 @@ jobs:
       - name: Construir app Web para a subrota do Pages
         run: |
           flutter pub get --enforce-lockfile
-          flutter build web --release --base-href /fala-comigo/app/
+          flutter build web --release --base-href /fala-comigo-esdm-plataforma/app/
           test -s build/web/index.html
-          grep -F '<base href="/fala-comigo/app/">' build/web/index.html
+          grep -F '<base href="/fala-comigo-esdm-plataforma/app/">' build/web/index.html
 
       - name: Preparar payload do Pages
         run: |
