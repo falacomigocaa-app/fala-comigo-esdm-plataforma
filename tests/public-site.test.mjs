@@ -64,7 +64,7 @@ test('public app preview maps to the Flutter build at the Pages /app route', () 
   );
   assert.match(home, /href="app\/"/i);
   assert.ok(
-    workflow.includes('flutter build web --release --base-href /fala-comigo/app/'),
+    workflow.includes('flutter build web --release --base-href /fala-comigo-esdm-plataforma/app/'),
     'Pages workflow must build Flutter Web with the project /app base path',
   );
   assert.ok(
