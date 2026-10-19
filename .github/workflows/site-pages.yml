@@ -99,6 +99,7 @@ jobs:
               window.location.replace(base + '/portal/?route=' + encodeURIComponent(route));
             }());
           </script>
+          HTML
           python3 - <<'PY'
           import os
           import re
