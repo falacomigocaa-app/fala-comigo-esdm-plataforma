@@ -77,11 +77,19 @@ jobs:
           cp -a build/web/. public/app/
           cp -a portal-web/. public/portal/
           python3 - <<'PY'
+          import os
+          import re
           from pathlib import Path
+          version = os.environ['GITHUB_SHA']
           path = Path('public/portal/index.html')
           html = path.read_text()
           injection = '<script>window.PORTAL_API_BASE="https://fala-comigo-api-beta.onrender.com";</script>'
+          html = html.replace('./src/main.js', f'./src/main.js?v={version}')
           path.write_text(html.replace('</head>', f'{injection}</head>'))
+          for module in Path('public/portal/src').rglob('*.js'):
+              source = module.read_text()
+              source = re.sub(r"(['\"])(\./[^'\"]+\.js)\1", rf"\1\2?v={version}\1", source)
+              module.write_text(source)
           PY
           test -s public/app/index.html
           test -s public/portal/index.html
