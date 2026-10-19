@@ -88,6 +88,7 @@ function mapGoal(row) {
   return {
     id: row.id,
     subjectId: row.subject_id,
+    organizationId: row.organization_id,
     codigoTecnicoDenver: row.codigo_tecnico_denver,
     missaoPais: row.missao_pais,
     dicaPratica: row.dica_pratica,
@@ -487,28 +488,30 @@ export function createStore({ pool = createPostgresPool(), persistAuthorization 
       return store.getOrganizationKey(organizationId);
     },
 
-    async saveGoal({ subjectId, codigoTecnicoDenver, status = 'Em Progresso', passoAtualAba = 1, createdByUserId }) {
+    async saveGoal({ subjectId, organizationId, codigoTecnicoDenver, status = 'Em Progresso', passoAtualAba = 1, createdByUserId }) {
+      if (!organizationId) throw new Error('ORGANIZATION_REQUIRED');
       const translation = esdmTranslations[codigoTecnicoDenver];
       if (!Object.hasOwn(esdmTranslations, codigoTecnicoDenver)) throw new Error('INVALID_ESDM_CODE');
       const id = `goal-${randomUUID()}`;
       if (pool) {
         const result = await pool.query(`
-          insert into esdm_goals (id, subject_id, codigo_tecnico_denver, missao_pais, dica_pratica, status, passo_atual_aba, created_by_user_id)
-          values ($1,$2,$3,$4,$5,$6,$7,$8) returning *
-        `, [id, subjectId, codigoTecnicoDenver, translation.missaoPais, translation.dicaPratica, status, passoAtualAba, createdByUserId]);
+          insert into esdm_goals (id, subject_id, organization_id, codigo_tecnico_denver, missao_pais, dica_pratica, status, passo_atual_aba, created_by_user_id)
+          values ($1,$2,$3,$4,$5,$6,$7,$8,$9) returning *
+        `, [id, subjectId, organizationId, codigoTecnicoDenver, translation.missaoPais, translation.dicaPratica, status, passoAtualAba, createdByUserId]);
         return mapGoal(result.rows[0]);
       }
-      const goal = { id, subjectId, codigoTecnicoDenver, ...translation, status, passoAtualAba, createdByUserId, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+      const goal = { id, subjectId, organizationId, codigoTecnicoDenver, ...translation, status, passoAtualAba, createdByUserId, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
       store.goals.push(goal);
       return goal;
     },
 
-    async getGoalsBySubject(subjectId) {
+    async getGoalsBySubject(subjectId, organizationId) {
+      if (!organizationId) throw new Error('ORGANIZATION_REQUIRED');
       if (pool) {
-        const result = await pool.query('select * from esdm_goals where subject_id = $1 and status <> $2 order by created_at desc', [subjectId, 'Archived']);
+        const result = await pool.query('select * from esdm_goals where subject_id = $1 and organization_id = $2 and status <> $3 order by created_at desc', [subjectId, organizationId, 'Archived']);
         return result.rows.map(mapGoal);
       }
-      return store.goals.filter((goal) => goal.subjectId === subjectId && goal.status !== 'Archived');
+      return store.goals.filter((goal) => goal.subjectId === subjectId && goal.organizationId === organizationId && goal.status !== 'Archived');
     },
 
     async saveCollection({ subjectId, organizationId, encryptedData, iv, dataRegistro, createdByUserId }) {

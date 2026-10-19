@@ -356,7 +356,7 @@ export function createApp({
         context.organizationId = grant?.organizationId ?? context.user.organizationId;
 
         if (method === 'GET' && isGoal) {
-          const goals = await store.getGoalsBySubject(subject.id);
+          const goals = await store.getGoalsBySubject(subject.id, context.organizationId);
           sendAudit(store, context, 'esdm_goal.read', 'allowed');
           return response(200, { goals });
         }
@@ -364,6 +364,7 @@ export function createApp({
           const translation = requireGoalCode(body?.codigoTecnicoDenver);
           const result = await idempotentAsync(store, operationKey, body, () => store.saveGoal({
             subjectId: subject.id,
+            organizationId: context.organizationId,
             codigoTecnicoDenver: body.codigoTecnicoDenver,
             status: body.status ?? 'Em Progresso',
             passoAtualAba: Number.isInteger(body.passoAtualAba) ? body.passoAtualAba : 1,
