@@ -23,7 +23,10 @@ function normalizedPath(pathname = window.location.pathname) {
   const relative = pathname.startsWith(appBasePath)
     ? pathname.slice(appBasePath.length)
     : pathname;
-  const path = relative.replace(/\/+/g, '/').replace(/\/$/, '');
+  const queryRoute = new URLSearchParams(window.location.search).get('route');
+  const path = (relative === '/' || relative === '') && queryRoute
+    ? queryRoute
+    : relative.replace(/\/+/g, '/').replace(/\/$/, '');
   return routes.has(path || '/login') ? path || '/login' : '/login';
 }
 

@@ -82,6 +82,23 @@ jobs:
           cp -a site/. public/
           cp -a build/web/. public/app/
           cp -a portal-web/. public/portal/
+          cat > public/404.html <<'HTML'
+          <!doctype html>
+          <meta charset="utf-8">
+          <script>
+            (function () {
+              var path = window.location.pathname;
+              var marker = '/portal/';
+              var index = path.indexOf(marker);
+              if (index < 0) {
+                window.location.replace('/');
+                return;
+              }
+              var base = path.slice(0, index);
+              var route = path.slice(index + marker.length - 1) || '/login';
+              window.location.replace(base + '/portal/?route=' + encodeURIComponent(route));
+            }());
+          </script>
           python3 - <<'PY'
           import os
           import re
