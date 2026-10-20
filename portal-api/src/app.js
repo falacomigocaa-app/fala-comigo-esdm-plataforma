@@ -1,3 +1,4 @@
+import { createHash, randomBytes } from 'node:crypto';
 import { AuthorizationError, audit, isFutureDate, membershipFor, requireScope, stableError } from './authorization.js';
 import { authenticateRequest } from './middlewares/auth.middleware.js';
 import { issueAccessToken } from './services/auth.service.js';
@@ -63,6 +64,33 @@ function sanitizeTelemetry(body = {}) {
 
 function parsePath(url) {
   return new URL(url, 'http://localhost').pathname.split('/').filter(Boolean);
+}
+function normalizeInviteEmail(value) {
+  const email = typeof value === 'string' ? value.trim().toLowerCase() : '';
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/u.test(email) ? email : null;
+}
+function normalizeInvitePhone(value) {
+  const phone = typeof value === 'string' ? value.replace(/[^\d+]/gu, '').trim() : '';
+  return phone.length >= 8 ? phone.slice(0, 24) : null;
+}
+function inviteLink(token) {
+  const origin = (process.env.PORTAL_WEB_ORIGIN || 'https://falacomigocaa-app.github.io/fala-comigo-esdm-plataforma').replace(/\/$/u, '');
+  return `${origin}/convite/${encodeURIComponent(token)}`;
+}
+function publicInvitation(invitation) {
+  return {
+    id: invitation.id,
+    organizationId: invitation.organizationId,
+    inviteeEmail: invitation.inviteeEmail ?? null,
+    inviteePhone: invitation.inviteePhone ?? null,
+    role: invitation.role,
+    scopes: invitation.scopes ?? [],
+    purpose: invitation.purpose ?? null,
+    status: invitation.status,
+    expiresAt: invitation.expiresAt,
+    createdAt: invitation.createdAt ?? null,
+    inviteLink: invitation.inviteLink ?? null
+  };
 }
 
 function sendAudit(store, context, action, result, error = null) {
@@ -189,6 +217,15 @@ export function createApp({
     try {
       if (method === 'GET' && path[0] === 'v1' && path[1] === 'beta' && path[2] === 'status') {
         return response(200, betaWindow(clock));
+      }
+
+      if (method === 'GET' && path[0] === 'v1' && path[1] === 'invitations' && path[2] === 'preview' && path[3]) {
+        const tokenHash = createHash('sha256').update(path[3]).digest('hex');
+        const invitation = store.invitations.find((item) => item.tokenHash === tokenHash);
+        if (!invitation || invitation.status !== 'pending' || !isFutureDate(invitation.expiresAt, clock)) {
+          throw new AuthorizationError('INVITATION_INVALID', 404);
+        }
+        return response(200, publicInvitation(invitation));
       }
 
       if (method === 'POST' && path[0] === 'v1' && path[1] === 'telemetry') {
@@ -417,10 +454,20 @@ export function createApp({
         context.organizationId = path[2];
         requireScope(store, context.user.id, context.organizationId, 'access.invite', clock, context.user);
         const result = await idempotentAsync(store, operationKey, body, () => {
+          const inviteeEmail = normalizeInviteEmail(body?.inviteeEmail);
+          const inviteePhone = normalizeInvitePhone(body?.inviteePhone);
+          const inviteeUserId = body?.inviteeUserId ?? (inviteeEmail ? store.users.find((user) => user.email === inviteeEmail)?.id : null);
+          if (!inviteeUserId && !inviteeEmail && !inviteePhone) throw new AuthorizationError('INVITEE_REQUIRED', 400);
+          const token = randomBytes(32).toString('base64url');
           const invitation = {
             id: `invite-created-${store.invitations.length + 1}`,
             organizationId: context.organizationId,
-            inviteeUserId: body?.inviteeUserId ?? 'user-invitee-alpha',
+            inviteeUserId,
+            inviteeEmail,
+            inviteePhone,
+            tokenHash: createHash('sha256').update(token).digest('hex'),
+            createdByUserId: context.user.id,
+            createdAt: clock.toISOString(),
             subjectId: body?.subjectId ?? null,
             consentId: body?.consentId ?? null,
             purpose: body?.purpose ?? null,
@@ -442,7 +489,8 @@ export function createApp({
           }
           store.invitations.push(invitation);
           sendAudit(store, context, 'invitation.create', 'allowed');
-          return response(201, invitation);
+          const published = publicInvitation({ ...invitation, inviteLink: inviteLink(token) });
+          return response(201, { ...published, invitation: published });
         });
         return result;
       }

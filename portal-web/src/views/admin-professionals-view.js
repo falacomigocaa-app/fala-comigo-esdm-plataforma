@@ -48,7 +48,7 @@ export function renderAdminProfessionalsView({ session }) {
   return `<div class="app-shell admin-page">${renderHeader(session)}<main class="page-content">
     <div class="page-heading"><div><p class="eyebrow">Controle de acesso</p><h1>Profissionais e escopos</h1><p class="muted">Administre os vínculos da organização e defina o mínimo de acesso necessário para cada profissional.</p></div><span class="badge active">Organização: ${escapeHtml(session?.organizationId || '—')}</span></div>
     <section class="panel"><div class="section-heading"><div><p class="eyebrow">Memberships</p><h2>Profissionais vinculados</h2></div><span class="form-status" data-admin-status>Carregando profissionais…</span></div><div class="table-wrap"><table><thead><tr><th>Profissional</th><th>Perfil</th><th>Escopos concedidos</th><th>Status</th><th>Ação</th></tr></thead><tbody data-admin-members><tr><td colspan="5">Carregando…</td></tr></tbody></table></div></section>
-    <section class="panel admin-form-panel"><div class="section-heading"><div><p class="eyebrow">Convite e edição</p><h2 data-admin-form-title>Adicionar profissional</h2></div><span class="form-status">Os escopos serão enviados ao portal-api.</span></div><form class="stack-form" data-admin-form><label for="admin-user-id">ID do profissional</label><input id="admin-user-id" name="inviteeUserId" placeholder="user-professional-..." required><label for="admin-role">Perfil organizacional</label><select id="admin-role" name="role"><option value="professional">Profissional</option><option value="org_admin">Administrador</option><option value="caregiver">Cuidador</option></select><fieldset class="scope-fieldset"><legend>Escopos de acesso</legend><div class="scope-grid">${scopeControls}</div></fieldset><div class="admin-form-actions"><button class="primary-button" data-admin-submit type="submit">Salvar profissional</button><button class="secondary-button" data-admin-cancel type="button" hidden>Cancelar edição</button></div><p class="form-status" data-admin-form-status>Escolha apenas os escopos necessários à função.</p></form></section>
+    <section class="panel admin-form-panel"><div class="section-heading"><div><p class="eyebrow">Convite e edição</p><h2 data-admin-form-title>Adicionar profissional</h2></div><span class="form-status">O convite será registrado no backend.</span></div><form class="stack-form" data-admin-form><label for="admin-invitee-email">E-mail do destinatário</label><input id="admin-invitee-email" name="inviteeEmail" type="email" placeholder="profissional@exemplo.com"><label for="admin-invitee-phone">WhatsApp do destinatário (opcional)</label><input id="admin-invitee-phone" name="inviteePhone" type="tel" placeholder="+55 11 99999-9999"><label for="admin-user-id">ID existente (opcional)</label><input id="admin-user-id" name="inviteeUserId" placeholder="Preencha somente se a conta já existir"><label for="admin-role">Perfil organizacional</label><select id="admin-role" name="role"><option value="professional">Profissional</option><option value="org_admin">Administrador</option><option value="caregiver">Cuidador</option></select><fieldset class="scope-fieldset"><legend>Escopos de acesso</legend><div class="scope-grid">${scopeControls}</div></fieldset><div class="admin-form-actions"><button class="primary-button" data-admin-submit type="submit">Criar convite</button><button class="secondary-button" data-admin-cancel type="button" hidden>Cancelar edição</button></div><p class="form-status" data-admin-form-status>Informe pelo menos um e-mail ou um ID existente.</p><div class="invite-result" data-admin-invite-result hidden></div></form></section>
   </main></div>`;
 }
 
@@ -70,6 +70,7 @@ export async function hydrateAdminProfessionalsView({ session }) {
   const formTitle = document.querySelector('[data-admin-form-title]');
   const submit = document.querySelector('[data-admin-submit]');
   const cancel = document.querySelector('[data-admin-cancel]');
+  const inviteResult = document.querySelector('[data-admin-invite-result]');
   if (!status || !membersBody || !form) return;
 
   let members = [];
@@ -79,6 +80,7 @@ export async function hydrateAdminProfessionalsView({ session }) {
     submit.textContent = 'Salvar profissional';
     cancel.hidden = true;
     formStatus.textContent = 'Escolha apenas os escopos necessários à função.';
+    if (inviteResult) { inviteResult.hidden = true; inviteResult.textContent = ''; }
   };
   const loadMembers = async () => {
     status.textContent = 'Carregando profissionais…';
@@ -117,14 +119,28 @@ export async function hydrateAdminProfessionalsView({ session }) {
     const formData = new FormData(form);
     const scopes = formData.getAll('scopes');
     try {
-      await apiClient.convidarProfissional(session.organizationId, {
+      const result = await apiClient.convidarProfissional(session.organizationId, {
         inviteeUserId: formData.get('inviteeUserId'),
+        inviteeEmail: formData.get('inviteeEmail'),
+        inviteePhone: formData.get('inviteePhone'),
         role: formData.get('role'),
         scopes,
         purpose: 'Acesso profissional ao portal'
       });
+      const invitation = result.invitation || result;
       resetForm();
-      formStatus.textContent = 'Profissional salvo. A lista foi atualizada.';
+      formStatus.textContent = 'Convite criado no backend.';
+      if (inviteResult && invitation.inviteLink) {
+        inviteResult.hidden = false;
+        const whatsapp = invitation.inviteePhone
+          ? `https://wa.me/${invitation.inviteePhone.replace(/\D/gu, '')}?text=${encodeURIComponent(`Você foi convidado para o Fala Comigo. Acesse: ${invitation.inviteLink}`)}`
+          : `https://wa.me/?text=${encodeURIComponent(`Você foi convidado para o Fala Comigo. Acesse: ${invitation.inviteLink}`)}`;
+        inviteResult.innerHTML = `<strong>Convite criado para ${escapeHtml(invitation.inviteeEmail || invitation.inviteePhone || 'destinatário')}</strong><br><a href="${escapeHtml(invitation.inviteLink)}" target="_blank" rel="noreferrer">Abrir convite</a> · <button type="button" data-copy-invite>Copiar link</button> · <a href="${escapeHtml(whatsapp)}" target="_blank" rel="noreferrer">Enviar por WhatsApp</a>`;
+        inviteResult.querySelector('[data-copy-invite]')?.addEventListener('click', async () => {
+          await navigator.clipboard?.writeText(invitation.inviteLink);
+          formStatus.textContent = 'Link do convite copiado.';
+        });
+      }
       await loadMembers();
     } catch (error) {
       formStatus.textContent = `Não foi possível salvar: ${error.message}`;

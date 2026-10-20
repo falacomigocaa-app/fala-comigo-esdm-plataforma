@@ -1,5 +1,5 @@
 import pg from 'pg';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import bcrypt from 'bcryptjs';
 import {
   DEFAULT_REFRESH_TOKEN_EXPIRATION_MS,
@@ -183,6 +183,11 @@ function mapInvitation(row) {
     id: row.id,
     organizationId: row.organization_id,
     inviteeUserId: row.invitee_user_id,
+    inviteeEmail: row.invitee_email,
+    inviteePhone: row.invitee_phone,
+    tokenHash: row.token_hash,
+    createdByUserId: row.created_by_user_id,
+    createdAt: row.created_at,
     subjectId: row.subject_id,
     consentId: row.consent_id,
     purpose: row.purpose,
@@ -371,17 +376,20 @@ export function createStore({ pool = createPostgresPool(), persistAuthorization 
         }
         for (const invitation of dirty.invitations) {
           await client.query(`
-            insert into invitations (id, organization_id, invitee_user_id, subject_id, consent_id, purpose, scopes, role, status, expires_at)
-            values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+            insert into invitations (id, organization_id, invitee_user_id, invitee_email, invitee_phone, token_hash, created_by_user_id, created_at, subject_id, consent_id, purpose, scopes, role, status, expires_at)
+            values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
             on conflict (id) do update set
+              invitee_user_id = excluded.invitee_user_id,
+              invitee_email = excluded.invitee_email,
+              invitee_phone = excluded.invitee_phone,
+              token_hash = excluded.token_hash,
               subject_id = excluded.subject_id,
               consent_id = excluded.consent_id,
               purpose = excluded.purpose,
               scopes = excluded.scopes,
-              role = excluded.role,
               status = excluded.status,
               expires_at = excluded.expires_at
-          `, [invitation.id, invitation.organizationId, invitation.inviteeUserId, invitation.subjectId, invitation.consentId, invitation.purpose, invitation.scopes ?? [], invitation.role, invitation.status, invitation.expiresAt]);
+          `, [invitation.id, invitation.organizationId, invitation.inviteeUserId, invitation.inviteeEmail, invitation.inviteePhone, invitation.tokenHash, invitation.createdByUserId, invitation.createdAt, invitation.subjectId, invitation.consentId, invitation.purpose, invitation.scopes ?? [], invitation.role, invitation.status, invitation.expiresAt]);
         }
         for (const relationship of dirty.relationships) {
           await client.query(`

@@ -157,6 +157,26 @@ test('invitations reject owner escalation, invalid dates and scope widening', as
   assert.deepEqual(claims.scopes, ['esdm_goal.read']);
 });
 
+test('convite remoto aceita e-mail, gera link sem expor token no armazenamento e permite preview', async () => {
+  const app = freshApp();
+  const result = await request(app, 'POST', '/v1/organizations/org-demo-alpha/invitations', 'user-admin-alpha', {
+    inviteeEmail: 'Novo.Profissional@exemplo.com',
+    inviteePhone: '+55 (11) 99999-0000',
+    role: 'professional',
+    scopes: ['esdm_goal.read']
+  });
+  assert.equal(result.status, 201);
+  assert.equal(result.body.invitation.inviteeEmail, 'novo.profissional@exemplo.com');
+  assert.match(result.body.invitation.inviteLink, /\/convite\//u);
+  const stored = app.store.invitations.at(-1);
+  assert.equal(stored.inviteeEmail, 'novo.profissional@exemplo.com');
+  assert.equal(stored.inviteLink, undefined);
+  const token = result.body.invitation.inviteLink.split('/').at(-1);
+  const preview = await app.handle({ method: 'GET', url: `/v1/invitations/preview/${token}` });
+  assert.equal(preview.status, 200);
+  assert.equal(preview.body.inviteeEmail, 'novo.profissional@exemplo.com');
+});
+
 test('accepted invitation updates existing membership with explicit empty scopes', async () => {
   const app = freshApp();
   const created = await request(app, 'POST', '/v1/organizations/org-demo-alpha/invitations', 'user-admin-alpha', { inviteeUserId: 'user-professional-alpha', scopes: [] });

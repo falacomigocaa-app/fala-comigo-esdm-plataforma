@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/theme/hyperfocus_theme.dart';
@@ -518,6 +519,27 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   onTap: () => Navigator.of(context).pushNamed(
                     '/painel-consentimento',
                   ),
+                ),
+                _OptionAListAction(
+                  icon: Icons.open_in_browser_outlined,
+                  title: 'Acessar Portal online',
+                  subtitle: 'Entrar no Portal profissional pelo navegador',
+                  onTap: () async {
+                    final uri = Uri.parse(
+                      'https://falacomigocaa-app.github.io/fala-comigo-esdm-plataforma/portal/',
+                    );
+                    final opened = await launchUrl(
+                      uri,
+                      mode: LaunchMode.externalApplication,
+                    );
+                    if (!opened && context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Não foi possível abrir o Portal.'),
+                        ),
+                      );
+                    }
+                  },
                 ),
                 _OptionAListAction(
                   icon: Icons.track_changes_outlined,
