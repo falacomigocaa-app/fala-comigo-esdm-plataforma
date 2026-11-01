@@ -45,6 +45,32 @@ test('login central rejeita senha inválida sem revelar qual credencial falhou',
   assert.deepEqual(result, { status: 401, body: { error: 'INVALID_CREDENTIALS' } });
 });
 
+test('convite remoto cria conta, aceita vínculo e devolve sessão persistente', async () => {
+  const app = createApp({ now: () => new Date('2026-10-05T12:00:00.000Z') });
+  const ownerLogin = await app.handle({
+    method: 'POST',
+    url: '/v1/auth/login',
+    body: { email: 'admin@fala-comigo.test', password: 'DemoPassword-2026' }
+  });
+  const invitationResponse = await app.handle({
+    method: 'POST',
+    url: '/v1/organizations/org-demo-alpha/invitations',
+    headers: { authorization: `Bearer ${ownerLogin.body.accessToken}`, 'x-request-id': 'invite-register-e2e' },
+    body: { inviteeEmail: 'new-professional@example.test', role: 'professional', scopes: ['esdm_goal.read'] }
+  });
+  assert.equal(invitationResponse.status, 201);
+  const token = new URL(invitationResponse.body.inviteLink).pathname.split('/').pop();
+  const registration = await app.handle({
+    method: 'POST',
+    url: '/v1/auth/register-invitation',
+    body: { invitationToken: token, email: 'new-professional@example.test', password: 'SecurePass-2026' }
+  });
+  assert.equal(registration.status, 201);
+  assert.equal(registration.body.organizationId, 'org-demo-alpha');
+  assert.equal(typeof registration.body.accessToken, 'string');
+  assert.equal(app.store.invitations.find((item) => item.inviteeEmail === 'new-professional@example.test').status, 'accepted');
+});
+
 test('login central injeta a chave AES-256-GCM da organização autorizada', async () => {
   const previousMasterKey = process.env.MASTER_CRYPTO_KEY;
   process.env.MASTER_CRYPTO_KEY = Buffer.alloc(32, 23).toString('base64');

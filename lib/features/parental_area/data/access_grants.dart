@@ -22,6 +22,9 @@ class AccessGrant {
   final DateTime startsAt;
   final DateTime expiresAt;
   final String purpose;
+  final String? inviteeEmail;
+  final String? inviteePhone;
+  final String? inviteLink;
 
   const AccessGrant({
     required this.id,
@@ -34,9 +37,12 @@ class AccessGrant {
     required this.startsAt,
     required this.expiresAt,
     required this.purpose,
+    this.inviteeEmail,
+    this.inviteePhone,
+    this.inviteLink,
   });
 
-  AccessGrant copyWith({AccessGrantStatus? status, DateTime? expiresAt}) =>
+  AccessGrant copyWith({AccessGrantStatus? status, DateTime? expiresAt, String? inviteLink}) =>
       AccessGrant(
         id: id,
         organizationName: organizationName,
@@ -48,6 +54,9 @@ class AccessGrant {
         startsAt: startsAt,
         expiresAt: expiresAt ?? this.expiresAt,
         purpose: purpose,
+        inviteeEmail: inviteeEmail,
+        inviteePhone: inviteePhone,
+        inviteLink: inviteLink ?? this.inviteLink,
       );
 
   Map<String, dynamic> toMap() => {
@@ -61,6 +70,9 @@ class AccessGrant {
         'startsAt': startsAt.toIso8601String(),
         'expiresAt': expiresAt.toIso8601String(),
         'purpose': purpose,
+        'inviteeEmail': inviteeEmail,
+        'inviteePhone': inviteePhone,
+        'inviteLink': inviteLink,
       };
 
   factory AccessGrant.fromMap(Map<dynamic, dynamic> map) => AccessGrant(
@@ -82,6 +94,9 @@ class AccessGrant {
         expiresAt: DateTime.tryParse('${map['expiresAt']}') ??
             DateTime.now().add(const Duration(days: 90)),
         purpose: '${map['purpose'] ?? ''}',
+        inviteeEmail: map['inviteeEmail']?.toString(),
+        inviteePhone: map['inviteePhone']?.toString(),
+        inviteLink: map['inviteLink']?.toString(),
       );
 
   String get organizationKindLabel => switch (organizationKind) {

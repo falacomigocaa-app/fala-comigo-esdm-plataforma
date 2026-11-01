@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/services/invitation_service.dart';
 import '../../data/access_grants.dart';
 import '../widgets/parental_ui.dart';
 
@@ -33,19 +36,50 @@ class _AccessManagementScreenState extends State<AccessManagementScreen> {
   }
 
   Future<void> _addGrant() async {
-    final result = await showModalBottomSheet<AccessGrant>(
+    var result = await showModalBottomSheet<AccessGrant>(
       context: context,
       isScrollControlled: true,
       builder: (_) => _AddAccessSheet(id: _uuid.v4()),
     );
     if (result == null) return;
-    await AccessGrantStore.save(result);
+    try {
+      final invitation = await InvitationService.create(
+        email: result.inviteeEmail ?? '',
+        phone: result.inviteePhone,
+        role: 'professional',
+        scopes: _backendScopes(result.scopes),
+      );
+      result = result.copyWith(inviteLink: invitation['inviteLink']?.toString());
+      await AccessGrantStore.save(result);
+    } on InvitationException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_invitationError(error.code))),
+      );
+      return;
+    }
     if (!mounted) return;
     setState(() => _grants = [..._grants, result]);
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Convite registrado e aguardando aceite.')),
     );
   }
+
+  static List<String> _backendScopes(List<String> scopes) => scopes.map((scope) {
+        switch (scope) {
+          case 'Tarefas e retornos': return 'esdm_goal.read';
+          case 'Perfil de comunicação': return 'access.read';
+          case 'Rotina compartilhada': return 'routine.read';
+          case 'Documentos publicados': return 'school_collection.read';
+          default: return 'access.read';
+        }
+      }).toSet().toList();
+
+  static String _invitationError(String code) => switch (code) {
+        'AUTH_REQUIRED' || 'SESSION_EXPIRED' => 'Entre na conta online do responsável antes de convidar.',
+        'INVITEE_REQUIRED' => 'Informe um e-mail ou WhatsApp para o convite.',
+        _ => 'Não foi possível criar o convite. Verifique a conexão e tente novamente.',
+      };
 
   Future<void> _revoke(AccessGrant grant) async {
     final confirmed = await showDialog<bool>(
@@ -252,6 +286,38 @@ class _AccessGrantCard extends StatelessWidget {
             'Finalidade: ${grant.purpose}',
             style: const TextStyle(color: AppTheme.mutedText, height: 1.3),
           ),
+          if (grant.inviteLink != null) ...[
+            const SizedBox(height: 12),
+            SelectableText(
+              grant.inviteLink!,
+              style: const TextStyle(color: AppTheme.primary, fontSize: 12),
+            ),
+            const SizedBox(height: 4),
+            Wrap(
+              spacing: 8,
+              children: [
+                TextButton.icon(
+                  onPressed: () => Share.share(
+                    'Você foi convidado para o Fala Comigo. Acesse: ${grant.inviteLink}',
+                  ),
+                  icon: const Icon(Icons.share_outlined, size: 17),
+                  label: const Text('Compartilhar'),
+                ),
+                TextButton.icon(
+                  onPressed: grant.inviteePhone == null
+                      ? null
+                      : () => launchUrl(
+                            Uri.parse(
+                              "https://wa.me/${grant.inviteePhone!.replaceAll(RegExp(r'[^\d+]'), '')}?text=${Uri.encodeComponent('Você foi convidado para o Fala Comigo. Acesse: ${grant.inviteLink}')}",
+                            ),
+                            mode: LaunchMode.externalApplication,
+                          ),
+                  icon: const Icon(Icons.chat_outlined, size: 17),
+                  label: const Text('WhatsApp'),
+                ),
+              ],
+            ),
+          ],
           const SizedBox(height: 10),
           Wrap(
             spacing: 6,
@@ -319,6 +385,8 @@ class _AddAccessSheet extends StatefulWidget {
 class _AddAccessSheetState extends State<_AddAccessSheet> {
   final _organizationController = TextEditingController();
   final _personController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _phoneController = TextEditingController();
   OrganizationKind _kind = OrganizationKind.clinic;
   final Set<String> _scopes = {'Tarefas e retornos'};
 
@@ -333,17 +401,19 @@ class _AddAccessSheetState extends State<_AddAccessSheet> {
   void dispose() {
     _organizationController.dispose();
     _personController.dispose();
+    _emailController.dispose();
+    _phoneController.dispose();
     super.dispose();
   }
 
   void _submit() {
     if (_organizationController.text.trim().isEmpty ||
-        _personController.text.trim().isEmpty ||
+        (_emailController.text.trim().isEmpty && _phoneController.text.trim().isEmpty) ||
         _scopes.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            'Preencha a organização, a pessoa e ao menos um acesso.',
+            'Preencha a organização, e-mail ou WhatsApp e ao menos um acesso.',
           ),
         ),
       );
@@ -362,6 +432,8 @@ class _AddAccessSheetState extends State<_AddAccessSheet> {
         startsAt: now,
         expiresAt: now.add(const Duration(days: 90)),
         purpose: 'Coordenação autorizada com a família',
+        inviteeEmail: _emailController.text.trim().isEmpty ? null : _emailController.text.trim(),
+        inviteePhone: _phoneController.text.trim().isEmpty ? null : _phoneController.text.trim(),
       ),
     );
   }
@@ -384,7 +456,7 @@ class _AddAccessSheetState extends State<_AddAccessSheet> {
                 eyebrow: 'NOVO VÍNCULO',
                 title: 'Convidar organização',
                 description:
-                    'Este registro é local nesta primeira etapa. A sincronização e o aceite remoto virão no portal.',
+                    'O convite será salvo no servidor e terá um link seguro para envio por e-mail ou WhatsApp.',
               ),
               const SizedBox(height: 18),
               TextField(
@@ -417,6 +489,24 @@ class _AddAccessSheetState extends State<_AddAccessSheet> {
                 decoration: parentalInputDecoration(
                   labelText: 'Pessoa de contato',
                   icon: Icons.person_outline,
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _emailController,
+                keyboardType: TextInputType.emailAddress,
+                decoration: parentalInputDecoration(
+                  labelText: 'E-mail do profissional, clínica ou escola',
+                  icon: Icons.email_outlined,
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _phoneController,
+                keyboardType: TextInputType.phone,
+                decoration: parentalInputDecoration(
+                  labelText: 'WhatsApp (opcional)',
+                  icon: Icons.chat_outlined,
                 ),
               ),
               const SizedBox(height: 16),

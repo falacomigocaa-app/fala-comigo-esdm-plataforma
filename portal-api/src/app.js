@@ -228,6 +228,30 @@ export function createApp({
         return response(200, publicInvitation(invitation));
       }
 
+      if (method === 'POST' && path[0] === 'v1' && path[1] === 'auth' && path[2] === 'register-invitation') {
+        const token = typeof body?.invitationToken === 'string' ? body.invitationToken.trim() : '';
+        if (!token) throw new AuthorizationError('INVITATION_REQUIRED', 400);
+        const claims = await store.registerInvitation({
+          tokenHash: createHash('sha256').update(token).digest('hex'),
+          email: body?.email,
+          password: body?.password
+        }, clock);
+        const beta = assertBetaAccess(claims.email, clock);
+        const accessToken = issueAccessToken(claims);
+        const refreshToken = await store.createRefreshToken(claims, clock);
+        return response(201, {
+          userId: claims.userId,
+          organizationId: claims.organizationId,
+          scopes: claims.scopes,
+          accessToken,
+          refreshToken,
+          expiresIn: 15 * 60,
+          refreshExpiresIn: 7 * 24 * 60 * 60,
+          betaBypass: beta.betaBypass,
+          server_time: clock.toISOString()
+        });
+      }
+
       if (method === 'POST' && path[0] === 'v1' && path[1] === 'telemetry') {
         const sanitized = sanitizeTelemetry(body);
         if (!sanitized) return response(400, { error: 'INVALID_TELEMETRY_EVENT' });

@@ -152,6 +152,25 @@ export class APIClient {
     return payload;
   }
 
+  async previewInvitation(token) {
+    return this.request(`/v1/invitations/preview/${encodeURIComponent(token)}`, { method: 'GET' }, false);
+  }
+
+  async registerInvitation({ invitationToken, email, password }) {
+    const response = await fetch(`${this.baseUrl}/v1/auth/register-invitation`, {
+      method: 'POST',
+      headers: { accept: 'application/json', 'content-type': 'application/json' },
+      body: JSON.stringify({ invitationToken, email, password })
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const error = new Error(payload.error || 'REGISTRATION_FAILED');
+      error.status = response.status;
+      throw error;
+    }
+    return payload;
+  }
+
   carregarPacientes(organizationId) {
     return this.request(`/v1/organizations/${encodeURIComponent(organizationId)}/subjects`);
   }

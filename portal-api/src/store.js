@@ -601,6 +601,58 @@ export function createStore({ pool = createPostgresPool(), persistAuthorization 
       };
     },
 
+    async registerInvitation({ tokenHash, email, password }, now = new Date()) {
+      const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
+      if (!normalizedEmail || !normalizedEmail.includes('@') || typeof password !== 'string' || password.length < 8) {
+        throw new AuthorizationError('INVALID_REGISTRATION', 400);
+      }
+      if (pool) {
+        const client = await pool.connect();
+        try {
+          await client.query('begin');
+          const invitationResult = await client.query(`
+            select id, organization_id, invitee_email, invitee_user_id, role, scopes, status, expires_at
+              from invitations
+             where token_hash = $1
+             for update
+          `, [tokenHash]);
+          const invitation = invitationResult.rows[0];
+          if (!invitation || invitation.status !== 'pending' || !isFutureDate(invitation.expires_at, now)) {
+            throw new AuthorizationError('INVITATION_INVALID', 404);
+          }
+          if (invitation.invitee_email && invitation.invitee_email.toLowerCase() !== normalizedEmail) {
+            throw new AuthorizationError('INVITATION_EMAIL_MISMATCH', 403);
+          }
+          const existing = await client.query('select id from users where lower(email) = $1 for update', [normalizedEmail]);
+          if (existing.rows[0]) throw new AuthorizationError('ACCOUNT_EXISTS_USE_LOGIN', 409);
+          const userId = `user-${randomUUID()}`;
+          const passwordHash = await bcrypt.hash(password, 12);
+          await client.query(`insert into users (id, external_subject, status, email, password_hash) values ($1,$2,'active',$3,$4)`, [userId, `local:${userId}`, normalizedEmail, passwordHash]);
+          await client.query(`insert into memberships (id, user_id, organization_id, role, status, valid_until, scopes) values ($1,$2,$3,$4,'active',$5,$6)`, [`membership-${randomUUID()}`, userId, invitation.organization_id, invitation.role, invitation.expires_at, invitation.scopes ?? []]);
+          await client.query(`update invitations set invitee_user_id = $2, status = 'accepted' where id = $1`, [invitation.id, userId]);
+          await client.query('commit');
+          return { userId, email: normalizedEmail, organizationId: invitation.organization_id, scopes: scopesForMembership({ role: invitation.role, scopes: invitation.scopes ?? [] }) };
+        } catch (error) {
+          await client.query('rollback').catch(() => {});
+          throw error;
+        } finally {
+          client.release();
+        }
+      }
+      const invitation = store.invitations.find((item) => item.tokenHash === tokenHash);
+      if (!invitation || invitation.status !== 'pending' || !isFutureDate(invitation.expiresAt, now)) throw new AuthorizationError('INVITATION_INVALID', 404);
+      if (invitation.inviteeEmail && invitation.inviteeEmail !== normalizedEmail) throw new AuthorizationError('INVITATION_EMAIL_MISMATCH', 403);
+      if (store.users.some((user) => user.email === normalizedEmail)) throw new AuthorizationError('ACCOUNT_EXISTS_USE_LOGIN', 409);
+      const userId = `user-${randomUUID()}`;
+      const user = { id: userId, email: normalizedEmail, passwordHash: await bcrypt.hash(password, 12), externalSubject: `local:${userId}`, status: 'active' };
+      store.users.push(user);
+      const membership = { id: `membership-${randomUUID()}`, userId, organizationId: invitation.organizationId, role: invitation.role, status: 'active', validUntil: invitation.expiresAt, scopes: invitation.scopes ?? [] };
+      store.memberships.push(membership);
+      invitation.inviteeUserId = userId;
+      invitation.status = 'accepted';
+      return { userId, email: normalizedEmail, organizationId: invitation.organizationId, scopes: scopesForMembership(membership) };
+    },
+
     async validateRefreshClaims(claims, now = new Date()) {
       let membership;
       if (pool) {

@@ -5,10 +5,11 @@ import { hydrateReportsView, renderReportsView } from './views/reports-view.js';
 import { hydrateLoginView, renderLoginView } from './views/login-view.js';
 import { hydrateAdminProfessionalsView, renderAdminProfessionalsView } from './views/admin-professionals-view.js';
 import { hydrateBugReportView, renderBugReportView } from './views/bug-report-view.js';
+import { hydrateInvitationView, renderInvitationView } from './views/invitation-view.js';
 import { checkBetaAccess } from './services/beta-gate.js';
 import { trackTelemetry } from './services/telemetry.js';
 
-const routes = new Set(['/login', '/clinica', '/escola', '/relatorios', '/admin/profissionais', '/reportar-bug']);
+const routes = new Set(['/login', '/clinica', '/escola', '/relatorios', '/admin/profissionais', '/reportar-bug', '/convite']);
 const appBasePath = (() => {
   const marker = '/portal';
   const index = window.location.pathname.indexOf(marker);
@@ -62,9 +63,11 @@ export function createRouter({ root }) {
     }
     const session = getSession();
     let path = normalizedPath();
+    const isInvitation = window.location.pathname.includes('/convite/');
+    if (isInvitation) path = '/convite';
     trackTelemetry('screen_view', { screen: path });
 
-    if (!session && path !== '/login') {
+    if (!session && path !== '/login' && path !== '/convite') {
       path = '/login';
       window.history.replaceState({}, '', routeUrl(path));
     }
@@ -117,6 +120,12 @@ export function createRouter({ root }) {
     if (path === '/reportar-bug') {
       root.innerHTML = renderBugReportView(context);
       hydrateBugReportView(context);
+      return;
+    }
+
+    if (path === '/convite') {
+      root.innerHTML = renderInvitationView();
+      hydrateInvitationView().catch(() => {});
       return;
     }
 
