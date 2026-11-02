@@ -231,7 +231,7 @@ class _CaaAppState extends State<CaaApp> with WidgetsBindingObserver {
           if (!betaStatus.allowed) {
             return BetaExpiredScreen(reason: betaStatus.reason);
           }
-          return const SplashScreen();
+          return const SplashScreen(destination: SessionLandingScreen());
         },
       ),
     );

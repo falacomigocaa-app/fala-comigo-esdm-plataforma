@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/services/auth_token_service.dart';
 import '../../../aac_grid/presentation/screens/aac_grid_screen.dart';
+import '../../../auth/presentation/screens/login_screen.dart';
 
 /// Tela de abertura do app, exibida por um curto período antes da
 /// grade principal.
@@ -16,6 +18,44 @@ class SplashScreen extends StatefulWidget {
 
   @override
   State<SplashScreen> createState() => _SplashScreenState();
+}
+
+/// Decide o destino após a abertura sem armazenar a senha do usuário.
+/// Se houver sessão persistida, mantém o usuário no app; caso contrário,
+/// solicita o primeiro login online.
+class SessionLandingScreen extends StatefulWidget {
+  const SessionLandingScreen({super.key});
+
+  @override
+  State<SessionLandingScreen> createState() => _SessionLandingScreenState();
+}
+
+class _SessionLandingScreenState extends State<SessionLandingScreen> {
+  @override
+  void initState() {
+    super.initState();
+    _restoreSession();
+  }
+
+  Future<void> _restoreSession() async {
+    final accessToken = await AuthTokenService.readToken();
+    var authenticated = accessToken?.trim().isNotEmpty == true;
+    if (!authenticated && await AuthTokenService.readRefreshToken() != null) {
+      authenticated = await AuthTokenService.refreshAccessToken();
+    }
+    if (!mounted) return;
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(
+        builder: (_) => authenticated ? const AACGridScreen() : const LoginScreen(),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) => const Scaffold(
+        backgroundColor: AppTheme.background,
+        body: Center(child: CircularProgressIndicator()),
+      );
 }
 
 class _SplashScreenState extends State<SplashScreen>
