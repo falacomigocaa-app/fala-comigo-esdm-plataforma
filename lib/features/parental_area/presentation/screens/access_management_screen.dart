@@ -36,7 +36,7 @@ class _AccessManagementScreenState extends State<AccessManagementScreen> {
   }
 
   Future<void> _addGrant() async {
-    var result = await showModalBottomSheet<AccessGrant>(
+    final result = await showModalBottomSheet<AccessGrant>(
       context: context,
       isScrollControlled: true,
       builder: (_) => _AddAccessSheet(id: _uuid.v4()),
@@ -49,8 +49,12 @@ class _AccessManagementScreenState extends State<AccessManagementScreen> {
         role: 'professional',
         scopes: _backendScopes(result.scopes),
       );
-      result = result.copyWith(inviteLink: invitation['inviteLink']?.toString());
-      await AccessGrantStore.save(result);
+      final persistedGrant = result.copyWith(
+        inviteLink: invitation['inviteLink']?.toString(),
+      );
+      await AccessGrantStore.save(persistedGrant);
+      if (!mounted) return;
+      setState(() => _grants = [..._grants, persistedGrant]);
     } on InvitationException catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -58,8 +62,6 @@ class _AccessManagementScreenState extends State<AccessManagementScreen> {
       );
       return;
     }
-    if (!mounted) return;
-    setState(() => _grants = [..._grants, result]);
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Convite registrado e aguardando aceite.')),
     );
